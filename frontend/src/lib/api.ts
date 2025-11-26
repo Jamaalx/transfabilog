@@ -88,3 +88,18 @@ export const aiApi = {
   getPredictions: () => api.get('/ai/predictions'),
   getRecommendations: () => api.get('/ai/recommendations'),
 }
+
+export const uploadedDocumentsApi = {
+  getTypes: () => api.get('/uploaded-documents/types'),
+  getStats: () => api.get('/uploaded-documents/stats'),
+  getAll: (params?: Record<string, unknown>) => api.get('/uploaded-documents', { params }),
+  getOne: (id: string) => api.get(`/uploaded-documents/${id}`),
+  upload: (formData: FormData) => api.post('/uploaded-documents/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  process: (id: string) => api.post(`/uploaded-documents/${id}/process`),
+  processBatch: (documentIds: string[]) => api.post('/uploaded-documents/process-batch', { document_ids: documentIds }),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/uploaded-documents/${id}`, data),
+  delete: (id: string) => api.delete(`/uploaded-documents/${id}`),
+  createTransaction: (id: string) => api.post(`/uploaded-documents/${id}/create-transaction`),
+}

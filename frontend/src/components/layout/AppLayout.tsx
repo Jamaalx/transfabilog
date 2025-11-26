@@ -13,6 +13,7 @@ import {
   ChevronDown,
   FileText,
   Brain,
+  Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Vehicule', href: '/vehicles', icon: Truck },
   { name: 'Soferi', href: '/drivers', icon: Users },
   { name: 'Curse', href: '/trips', icon: MapPin },
+  { name: 'Documente', href: '/documents', icon: Upload },
   { name: 'Rapoarte', href: '/reports', icon: FileText },
   { name: 'AI Analytics', href: '/ai', icon: Brain },
 ]

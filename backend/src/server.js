@@ -20,6 +20,7 @@ const transactionRoutes = require('./routes/transactions');
 const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
 const aiRoutes = require('./routes/ai');
+const uploadedDocumentsRoutes = require('./routes/uploadedDocuments');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -89,6 +90,7 @@ app.use('/api/v1/transactions', transactionRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/uploaded-documents', uploadedDocumentsRoutes);
 
 // Error handling
 app.use(notFoundHandler);
