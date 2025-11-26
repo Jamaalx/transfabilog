@@ -1,4 +1,7 @@
-const { supabase, isConfigured } = require('../config/supabase');
+const { supabase, supabaseAdmin, isConfigured } = require('../config/supabase');
+
+// Test company ID for development fallback (from TEST_CREDENTIALS.md)
+const TEST_COMPANY_ID = '11111111-1111-1111-1111-111111111111';
 
 /**
  * Authentication middleware
@@ -43,6 +46,29 @@ const authenticate = async (req, res, next) => {
     req.token = token;
     req.companyId = user.user_metadata?.company_id;
     req.userRole = user.user_metadata?.role || 'operator';
+
+    // If company_id not in metadata, try to get from user_profiles table
+    if (!req.companyId && supabaseAdmin) {
+      try {
+        const { data: profile } = await supabaseAdmin
+          .from('user_profiles')
+          .select('company_id')
+          .eq('id', user.id)
+          .single();
+
+        if (profile?.company_id) {
+          req.companyId = profile.company_id;
+        }
+      } catch (profileErr) {
+        console.warn('Could not fetch user profile:', profileErr.message);
+      }
+    }
+
+    // In development, fall back to test company ID if still missing
+    if (!req.companyId && process.env.NODE_ENV === 'development') {
+      console.warn(`User ${user.email} missing company_id, using test company ID for development`);
+      req.companyId = TEST_COMPANY_ID;
+    }
 
     // Validate company_id exists
     if (!req.companyId) {
