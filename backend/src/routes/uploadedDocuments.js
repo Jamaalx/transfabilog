@@ -464,7 +464,7 @@ router.get('/stats', async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-);
+});
 
 /**
  * GET /api/v1/uploaded-documents/:id
