@@ -1,12 +1,13 @@
--- Transport SaaS - Create Test Users with Company Link
--- Run this in Supabase SQL Editor AFTER schema.sql and seed.sql
--- This creates auth users and links them to the test company
+-- Transport SaaS - Create Test Users
+-- Run this AFTER schema.sql in Supabase SQL Editor
+-- Version: 1.0
+--
+-- This script creates test users with pre-defined UUIDs so all seed data
+-- references work correctly.
 
 -- ============================================================
--- CREATE TEST USERS (using Supabase auth.users)
+-- CREATE TEST COMPANY
 -- ============================================================
-
--- First, ensure the test company exists
 INSERT INTO companies (id, name, cui, j_number, address, city, county, phone, email, subscription_plan, subscription_status)
 VALUES (
   '11111111-1111-1111-1111-111111111111',
@@ -22,7 +23,13 @@ VALUES (
   'active'
 ) ON CONFLICT (id) DO NOTHING;
 
--- Create Admin User
+-- ============================================================
+-- CREATE TEST USERS IN AUTH.USERS
+-- ============================================================
+-- Note: This uses Supabase's internal auth functions
+-- Password for all users: Demo123!
+
+-- Admin User
 INSERT INTO auth.users (
   id,
   instance_id,
@@ -36,32 +43,24 @@ INSERT INTO auth.users (
   role,
   aud,
   confirmation_token
-)
-VALUES (
+) VALUES (
   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   '00000000-0000-0000-0000-000000000000',
   'admin@demo.ro',
   crypt('Demo123!', gen_salt('bf')),
   NOW(),
   '{"provider": "email", "providers": ["email"]}',
-  jsonb_build_object(
-    'full_name', 'Admin Demo',
-    'company_id', '11111111-1111-1111-1111-111111111111',
-    'role', 'admin'
-  ),
+  '{"full_name": "Admin Demo", "company_id": "11111111-1111-1111-1111-111111111111", "role": "admin"}',
   NOW(),
   NOW(),
   'authenticated',
   'authenticated',
   ''
 ) ON CONFLICT (id) DO UPDATE SET
-  raw_user_meta_data = jsonb_build_object(
-    'full_name', 'Admin Demo',
-    'company_id', '11111111-1111-1111-1111-111111111111',
-    'role', 'admin'
-  );
+  encrypted_password = crypt('Demo123!', gen_salt('bf')),
+  raw_user_meta_data = '{"full_name": "Admin Demo", "company_id": "11111111-1111-1111-1111-111111111111", "role": "admin"}';
 
--- Create Manager User
+-- Manager User
 INSERT INTO auth.users (
   id,
   instance_id,
@@ -75,32 +74,24 @@ INSERT INTO auth.users (
   role,
   aud,
   confirmation_token
-)
-VALUES (
+) VALUES (
   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
   '00000000-0000-0000-0000-000000000000',
   'manager@demo.ro',
   crypt('Demo123!', gen_salt('bf')),
   NOW(),
   '{"provider": "email", "providers": ["email"]}',
-  jsonb_build_object(
-    'full_name', 'Manager Demo',
-    'company_id', '11111111-1111-1111-1111-111111111111',
-    'role', 'manager'
-  ),
+  '{"full_name": "Manager Demo", "company_id": "11111111-1111-1111-1111-111111111111", "role": "manager"}',
   NOW(),
   NOW(),
   'authenticated',
   'authenticated',
   ''
 ) ON CONFLICT (id) DO UPDATE SET
-  raw_user_meta_data = jsonb_build_object(
-    'full_name', 'Manager Demo',
-    'company_id', '11111111-1111-1111-1111-111111111111',
-    'role', 'manager'
-  );
+  encrypted_password = crypt('Demo123!', gen_salt('bf')),
+  raw_user_meta_data = '{"full_name": "Manager Demo", "company_id": "11111111-1111-1111-1111-111111111111", "role": "manager"}';
 
--- Create Operator User
+-- Operator User
 INSERT INTO auth.users (
   id,
   instance_id,
@@ -114,32 +105,24 @@ INSERT INTO auth.users (
   role,
   aud,
   confirmation_token
-)
-VALUES (
+) VALUES (
   'cccccccc-cccc-cccc-cccc-cccccccccccc',
   '00000000-0000-0000-0000-000000000000',
   'operator@demo.ro',
   crypt('Demo123!', gen_salt('bf')),
   NOW(),
   '{"provider": "email", "providers": ["email"]}',
-  jsonb_build_object(
-    'full_name', 'Operator Demo',
-    'company_id', '11111111-1111-1111-1111-111111111111',
-    'role', 'operator'
-  ),
+  '{"full_name": "Operator Demo", "company_id": "11111111-1111-1111-1111-111111111111", "role": "operator"}',
   NOW(),
   NOW(),
   'authenticated',
   'authenticated',
   ''
 ) ON CONFLICT (id) DO UPDATE SET
-  raw_user_meta_data = jsonb_build_object(
-    'full_name', 'Operator Demo',
-    'company_id', '11111111-1111-1111-1111-111111111111',
-    'role', 'operator'
-  );
+  encrypted_password = crypt('Demo123!', gen_salt('bf')),
+  raw_user_meta_data = '{"full_name": "Operator Demo", "company_id": "11111111-1111-1111-1111-111111111111", "role": "operator"}';
 
--- Create Viewer User
+-- Viewer User
 INSERT INTO auth.users (
   id,
   instance_id,
@@ -153,92 +136,45 @@ INSERT INTO auth.users (
   role,
   aud,
   confirmation_token
-)
-VALUES (
+) VALUES (
   'dddddddd-dddd-dddd-dddd-dddddddddddd',
   '00000000-0000-0000-0000-000000000000',
   'viewer@demo.ro',
   crypt('Demo123!', gen_salt('bf')),
   NOW(),
   '{"provider": "email", "providers": ["email"]}',
-  jsonb_build_object(
-    'full_name', 'Viewer Demo',
-    'company_id', '11111111-1111-1111-1111-111111111111',
-    'role', 'viewer'
-  ),
+  '{"full_name": "Viewer Demo", "company_id": "11111111-1111-1111-1111-111111111111", "role": "viewer"}',
   NOW(),
   NOW(),
   'authenticated',
   'authenticated',
   ''
 ) ON CONFLICT (id) DO UPDATE SET
-  raw_user_meta_data = jsonb_build_object(
-    'full_name', 'Viewer Demo',
-    'company_id', '11111111-1111-1111-1111-111111111111',
-    'role', 'viewer'
-  );
+  encrypted_password = crypt('Demo123!', gen_salt('bf')),
+  raw_user_meta_data = '{"full_name": "Viewer Demo", "company_id": "11111111-1111-1111-1111-111111111111", "role": "viewer"}';
 
 -- ============================================================
 -- CREATE USER IDENTITIES (required for Supabase Auth)
 -- ============================================================
-
 INSERT INTO auth.identities (
   id,
   user_id,
+  provider_id,
   identity_data,
   provider,
-  provider_id,
   last_sign_in_at,
   created_at,
   updated_at
-)
-VALUES
-  (
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    jsonb_build_object('sub', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'email', 'admin@demo.ro'),
-    'email',
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-    NOW(),
-    NOW(),
-    NOW()
-  ),
-  (
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    jsonb_build_object('sub', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'email', 'manager@demo.ro'),
-    'email',
-    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-    NOW(),
-    NOW(),
-    NOW()
-  ),
-  (
-    'cccccccc-cccc-cccc-cccc-cccccccccccc',
-    'cccccccc-cccc-cccc-cccc-cccccccccccc',
-    jsonb_build_object('sub', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'email', 'operator@demo.ro'),
-    'email',
-    'cccccccc-cccc-cccc-cccc-cccccccccccc',
-    NOW(),
-    NOW(),
-    NOW()
-  ),
-  (
-    'dddddddd-dddd-dddd-dddd-dddddddddddd',
-    'dddddddd-dddd-dddd-dddd-dddddddddddd',
-    jsonb_build_object('sub', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'email', 'viewer@demo.ro'),
-    'email',
-    'dddddddd-dddd-dddd-dddd-dddddddddddd',
-    NOW(),
-    NOW(),
-    NOW()
-  )
+) VALUES
+  ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'admin@demo.ro', '{"sub": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "email": "admin@demo.ro"}', 'email', NOW(), NOW(), NOW()),
+  ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'manager@demo.ro', '{"sub": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "email": "manager@demo.ro"}', 'email', NOW(), NOW(), NOW()),
+  ('cccccccc-cccc-cccc-cccc-cccccccccccc', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'operator@demo.ro', '{"sub": "cccccccc-cccc-cccc-cccc-cccccccccccc", "email": "operator@demo.ro"}', 'email', NOW(), NOW(), NOW()),
+  ('dddddddd-dddd-dddd-dddd-dddddddddddd', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'viewer@demo.ro', '{"sub": "dddddddd-dddd-dddd-dddd-dddddddddddd", "email": "viewer@demo.ro"}', 'email', NOW(), NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
--- CREATE USER PROFILES (links to company)
+-- CREATE USER PROFILES (links auth users to company)
 -- ============================================================
-
 INSERT INTO user_profiles (id, company_id, full_name, role, phone)
 VALUES
   ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'Admin Demo', 'admin', '+40722111111'),
@@ -251,13 +187,15 @@ ON CONFLICT (id) DO UPDATE SET
   role = EXCLUDED.role;
 
 -- ============================================================
--- VERIFY SETUP
+-- VERIFICATION
 -- ============================================================
--- SELECT
---   u.email,
---   u.raw_user_meta_data->>'role' as role,
---   u.raw_user_meta_data->>'company_id' as company_id,
---   c.name as company_name
--- FROM auth.users u
--- LEFT JOIN companies c ON c.id = (u.raw_user_meta_data->>'company_id')::uuid
--- WHERE u.email LIKE '%@demo.ro';
+-- Check users were created:
+SELECT
+  u.email,
+  u.raw_user_meta_data->>'role' as role,
+  u.raw_user_meta_data->>'company_id' as company_id,
+  p.full_name
+FROM auth.users u
+LEFT JOIN user_profiles p ON p.id = u.id
+WHERE u.email LIKE '%@demo.ro'
+ORDER BY u.email;
