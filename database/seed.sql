@@ -1,78 +1,20 @@
 -- Transport SaaS - Test Data Seed
--- Run this after schema.sql in Supabase SQL Editor
--- Version: 1.0
+-- Run this AFTER schema.sql and create_test_users.sql in Supabase SQL Editor
+-- Version: 1.1
+--
+-- IMPORTANT: Run scripts in this order:
+-- 1. schema.sql (creates tables)
+-- 2. create_test_users.sql (creates users and company)
+-- 3. seed.sql (this file - populates test data)
 
 -- ============================================================
--- TEST COMPANY
+-- REFERENCE UUIDs (defined in create_test_users.sql)
 -- ============================================================
-INSERT INTO companies (id, name, cui, j_number, address, city, county, phone, email, subscription_plan, subscription_status)
-VALUES (
-  '11111111-1111-1111-1111-111111111111',
-  'Transport Demo SRL',
-  'RO12345678',
-  'J40/1234/2020',
-  'Strada Exemplu nr. 123',
-  'Bucuresti',
-  'Bucuresti',
-  '+40721234567',
-  'contact@transport-demo.ro',
-  'premium',
-  'active'
-);
-
--- ============================================================
--- TEST USERS (Create these in Supabase Auth Dashboard first!)
---
--- Go to Supabase Dashboard > Authentication > Users > Add User
--- Create these users with the passwords shown below:
---
--- 1. Admin User:
---    Email: admin@demo.ro
---    Password: Demo123!
---
--- 2. Manager User:
---    Email: manager@demo.ro
---    Password: Demo123!
---
--- 3. Operator User:
---    Email: operator@demo.ro
---    Password: Demo123!
---
--- After creating users, copy their UUIDs and update the INSERT below
--- ============================================================
-
--- NOTE: Replace these UUIDs with actual user IDs from Supabase Auth
--- These are placeholder UUIDs - you MUST update them after creating users
-
--- Admin user profile (update UUID after creating in Supabase Auth)
--- INSERT INTO user_profiles (id, company_id, full_name, role, phone)
--- VALUES (
---   'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', -- Replace with actual auth.users UUID
---   '11111111-1111-1111-1111-111111111111',
---   'Admin Demo',
---   'admin',
---   '+40722111111'
--- );
-
--- Manager user profile
--- INSERT INTO user_profiles (id, company_id, full_name, role, phone)
--- VALUES (
---   'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', -- Replace with actual auth.users UUID
---   '11111111-1111-1111-1111-111111111111',
---   'Manager Demo',
---   'manager',
---   '+40722222222'
--- );
-
--- Operator user profile
--- INSERT INTO user_profiles (id, company_id, full_name, role, phone)
--- VALUES (
---   'cccccccc-cccc-cccc-cccc-cccccccccccc', -- Replace with actual auth.users UUID
---   '11111111-1111-1111-1111-111111111111',
---   'Operator Demo',
---   'operator',
---   '+40722333333'
--- );
+-- Company:  11111111-1111-1111-1111-111111111111
+-- Admin:    aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+-- Manager:  bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+-- Operator: cccccccc-cccc-cccc-cccc-cccccccccccc
+-- Viewer:   dddddddd-dddd-dddd-dddd-dddddddddddd
 
 -- ============================================================
 -- TEST TRUCKS
@@ -110,23 +52,23 @@ VALUES
 -- ============================================================
 -- TEST TRIPS
 -- ============================================================
-INSERT INTO trips (id, company_id, driver_id, truck_id, trailer_id, origin_country, origin_city, destination_country, destination_city, departure_date, estimated_arrival, cargo_type, cargo_weight, client_name, price, currency, status)
+INSERT INTO trips (id, company_id, driver_id, truck_id, trailer_id, origin_country, origin_city, destination_country, destination_city, departure_date, estimated_arrival, cargo_type, cargo_weight, client_name, price, currency, status, created_by)
 VALUES
-  -- Active trip
-  ('55555555-5555-5555-5555-555555555501', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444401', '22222222-2222-2222-2222-222222222201', '33333333-3333-3333-3333-333333333301', 'Romania', 'Bucuresti', 'Germania', 'Stuttgart', NOW() - INTERVAL '2 days', NOW() + INTERVAL '1 day', 'General', 18.5, 'Auto Parts GmbH', 2800.00, 'EUR', 'in_progress'),
+  -- Active trip (created by operator)
+  ('55555555-5555-5555-5555-555555555501', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444401', '22222222-2222-2222-2222-222222222201', '33333333-3333-3333-3333-333333333301', 'Romania', 'Bucuresti', 'Germania', 'Stuttgart', NOW() - INTERVAL '2 days', NOW() + INTERVAL '1 day', 'General', 18.5, 'Auto Parts GmbH', 2800.00, 'EUR', 'in_progress', 'cccccccc-cccc-cccc-cccc-cccccccccccc'),
 
-  -- Active trip
-  ('55555555-5555-5555-5555-555555555502', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444402', '22222222-2222-2222-2222-222222222202', '33333333-3333-3333-3333-333333333302', 'Romania', 'Timisoara', 'Franta', 'Lyon', NOW() - INTERVAL '1 day', NOW() + INTERVAL '2 days', 'Textile', 12.0, 'Fashion Express SA', 3200.00, 'EUR', 'in_progress'),
+  -- Active trip (created by manager)
+  ('55555555-5555-5555-5555-555555555502', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444402', '22222222-2222-2222-2222-222222222202', '33333333-3333-3333-3333-333333333302', 'Romania', 'Timisoara', 'Franta', 'Lyon', NOW() - INTERVAL '1 day', NOW() + INTERVAL '2 days', 'Textile', 12.0, 'Fashion Express SA', 3200.00, 'EUR', 'in_progress', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
 
-  -- Planned trip
-  ('55555555-5555-5555-5555-555555555503', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444403', '22222222-2222-2222-2222-222222222203', '33333333-3333-3333-3333-333333333303', 'Romania', 'Cluj-Napoca', 'Italia', 'Milano', NOW() + INTERVAL '2 days', NOW() + INTERVAL '4 days', 'Frigorifc', 20.0, 'Fresh Food Italia', 2500.00, 'EUR', 'planificat'),
+  -- Planned trip (created by admin)
+  ('55555555-5555-5555-5555-555555555503', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444403', '22222222-2222-2222-2222-222222222203', '33333333-3333-3333-3333-333333333303', 'Romania', 'Cluj-Napoca', 'Italia', 'Milano', NOW() + INTERVAL '2 days', NOW() + INTERVAL '4 days', 'Frigorifc', 20.0, 'Fresh Food Italia', 2500.00, 'EUR', 'planificat', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),
 
   -- Completed trips
-  ('55555555-5555-5555-5555-555555555504', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444401', '22222222-2222-2222-2222-222222222201', '33333333-3333-3333-3333-333333333301', 'Romania', 'Constanta', 'Olanda', 'Rotterdam', NOW() - INTERVAL '10 days', NOW() - INTERVAL '7 days', 'General', 22.0, 'Dutch Logistics BV', 3100.00, 'EUR', 'finalizat'),
+  ('55555555-5555-5555-5555-555555555504', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444401', '22222222-2222-2222-2222-222222222201', '33333333-3333-3333-3333-333333333301', 'Romania', 'Constanta', 'Olanda', 'Rotterdam', NOW() - INTERVAL '10 days', NOW() - INTERVAL '7 days', 'General', 22.0, 'Dutch Logistics BV', 3100.00, 'EUR', 'finalizat', 'cccccccc-cccc-cccc-cccc-cccccccccccc'),
 
-  ('55555555-5555-5555-5555-555555555505', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444402', '22222222-2222-2222-2222-222222222202', '33333333-3333-3333-3333-333333333302', 'Romania', 'Bucuresti', 'Spania', 'Barcelona', NOW() - INTERVAL '15 days', NOW() - INTERVAL '12 days', 'Mobila', 16.5, 'Furniture Spain SL', 3500.00, 'EUR', 'finalizat'),
+  ('55555555-5555-5555-5555-555555555505', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444402', '22222222-2222-2222-2222-222222222202', '33333333-3333-3333-3333-333333333302', 'Romania', 'Bucuresti', 'Spania', 'Barcelona', NOW() - INTERVAL '15 days', NOW() - INTERVAL '12 days', 'Mobila', 16.5, 'Furniture Spain SL', 3500.00, 'EUR', 'finalizat', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'),
 
-  ('55555555-5555-5555-5555-555555555506', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444404', '22222222-2222-2222-2222-222222222205', '33333333-3333-3333-3333-333333333304', 'Romania', 'Brasov', 'Austria', 'Viena', NOW() - INTERVAL '5 days', NOW() - INTERVAL '4 days', 'Electronice', 8.0, 'Tech Austria AG', 1800.00, 'EUR', 'finalizat');
+  ('55555555-5555-5555-5555-555555555506', '11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444404', '22222222-2222-2222-2222-222222222205', '33333333-3333-3333-3333-333333333304', 'Romania', 'Brasov', 'Austria', 'Viena', NOW() - INTERVAL '5 days', NOW() - INTERVAL '4 days', 'Electronice', 8.0, 'Tech Austria AG', 1800.00, 'EUR', 'finalizat', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
 
 -- ============================================================
 -- TEST TRIP EXPENSES
