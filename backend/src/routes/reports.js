@@ -577,4 +577,218 @@ router.get('/documents', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/v1/reports/profitability
+ * Get comprehensive profitability report per trip, truck, and driver
+ */
+router.get(
+  '/profitability',
+  [
+    query('date_from').optional().isISO8601(),
+    query('date_to').optional().isISO8601(),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const dateFrom = req.query.date_from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      const dateTo = req.query.date_to || new Date().toISOString();
+
+      // Get all trips in period with driver and truck info
+      const { data: trips, error: tripsError } = await supabase
+        .from('trips')
+        .select(`
+          *,
+          driver:drivers(id, first_name, last_name),
+          truck:truck_heads(id, registration_number, brand, model)
+        `)
+        .eq('company_id', req.companyId)
+        .gte('departure_date', dateFrom)
+        .lte('departure_date', dateTo)
+        .order('departure_date', { ascending: false });
+
+      if (tripsError) throw tripsError;
+
+      // Get all expense transactions in period
+      const { data: expenses, error: expensesError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('company_id', req.companyId)
+        .eq('type', 'expense')
+        .gte('date', dateFrom)
+        .lte('date', dateTo);
+
+      if (expensesError) throw expensesError;
+
+      // ===== PROFITABILITY PER TRIP =====
+      const tripProfitability = trips.map(trip => {
+        const tripExpenses = expenses.filter(e => e.trip_id === trip.id);
+        const totalExpenses = tripExpenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+        const revenue = parseFloat(trip.price || 0);
+        const profit = revenue - totalExpenses;
+        const km = (trip.km_end && trip.km_start) ? (trip.km_end - trip.km_start) : 0;
+
+        return {
+          id: trip.id,
+          route: `${trip.origin_city || trip.origin_country || '-'} → ${trip.destination_city || trip.destination_country || '-'}`,
+          driver: trip.driver ? `${trip.driver.first_name} ${trip.driver.last_name}` : 'Neasignat',
+          driverId: trip.driver?.id,
+          truck: trip.truck?.registration_number || 'Neasignat',
+          truckId: trip.truck?.id,
+          date: trip.departure_date,
+          status: trip.status,
+          km,
+          revenue,
+          expenses: totalExpenses,
+          profit,
+          profitMargin: revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : 0,
+          revenuePerKm: km > 0 ? (revenue / km).toFixed(2) : 0,
+          profitPerKm: km > 0 ? (profit / km).toFixed(2) : 0,
+          expenseBreakdown: tripExpenses.reduce((acc, e) => {
+            const cat = e.category || 'altele';
+            acc[cat] = (acc[cat] || 0) + parseFloat(e.amount || 0);
+            return acc;
+          }, {}),
+        };
+      });
+
+      // ===== PROFITABILITY PER TRUCK =====
+      const truckMap = {};
+      trips.forEach(trip => {
+        const truckId = trip.truck?.id || 'unassigned';
+        if (!truckMap[truckId]) {
+          truckMap[truckId] = {
+            id: truckId,
+            registration: trip.truck?.registration_number || 'Neasignat',
+            brand: trip.truck?.brand || '-',
+            model: trip.truck?.model || '-',
+            trips: [],
+            tripCount: 0,
+            completedTrips: 0,
+            totalKm: 0,
+            revenue: 0,
+            expenses: 0,
+          };
+        }
+        truckMap[truckId].trips.push(trip.id);
+        truckMap[truckId].tripCount += 1;
+        if (trip.status === 'finalizat') {
+          truckMap[truckId].completedTrips += 1;
+          truckMap[truckId].revenue += parseFloat(trip.price || 0);
+          if (trip.km_end && trip.km_start) {
+            truckMap[truckId].totalKm += (trip.km_end - trip.km_start);
+          }
+        }
+      });
+
+      // Add expenses to trucks (both trip-related and direct truck expenses)
+      expenses.forEach(expense => {
+        // If expense is linked to a trip, find the truck
+        if (expense.trip_id) {
+          const trip = trips.find(t => t.id === expense.trip_id);
+          if (trip?.truck?.id && truckMap[trip.truck.id]) {
+            truckMap[trip.truck.id].expenses += parseFloat(expense.amount || 0);
+          }
+        }
+        // If expense is directly linked to a truck
+        else if (expense.truck_id && truckMap[expense.truck_id]) {
+          truckMap[expense.truck_id].expenses += parseFloat(expense.amount || 0);
+        }
+      });
+
+      const truckProfitability = Object.values(truckMap).map((truck) => ({
+        ...truck,
+        profit: truck.revenue - truck.expenses,
+        profitMargin: truck.revenue > 0 ? (((truck.revenue - truck.expenses) / truck.revenue) * 100).toFixed(1) : 0,
+        revenuePerKm: truck.totalKm > 0 ? (truck.revenue / truck.totalKm).toFixed(2) : 0,
+        profitPerKm: truck.totalKm > 0 ? ((truck.revenue - truck.expenses) / truck.totalKm).toFixed(2) : 0,
+        avgRevenuePerTrip: truck.completedTrips > 0 ? (truck.revenue / truck.completedTrips).toFixed(2) : 0,
+      }));
+
+      // ===== PROFITABILITY PER DRIVER =====
+      const driverMap = {};
+      trips.forEach(trip => {
+        const driverId = trip.driver?.id || 'unassigned';
+        if (!driverMap[driverId]) {
+          driverMap[driverId] = {
+            id: driverId,
+            name: trip.driver ? `${trip.driver.first_name} ${trip.driver.last_name}` : 'Neasignat',
+            trips: [],
+            tripCount: 0,
+            completedTrips: 0,
+            totalKm: 0,
+            revenue: 0,
+            expenses: 0,
+          };
+        }
+        driverMap[driverId].trips.push(trip.id);
+        driverMap[driverId].tripCount += 1;
+        if (trip.status === 'finalizat') {
+          driverMap[driverId].completedTrips += 1;
+          driverMap[driverId].revenue += parseFloat(trip.price || 0);
+          if (trip.km_end && trip.km_start) {
+            driverMap[driverId].totalKm += (trip.km_end - trip.km_start);
+          }
+        }
+      });
+
+      // Add expenses to drivers (both trip-related and direct driver expenses)
+      expenses.forEach(expense => {
+        // If expense is linked to a trip, find the driver
+        if (expense.trip_id) {
+          const trip = trips.find(t => t.id === expense.trip_id);
+          if (trip?.driver?.id && driverMap[trip.driver.id]) {
+            driverMap[trip.driver.id].expenses += parseFloat(expense.amount || 0);
+          }
+        }
+        // If expense is directly linked to a driver
+        else if (expense.driver_id && driverMap[expense.driver_id]) {
+          driverMap[expense.driver_id].expenses += parseFloat(expense.amount || 0);
+        }
+      });
+
+      const driverProfitability = Object.values(driverMap).map((driver) => ({
+        ...driver,
+        profit: driver.revenue - driver.expenses,
+        profitMargin: driver.revenue > 0 ? (((driver.revenue - driver.expenses) / driver.revenue) * 100).toFixed(1) : 0,
+        revenuePerKm: driver.totalKm > 0 ? (driver.revenue / driver.totalKm).toFixed(2) : 0,
+        profitPerKm: driver.totalKm > 0 ? ((driver.revenue - driver.expenses) / driver.totalKm).toFixed(2) : 0,
+        avgRevenuePerTrip: driver.completedTrips > 0 ? (driver.revenue / driver.completedTrips).toFixed(2) : 0,
+      }));
+
+      // ===== TOTALS =====
+      const totalRevenue = trips.filter(t => t.status === 'finalizat').reduce((sum, t) => sum + parseFloat(t.price || 0), 0);
+      const totalExpenses = expenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+      const totalKm = trips.filter(t => t.status === 'finalizat').reduce((sum, t) => {
+        if (t.km_end && t.km_start) return sum + (t.km_end - t.km_start);
+        return sum;
+      }, 0);
+
+      res.json({
+        period: { from: dateFrom, to: dateTo },
+        summary: {
+          totalTrips: trips.length,
+          completedTrips: trips.filter(t => t.status === 'finalizat').length,
+          totalRevenue,
+          totalExpenses,
+          totalProfit: totalRevenue - totalExpenses,
+          profitMargin: totalRevenue > 0 ? (((totalRevenue - totalExpenses) / totalRevenue) * 100).toFixed(1) : 0,
+          totalKm,
+          revenuePerKm: totalKm > 0 ? (totalRevenue / totalKm).toFixed(2) : 0,
+          profitPerKm: totalKm > 0 ? ((totalRevenue - totalExpenses) / totalKm).toFixed(2) : 0,
+        },
+        tripProfitability,
+        truckProfitability: truckProfitability.sort((a, b) => b.profit - a.profit),
+        driverProfitability: driverProfitability.sort((a, b) => b.profit - a.profit),
+        currency: 'EUR',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 module.exports = router;

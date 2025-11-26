@@ -77,4 +77,5 @@ export const reportsApi = {
   getFleet: (params?: Record<string, unknown>) => api.get('/reports/fleet', { params }),
   getExpenses: (params?: Record<string, unknown>) => api.get('/reports/expenses', { params }),
   getDocuments: () => api.get('/reports/documents'),
+  getProfitability: (params?: Record<string, unknown>) => api.get('/reports/profitability', { params }),
 }

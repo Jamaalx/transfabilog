@@ -21,13 +21,16 @@ import {
   AlertTriangle,
   Fuel,
   CreditCard,
+  DollarSign,
+  ArrowUpDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type ReportTab = 'financial' | 'trips' | 'fleet' | 'expenses' | 'documents'
+type ReportTab = 'financial' | 'profitability' | 'trips' | 'fleet' | 'expenses' | 'documents'
 
 const tabs = [
   { id: 'financial' as const, label: 'Financiar', icon: TrendingUp },
+  { id: 'profitability' as const, label: 'Profitabilitate', icon: DollarSign },
   { id: 'trips' as const, label: 'Curse', icon: MapPin },
   { id: 'fleet' as const, label: 'Flota', icon: Truck },
   { id: 'expenses' as const, label: 'Cheltuieli', icon: CreditCard },
@@ -101,6 +104,12 @@ export default function ReportsPage() {
     queryKey: ['reports', 'documents'],
     queryFn: () => reportsApi.getDocuments().then(res => res.data),
     enabled: activeTab === 'documents',
+  })
+
+  const { data: profitabilityReport, isLoading: profitabilityLoading } = useQuery({
+    queryKey: ['reports', 'profitability', dateFrom, dateTo],
+    queryFn: () => reportsApi.getProfitability({ date_from: dateFrom, date_to: dateTo }).then(res => res.data),
+    enabled: activeTab === 'profitability',
   })
 
   const exportToCSV = (data: Record<string, unknown>[], filename: string) => {
@@ -408,6 +417,331 @@ export default function ReportsPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Profitability Report */}
+      {activeTab === 'profitability' && (
+        <div className="space-y-6">
+          {/* Summary cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Venituri Totale</CardTitle>
+                <TrendingUp className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {profitabilityLoading ? '-' : formatCurrency(profitabilityReport?.summary?.totalRevenue || 0)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Cheltuieli Totale</CardTitle>
+                <TrendingDown className="h-4 w-4 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {profitabilityLoading ? '-' : formatCurrency(profitabilityReport?.summary?.totalExpenses || 0)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Profit Total</CardTitle>
+                <DollarSign className="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div className={cn(
+                  'text-2xl font-bold',
+                  (profitabilityReport?.summary?.totalProfit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                )}>
+                  {profitabilityLoading ? '-' : formatCurrency(profitabilityReport?.summary?.totalProfit || 0)}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Marja Profit</CardTitle>
+                <PieChart className="h-4 w-4 text-purple-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {profitabilityLoading ? '-' : `${profitabilityReport?.summary?.profitMargin || 0}%`}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Profit/KM</CardTitle>
+                <BarChart3 className="h-4 w-4 text-indigo-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {profitabilityLoading ? '-' : `${profitabilityReport?.summary?.profitPerKm || 0} EUR`}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Profitability per Trip */}
+          <Card>
+            <CardHeader className="flex justify-between items-center">
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Profitabilitate per Cursa
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const data = (profitabilityReport?.tripProfitability || []).map((t: { route: string; driver: string; truck: string; date: string; km: number; revenue: number; expenses: number; profit: number; profitMargin: string }) => ({
+                    Ruta: t.route,
+                    Sofer: t.driver,
+                    Camion: t.truck,
+                    Data: t.date,
+                    KM: t.km,
+                    Venit: t.revenue,
+                    Cheltuieli: t.expenses,
+                    Profit: t.profit,
+                    'Marja %': t.profitMargin,
+                  }))
+                  exportToCSV(data, 'profitabilitate_curse')
+                }}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Export
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2">Ruta</th>
+                      <th className="text-left py-2">Sofer</th>
+                      <th className="text-left py-2">Camion</th>
+                      <th className="text-center py-2">Status</th>
+                      <th className="text-right py-2">KM</th>
+                      <th className="text-right py-2">Venit</th>
+                      <th className="text-right py-2">Cheltuieli</th>
+                      <th className="text-right py-2">Profit</th>
+                      <th className="text-right py-2">Marja</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(profitabilityReport?.tripProfitability || []).slice(0, 20).map((trip: { id: string; route: string; driver: string; truck: string; date: string; status: string; km: number; revenue: number; expenses: number; profit: number; profitMargin: string }) => (
+                      <tr key={trip.id} className="border-b last:border-0 hover:bg-gray-50">
+                        <td className="py-2 font-medium max-w-xs">
+                          <div className="truncate" title={trip.route}>{trip.route}</div>
+                          <div className="text-xs text-muted-foreground">{formatDate(trip.date)}</div>
+                        </td>
+                        <td className="py-2">{trip.driver}</td>
+                        <td className="py-2">{trip.truck}</td>
+                        <td className="py-2 text-center">
+                          <span className={cn(
+                            'px-2 py-1 rounded-full text-xs',
+                            trip.status === 'finalizat' ? 'bg-green-100 text-green-700' :
+                            trip.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                            trip.status === 'planificat' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-700'
+                          )}>
+                            {trip.status}
+                          </span>
+                        </td>
+                        <td className="py-2 text-right">{formatNumber(trip.km)}</td>
+                        <td className="py-2 text-right text-green-600">{formatCurrency(trip.revenue)}</td>
+                        <td className="py-2 text-right text-red-600">{formatCurrency(trip.expenses)}</td>
+                        <td className={cn(
+                          'py-2 text-right font-medium',
+                          trip.profit >= 0 ? 'text-green-600' : 'text-red-600'
+                        )}>
+                          {formatCurrency(trip.profit)}
+                        </td>
+                        <td className={cn(
+                          'py-2 text-right',
+                          parseFloat(trip.profitMargin) >= 0 ? 'text-green-600' : 'text-red-600'
+                        )}>
+                          {trip.profitMargin}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {(profitabilityReport?.tripProfitability || []).length === 0 && (
+                  <p className="text-muted-foreground text-center py-4">
+                    Nu exista curse in aceasta perioada
+                  </p>
+                )}
+                {(profitabilityReport?.tripProfitability || []).length > 20 && (
+                  <p className="text-muted-foreground text-center py-2 text-sm">
+                    Se afiseaza primele 20 curse. Exporta pentru lista completa.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Profitability per Truck and Driver side by side */}
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Per Truck */}
+            <Card>
+              <CardHeader className="flex justify-between items-center">
+                <CardTitle className="flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  Profitabilitate per Masina
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const data = (profitabilityReport?.truckProfitability || []).map((t: { registration: string; brand: string; tripCount: number; totalKm: number; revenue: number; expenses: number; profit: number; profitMargin: string; profitPerKm: string }) => ({
+                      Camion: t.registration,
+                      Marca: t.brand,
+                      Curse: t.tripCount,
+                      KM: t.totalKm,
+                      Venit: t.revenue,
+                      Cheltuieli: t.expenses,
+                      Profit: t.profit,
+                      'Marja %': t.profitMargin,
+                      'Profit/KM': t.profitPerKm,
+                    }))
+                    exportToCSV(data, 'profitabilitate_masini')
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Export
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {(profitabilityReport?.truckProfitability || []).map((truck: { id: string; registration: string; brand: string; model: string; tripCount: number; completedTrips: number; totalKm: number; revenue: number; expenses: number; profit: number; profitMargin: string; profitPerKm: string }) => (
+                    <div key={truck.id} className="border rounded-lg p-3 hover:bg-gray-50">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-medium">{truck.registration}</p>
+                          <p className="text-xs text-muted-foreground">{truck.brand} {truck.model}</p>
+                        </div>
+                        <span className={cn(
+                          'px-2 py-1 rounded-full text-xs font-medium',
+                          truck.profit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        )}>
+                          {truck.profitMargin}% marja
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground block text-xs">Venit</span>
+                          <span className="text-green-600 font-medium">{formatCurrency(truck.revenue)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-xs">Cheltuieli</span>
+                          <span className="text-red-600 font-medium">{formatCurrency(truck.expenses)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-xs">Profit</span>
+                          <span className={cn('font-medium', truck.profit >= 0 ? 'text-green-600' : 'text-red-600')}>
+                            {formatCurrency(truck.profit)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t text-xs text-muted-foreground flex justify-between">
+                        <span>{truck.completedTrips}/{truck.tripCount} curse</span>
+                        <span>{formatNumber(truck.totalKm)} km</span>
+                        <span>{truck.profitPerKm} EUR/km</span>
+                      </div>
+                    </div>
+                  ))}
+                  {(profitabilityReport?.truckProfitability || []).length === 0 && (
+                    <p className="text-muted-foreground text-center py-4">
+                      Nu exista date
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Per Driver */}
+            <Card>
+              <CardHeader className="flex justify-between items-center">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Profitabilitate per Sofer
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const data = (profitabilityReport?.driverProfitability || []).map((d: { name: string; tripCount: number; totalKm: number; revenue: number; expenses: number; profit: number; profitMargin: string; profitPerKm: string }) => ({
+                      Sofer: d.name,
+                      Curse: d.tripCount,
+                      KM: d.totalKm,
+                      Venit: d.revenue,
+                      Cheltuieli: d.expenses,
+                      Profit: d.profit,
+                      'Marja %': d.profitMargin,
+                      'Profit/KM': d.profitPerKm,
+                    }))
+                    exportToCSV(data, 'profitabilitate_soferi')
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Export
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {(profitabilityReport?.driverProfitability || []).map((driver: { id: string; name: string; tripCount: number; completedTrips: number; totalKm: number; revenue: number; expenses: number; profit: number; profitMargin: string; profitPerKm: string }) => (
+                    <div key={driver.id} className="border rounded-lg p-3 hover:bg-gray-50">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-medium">{driver.name}</p>
+                          <p className="text-xs text-muted-foreground">{driver.completedTrips} curse finalizate</p>
+                        </div>
+                        <span className={cn(
+                          'px-2 py-1 rounded-full text-xs font-medium',
+                          driver.profit >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        )}>
+                          {driver.profitMargin}% marja
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground block text-xs">Venit</span>
+                          <span className="text-green-600 font-medium">{formatCurrency(driver.revenue)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-xs">Cheltuieli</span>
+                          <span className="text-red-600 font-medium">{formatCurrency(driver.expenses)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground block text-xs">Profit</span>
+                          <span className={cn('font-medium', driver.profit >= 0 ? 'text-green-600' : 'text-red-600')}>
+                            {formatCurrency(driver.profit)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-2 pt-2 border-t text-xs text-muted-foreground flex justify-between">
+                        <span>{driver.tripCount} curse totale</span>
+                        <span>{formatNumber(driver.totalKm)} km</span>
+                        <span>{driver.profitPerKm} EUR/km</span>
+                      </div>
+                    </div>
+                  ))}
+                  {(profitabilityReport?.driverProfitability || []).length === 0 && (
+                    <p className="text-muted-foreground text-center py-4">
+                      Nu exista date
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 
