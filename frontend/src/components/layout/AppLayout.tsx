@@ -11,6 +11,7 @@ import {
   X,
   LogOut,
   ChevronDown,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'Vehicule', href: '/vehicles', icon: Truck },
   { name: 'Soferi', href: '/drivers', icon: Users },
   { name: 'Curse', href: '/trips', icon: MapPin },
+  { name: 'Rapoarte', href: '/reports', icon: FileText },
 ]
 
 export default function AppLayout() {

@@ -70,3 +70,11 @@ export const tripsApi = {
   addExpense: (tripId: string, data: Record<string, unknown>) => api.post(`/trips/${tripId}/expenses`, data),
   addStop: (tripId: string, data: Record<string, unknown>) => api.post(`/trips/${tripId}/stops`, data),
 }
+
+export const reportsApi = {
+  getFinancial: (params?: Record<string, unknown>) => api.get('/reports/financial', { params }),
+  getTrips: (params?: Record<string, unknown>) => api.get('/reports/trips', { params }),
+  getFleet: (params?: Record<string, unknown>) => api.get('/reports/fleet', { params }),
+  getExpenses: (params?: Record<string, unknown>) => api.get('/reports/expenses', { params }),
+  getDocuments: () => api.get('/reports/documents'),
+}

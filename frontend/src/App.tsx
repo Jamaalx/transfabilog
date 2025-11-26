@@ -12,6 +12,7 @@ import DashboardPage from '@/pages/DashboardPage'
 import VehiclesPage from '@/pages/vehicles/VehiclesPage'
 import DriversPage from '@/pages/drivers/DriversPage'
 import TripsPage from '@/pages/trips/TripsPage'
+import ReportsPage from '@/pages/reports/ReportsPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -53,6 +54,7 @@ function App() {
           <Route path="/vehicles/*" element={<VehiclesPage />} />
           <Route path="/drivers/*" element={<DriversPage />} />
           <Route path="/trips/*" element={<TripsPage />} />
+          <Route path="/reports" element={<ReportsPage />} />
         </Route>
 
         {/* 404 */}
