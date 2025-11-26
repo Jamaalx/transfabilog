@@ -23,10 +23,12 @@ WHERE id = '11111111-1111-1111-1111-111111111111';
 -- ============================================================
 -- CLEAR OLD TEST DATA
 -- ============================================================
+-- IMPORTANT: Delete in correct order due to foreign key constraints
+-- transactions references trips, so delete transactions first
 DELETE FROM trip_expenses;
-DELETE FROM trips;
+DELETE FROM transactions;  -- Must be before trips (has trip_id FK)
 DELETE FROM documents;
-DELETE FROM transactions;
+DELETE FROM trips;         -- Now safe to delete
 DELETE FROM drivers;
 DELETE FROM trailers;
 DELETE FROM truck_heads;
