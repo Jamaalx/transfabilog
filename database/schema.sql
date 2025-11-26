@@ -120,6 +120,7 @@ CREATE TABLE drivers (
   salary_base DECIMAL(10, 2),
   diurna_rate DECIMAL(8, 2),
   status VARCHAR(20) DEFAULT 'activ' CHECK (status IN ('activ', 'inactiv', 'concediu')),
+  position VARCHAR(100),  -- Job position: CONDUCATOR AUTO, DIRECTOR, AGENT DE, etc.
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
