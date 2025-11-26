@@ -79,3 +79,12 @@ export const reportsApi = {
   getDocuments: () => api.get('/reports/documents'),
   getProfitability: (params?: Record<string, unknown>) => api.get('/reports/profitability', { params }),
 }
+
+export const aiApi = {
+  getInsights: () => api.get('/ai/insights'),
+  getDataSummary: () => api.get('/ai/data-summary'),
+  chat: (message: string, conversationHistory?: Array<{ role: string; content: string }>) =>
+    api.post('/ai/chat', { message, conversationHistory }),
+  getPredictions: () => api.get('/ai/predictions'),
+  getRecommendations: () => api.get('/ai/recommendations'),
+}

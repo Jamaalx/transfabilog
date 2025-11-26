@@ -19,6 +19,7 @@ const documentRoutes = require('./routes/documents');
 const transactionRoutes = require('./routes/transactions');
 const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
+const aiRoutes = require('./routes/ai');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -87,6 +88,7 @@ app.use('/api/v1/documents', documentRoutes);
 app.use('/api/v1/transactions', transactionRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/ai', aiRoutes);
 
 // Error handling
 app.use(notFoundHandler);

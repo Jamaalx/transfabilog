@@ -12,6 +12,7 @@ import {
   LogOut,
   ChevronDown,
   FileText,
+  Brain,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'Soferi', href: '/drivers', icon: Users },
   { name: 'Curse', href: '/trips', icon: MapPin },
   { name: 'Rapoarte', href: '/reports', icon: FileText },
+  { name: 'AI Analytics', href: '/ai', icon: Brain },
 ]
 
 export default function AppLayout() {
