@@ -59,7 +59,8 @@ router.post(
         req.companyId,
         req.user.id,
         null, // No linked document yet
-        req.file.originalname
+        req.file.originalname,
+        req.file.mimetype
       );
 
       res.status(201).json(result);
