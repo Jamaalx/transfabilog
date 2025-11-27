@@ -626,4 +626,324 @@ router.post(
   }
 );
 
+/**
+ * POST /api/v1/uploaded-documents/:id/confirm
+ * Confirm document validation AND create expense/transaction in one step
+ */
+router.post(
+  '/:id/confirm',
+  authorize('admin', 'manager', 'operator'),
+  [
+    param('id').isUUID(),
+    body('document_number').optional().isString(),
+    body('document_date').optional().isISO8601(),
+    body('amount').optional().isNumeric(),
+    body('currency').optional().isString(),
+    body('supplier_name').optional().isString(),
+    body('supplier_cui').optional().isString(),
+    body('expense_category').optional().isString(),
+    body('trip_id').optional().isUUID(),
+    body('create_expense').optional().isBoolean(),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { id } = req.params;
+      const {
+        document_number,
+        document_date,
+        amount,
+        currency,
+        supplier_name,
+        supplier_cui,
+        expense_category,
+        trip_id,
+        create_expense = true,
+      } = req.body;
+
+      // Get document
+      const { data: doc, error: fetchError } = await supabase
+        .from('uploaded_documents')
+        .select('*')
+        .eq('id', id)
+        .eq('company_id', req.companyId)
+        .single();
+
+      if (fetchError || !doc) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      // Update document with validated data
+      const updateData = {
+        status: 'processed',
+        reviewed_by: req.user.id,
+        reviewed_at: new Date().toISOString(),
+      };
+
+      if (document_number) updateData.document_number = document_number;
+      if (document_date) updateData.document_date = document_date;
+      if (amount) updateData.amount = parseFloat(amount);
+      if (currency) updateData.currency = currency;
+      if (supplier_name) updateData.supplier_name = supplier_name;
+      if (supplier_cui) updateData.supplier_cui = supplier_cui;
+      if (trip_id) updateData.trip_id = trip_id;
+
+      const { data: updatedDoc, error: updateError } = await supabase
+        .from('uploaded_documents')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      let createdExpense = null;
+
+      // Create expense if requested and document has amount
+      if (create_expense && (amount || doc.amount)) {
+        const finalAmount = amount ? parseFloat(amount) : doc.amount;
+        const finalDate = document_date || doc.document_date || new Date().toISOString().split('T')[0];
+        const finalCurrency = currency || doc.currency || 'EUR';
+
+        // Determine expense category
+        const category = expense_category || getExpenseCategory(doc.document_type);
+
+        // If trip_id is provided, create trip_expense
+        if (trip_id) {
+          const tripExpenseData = {
+            trip_id,
+            category: mapToTripExpenseCategory(category),
+            amount: finalAmount,
+            currency: finalCurrency,
+            description: `${doc.document_type} - ${document_number || doc.document_number || doc.file_name}`,
+            receipt_number: document_number || doc.document_number,
+            date: finalDate,
+            created_by: req.user.id,
+          };
+
+          const { data: tripExpense, error: expenseError } = await supabase
+            .from('trip_expenses')
+            .insert(tripExpenseData)
+            .select()
+            .single();
+
+          if (expenseError) {
+            console.error('Error creating trip expense:', expenseError);
+          } else {
+            createdExpense = { type: 'trip_expense', data: tripExpense };
+          }
+        } else {
+          // Create general transaction
+          const transactionData = {
+            company_id: req.companyId,
+            type: doc.document_type === 'factura_iesire' ? 'income' : 'expense',
+            category,
+            amount: finalAmount,
+            currency: finalCurrency,
+            date: finalDate,
+            description: `${doc.document_type} - ${document_number || doc.document_number || doc.file_name}`,
+            invoice_number: document_number || doc.document_number,
+            truck_id: doc.truck_id,
+            driver_id: doc.driver_id,
+            external_ref: id,
+            created_by: req.user.id,
+          };
+
+          const { data: transaction, error: txError } = await supabase
+            .from('transactions')
+            .insert(transactionData)
+            .select()
+            .single();
+
+          if (txError) {
+            console.error('Error creating transaction:', txError);
+          } else {
+            createdExpense = { type: 'transaction', data: transaction };
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        document: updatedDoc,
+        expense: createdExpense,
+        message: createdExpense
+          ? `Document confirmat și ${createdExpense.type === 'trip_expense' ? 'cheltuială trip' : 'tranzacție'} creată`
+          : 'Document confirmat',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/uploaded-documents/:id/create-trip-expenses
+ * Create trip expenses from fuel document transactions
+ */
+router.post(
+  '/:id/create-trip-expenses',
+  authorize('admin', 'manager', 'operator'),
+  [
+    param('id').isUUID(),
+    body('trip_id').isUUID(),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { id } = req.params;
+      const { trip_id } = req.body;
+
+      // Get document
+      const { data: doc, error: fetchError } = await supabase
+        .from('uploaded_documents')
+        .select('*')
+        .eq('id', id)
+        .eq('company_id', req.companyId)
+        .single();
+
+      if (fetchError || !doc) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+
+      // Verify trip exists and belongs to company
+      const { data: trip, error: tripError } = await supabase
+        .from('trips')
+        .select('id')
+        .eq('id', trip_id)
+        .eq('company_id', req.companyId)
+        .single();
+
+      if (tripError || !trip) {
+        return res.status(404).json({ error: 'Trip not found' });
+      }
+
+      const createdExpenses = [];
+      const extractedTransactions = doc.extracted_data?.structured?.transactions || [];
+
+      if (extractedTransactions.length > 0) {
+        // Create individual trip expenses from extracted transactions
+        for (const tx of extractedTransactions) {
+          const expenseData = {
+            trip_id,
+            category: mapFuelTypeToCategory(tx.type),
+            amount: tx.amount || 0,
+            currency: doc.currency || 'EUR',
+            description: tx.location || `${tx.type} - ${tx.truck_registration || ''}`,
+            date: tx.date || doc.document_date || new Date().toISOString().split('T')[0],
+            created_by: req.user.id,
+          };
+
+          const { data: expense, error } = await supabase
+            .from('trip_expenses')
+            .insert(expenseData)
+            .select()
+            .single();
+
+          if (!error && expense) {
+            createdExpenses.push(expense);
+          }
+        }
+      } else if (doc.amount) {
+        // No individual transactions, create single expense from total
+        const expenseData = {
+          trip_id,
+          category: mapToTripExpenseCategory(getExpenseCategory(doc.document_type)),
+          amount: doc.amount,
+          currency: doc.currency || 'EUR',
+          description: `${doc.document_type} - ${doc.document_number || doc.file_name}`,
+          receipt_number: doc.document_number,
+          date: doc.document_date || new Date().toISOString().split('T')[0],
+          created_by: req.user.id,
+        };
+
+        const { data: expense, error } = await supabase
+          .from('trip_expenses')
+          .insert(expenseData)
+          .select()
+          .single();
+
+        if (!error && expense) {
+          createdExpenses.push(expense);
+        }
+      }
+
+      // Update document status and link to trip
+      await supabase
+        .from('uploaded_documents')
+        .update({
+          status: 'processed',
+          trip_id,
+          reviewed_by: req.user.id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      res.json({
+        success: true,
+        created_count: createdExpenses.length,
+        expenses: createdExpenses,
+        message: `${createdExpenses.length} cheltuieli create pentru trip`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// Helper function to get expense category from document type
+function getExpenseCategory(documentType) {
+  const categoryMap = {
+    factura_intrare: 'furnizori',
+    factura_iesire: 'transport',
+    raport_dkv: 'combustibil',
+    raport_eurowag: 'combustibil',
+    raport_verag: 'combustibil',
+    raport_shell: 'combustibil',
+    raport_omv: 'combustibil',
+    extras_bancar: 'bancar',
+    bon_fiscal: 'diverse',
+    asigurare: 'asigurare',
+    itp: 'mentenanta',
+    rovinieta: 'taxa_drum',
+  };
+  return categoryMap[documentType] || 'altele';
+}
+
+// Map general category to trip_expense category
+function mapToTripExpenseCategory(category) {
+  const tripCategoryMap = {
+    combustibil: 'combustibil',
+    furnizori: 'altele',
+    transport: 'altele',
+    bancar: 'altele',
+    diverse: 'altele',
+    asigurare: 'altele',
+    mentenanta: 'reparatii',
+    taxa_drum: 'taxa_drum',
+  };
+  return tripCategoryMap[category] || 'altele';
+}
+
+// Map fuel type to trip expense category
+function mapFuelTypeToCategory(fuelType) {
+  const typeMap = {
+    diesel: 'combustibil',
+    adblue: 'combustibil',
+    taxa: 'taxa_drum',
+    taxa_drum: 'taxa_drum',
+    parcare: 'parcare',
+    altele: 'altele',
+  };
+  return typeMap[fuelType] || 'combustibil';
+}
+
 module.exports = router;

@@ -102,4 +102,6 @@ export const uploadedDocumentsApi = {
   update: (id: string, data: Record<string, unknown>) => api.put(`/uploaded-documents/${id}`, data),
   delete: (id: string) => api.delete(`/uploaded-documents/${id}`),
   createTransaction: (id: string) => api.post(`/uploaded-documents/${id}/create-transaction`),
+  confirm: (id: string, data: Record<string, unknown>) => api.post(`/uploaded-documents/${id}/confirm`, data),
+  createTripExpenses: (id: string, tripId: string) => api.post(`/uploaded-documents/${id}/create-trip-expenses`, { trip_id: tripId }),
 }

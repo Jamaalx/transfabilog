@@ -1,18 +1,25 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { uploadedDocumentsApi } from '@/lib/api'
+import { uploadedDocumentsApi, tripsApi } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   CheckCircle,
   XCircle,
   Loader2,
   ArrowLeft,
-  Save,
   AlertTriangle,
   FileText,
   Calendar,
@@ -24,12 +31,16 @@ import {
   Edit2,
   Check,
   X,
+  Tag,
+  MapPin,
+  Receipt,
 } from 'lucide-react'
 
 interface ExtractedData {
   document_number?: string
   document_date?: string
   amount?: number
+  total_amount?: number
   currency?: string
   supplier_name?: string
   supplier_cui?: string
@@ -39,6 +50,14 @@ interface ExtractedData {
   driver_name?: string
   items?: string[]
   description?: string
+  transactions?: Array<{
+    date?: string
+    truck_registration?: string
+    location?: string
+    fuel_liters?: number
+    amount?: number
+    type?: string
+  }>
   [key: string]: unknown
 }
 
@@ -69,8 +88,19 @@ interface DocumentData {
   }
   truck_id?: string
   driver_id?: string
+  trip_id?: string
   truck?: { id: string; registration_number: string; brand: string }
   driver?: { id: string; first_name: string; last_name: string }
+}
+
+interface Trip {
+  id: string
+  origin_city: string
+  destination_city: string
+  departure_date: string
+  status: string
+  driver?: { first_name: string; last_name: string }
+  truck?: { registration_number: string }
 }
 
 const typeLabels: Record<string, string> = {
@@ -81,9 +111,12 @@ const typeLabels: Record<string, string> = {
   raport_dkv: 'Raport DKV',
   raport_eurowag: 'Raport Eurowag',
   raport_verag: 'Raport Verag',
+  raport_shell: 'Raport Shell',
+  raport_omv: 'Raport OMV',
   cmr: 'CMR',
   asigurare: 'Asigurare',
   itp: 'ITP',
+  rovinieta: 'Rovinieta',
   altele: 'Altele',
 }
 
@@ -94,6 +127,44 @@ const categoryLabels: Record<string, string> = {
   fleet: 'Flota',
   hr: 'Resurse Umane',
   other: 'Altele',
+}
+
+// Expense categories for transactions
+const expenseCategories = [
+  { value: 'combustibil', label: 'Combustibil' },
+  { value: 'furnizori', label: 'Furnizori' },
+  { value: 'transport', label: 'Transport' },
+  { value: 'taxa_drum', label: 'Taxe Drum' },
+  { value: 'parcare', label: 'Parcare' },
+  { value: 'mentenanta', label: 'Mentenanta' },
+  { value: 'asigurare', label: 'Asigurare' },
+  { value: 'bancar', label: 'Bancar' },
+  { value: 'diverse', label: 'Diverse' },
+  { value: 'altele', label: 'Altele' },
+]
+
+// Get default expense category based on document type
+function getDefaultExpenseCategory(documentType: string): string {
+  const categoryMap: Record<string, string> = {
+    factura_intrare: 'furnizori',
+    factura_iesire: 'transport',
+    raport_dkv: 'combustibil',
+    raport_eurowag: 'combustibil',
+    raport_verag: 'combustibil',
+    raport_shell: 'combustibil',
+    raport_omv: 'combustibil',
+    extras_bancar: 'bancar',
+    bon_fiscal: 'diverse',
+    asigurare: 'asigurare',
+    itp: 'mentenanta',
+    rovinieta: 'taxa_drum',
+  }
+  return categoryMap[documentType] || 'altele'
+}
+
+// Check if document is a fuel report
+function isFuelDocument(documentType: string): boolean {
+  return ['raport_dkv', 'raport_eurowag', 'raport_verag', 'raport_shell', 'raport_omv'].includes(documentType)
 }
 
 export default function DocumentValidationPage() {
@@ -108,6 +179,9 @@ export default function DocumentValidationPage() {
 
   const [editMode, setEditMode] = useState(false)
   const [formData, setFormData] = useState<Partial<ExtractedData>>({})
+  const [expenseCategory, setExpenseCategory] = useState<string>('')
+  const [selectedTripId, setSelectedTripId] = useState<string>('')
+  const [createExpense, setCreateExpense] = useState(true)
 
   // Fetch document details
   const { data: document, isLoading, error } = useQuery({
@@ -118,6 +192,17 @@ export default function DocumentValidationPage() {
     },
     enabled: !!id,
   })
+
+  // Fetch trips for selection
+  const { data: tripsData } = useQuery({
+    queryKey: ['trips-for-select'],
+    queryFn: async () => {
+      const response = await tripsApi.getAll({ limit: 100 })
+      return response.data
+    },
+  })
+
+  const trips = (tripsData?.data || []) as Trip[]
 
   // Initialize form data when document loads
   useEffect(() => {
@@ -133,21 +218,30 @@ export default function DocumentValidationPage() {
         truck_registration: structured.truck_registration,
         driver_name: structured.driver_name,
       })
+      setExpenseCategory(getDefaultExpenseCategory(document.document_type))
+      if (document.trip_id) {
+        setSelectedTripId(document.trip_id)
+      }
     }
   }, [document])
 
-  // Update/Confirm mutation
+  // Confirm mutation - uses new endpoint
   const confirmMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const response = await uploadedDocumentsApi.update(id!, {
-        ...data,
-        status: 'processed',
-      })
+      const response = await uploadedDocumentsApi.confirm(id!, data)
       return response.data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['document', id] })
       queryClient.invalidateQueries({ queryKey: ['uploaded-documents'] })
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['trips'] })
+
+      // Show success message
+      const message = data.expense
+        ? `Document confirmat! ${data.expense.type === 'trip_expense' ? 'Cheltuiala trip' : 'Tranzactie'} creata cu succes.`
+        : 'Document confirmat!'
+      console.log(message)
 
       // If there are more documents in the batch, go to the next one
       if (batchIds.length > 0 && currentIndex < batchIds.length - 1) {
@@ -183,6 +277,9 @@ export default function DocumentValidationPage() {
       currency: formData.currency,
       supplier_name: formData.supplier_name,
       supplier_cui: formData.supplier_cui,
+      expense_category: expenseCategory,
+      trip_id: selectedTripId || null,
+      create_expense: createExpense,
     })
   }
 
@@ -221,6 +318,8 @@ export default function DocumentValidationPage() {
   const isProcessed = document.status === 'processed'
   const isFailed = document.status === 'failed'
   const needsReview = document.status === 'needs_review'
+  const isFuel = isFuelDocument(document.document_type)
+  const hasExtractedTransactions = (extractedData.transactions?.length || 0) > 0
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -270,7 +369,7 @@ export default function DocumentValidationPage() {
               <div>
                 <p className="font-medium text-blue-800">Necesita validare</p>
                 <p className="text-sm text-blue-600">
-                  Verifica datele extrase automat si apasa "Confirma si Salveaza" pentru a valida documentul.
+                  Verifica datele extrase automat si apasa "Confirma si Salveaza" pentru a valida documentul si a crea cheltuiala.
                 </p>
               </div>
             </div>
@@ -524,6 +623,148 @@ export default function DocumentValidationPage() {
         </Card>
       </div>
 
+      {/* Expense Settings Card */}
+      {!isProcessed && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5" />
+              Setari Cheltuiala
+            </CardTitle>
+            <CardDescription>
+              Configureaza cum va fi inregistrata cheltuiala din acest document
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Create Expense Toggle */}
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <div>
+                <p className="font-medium">Creeaza cheltuiala automat</p>
+                <p className="text-sm text-muted-foreground">
+                  La confirmare, va fi creata o inregistrare in {selectedTripId ? 'cheltuielile trip-ului' : 'tranzactii'}
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={createExpense}
+                  onChange={(e) => setCreateExpense(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Expense Category */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  Categorie Cheltuiala
+                </Label>
+                <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecteaza categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseCategories.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Trip Selection */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Asociaza cu Trip (optional)
+                </Label>
+                <Select value={selectedTripId} onValueChange={setSelectedTripId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Fara trip - tranzactie generala" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Fara trip - tranzactie generala</SelectItem>
+                    {trips.map((trip) => (
+                      <SelectItem key={trip.id} value={trip.id}>
+                        {trip.origin_city} → {trip.destination_city} ({new Date(trip.departure_date).toLocaleDateString('ro-RO')})
+                        {trip.truck && ` - ${trip.truck.registration_number}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedTripId && (
+                  <p className="text-xs text-muted-foreground">
+                    Cheltuiala va fi adaugata la cheltuielile trip-ului selectat
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Info for fuel documents */}
+            {isFuel && hasExtractedTransactions && (
+              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-orange-800">Document cu tranzactii multiple</p>
+                    <p className="text-sm text-orange-600">
+                      Acest raport contine {extractedData.transactions?.length} tranzactii individuale.
+                      {selectedTripId
+                        ? ' Toate vor fi adaugate ca cheltuieli separate la trip-ul selectat.'
+                        : ' Selecteaza un trip pentru a le adauga ca cheltuieli individuale.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Extracted Transactions for Fuel Documents */}
+      {hasExtractedTransactions && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Tranzactii Extrase ({extractedData.transactions?.length})</CardTitle>
+            <CardDescription>Tranzactiile individuale din raportul de combustibil</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Data</th>
+                    <th className="text-left p-2">Camion</th>
+                    <th className="text-left p-2">Locatie</th>
+                    <th className="text-left p-2">Tip</th>
+                    <th className="text-right p-2">Litri</th>
+                    <th className="text-right p-2">Suma</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {extractedData.transactions?.map((tx, index) => (
+                    <tr key={index} className="border-b hover:bg-muted/50">
+                      <td className="p-2">{tx.date || '-'}</td>
+                      <td className="p-2">{tx.truck_registration || '-'}</td>
+                      <td className="p-2">{tx.location || '-'}</td>
+                      <td className="p-2">
+                        <Badge variant="outline">{tx.type || 'diesel'}</Badge>
+                      </td>
+                      <td className="p-2 text-right">{tx.fuel_liters?.toFixed(2) || '-'}</td>
+                      <td className="p-2 text-right font-medium">{tx.amount?.toFixed(2) || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Raw Extracted Text */}
       {document.extracted_data?.raw_text && (
         <Card className="mt-6">
@@ -582,7 +823,9 @@ export default function DocumentValidationPage() {
               )}
               {batchIds.length > 1 && currentIndex < batchIds.length - 1
                 ? 'Confirma si Urmatorul'
-                : 'Confirma si Salveaza'}
+                : createExpense
+                  ? 'Confirma si Creeaza Cheltuiala'
+                  : 'Confirma si Salveaza'}
             </Button>
           </div>
         </div>
