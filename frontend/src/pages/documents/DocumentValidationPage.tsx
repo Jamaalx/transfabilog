@@ -220,6 +220,7 @@ export default function DocumentValidationPage() {
   const classification = document.extracted_data?.classification
   const isProcessed = document.status === 'processed'
   const isFailed = document.status === 'failed'
+  const needsReview = document.status === 'needs_review'
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -254,6 +255,22 @@ export default function DocumentValidationPage() {
                 <p className="font-medium text-red-800">Eroare la procesare</p>
                 <p className="text-sm text-red-600">
                   Documentul nu a putut fi procesat automat. Poti completa datele manual.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {needsReview && (
+        <Card className="mb-6 border-blue-200 bg-blue-50">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-blue-500" />
+              <div>
+                <p className="font-medium text-blue-800">Necesita validare</p>
+                <p className="text-sm text-blue-600">
+                  Verifica datele extrase automat si apasa "Confirma si Salveaza" pentru a valida documentul.
                 </p>
               </div>
             </div>

@@ -535,9 +535,9 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
     // Match to entities
     const entityMatches = await matchToEntities(structuredData, companyId);
 
-    // Prepare update data
+    // Prepare update data - set to needs_review so operator can validate
     const updateData = {
-      status: 'processed',
+      status: 'needs_review',
       document_type: classification.document_type,
       document_category: classification.document_category,
       ai_confidence: classification.confidence * 100,
