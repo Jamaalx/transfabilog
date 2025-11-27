@@ -34,7 +34,24 @@ import {
   Tag,
   MapPin,
   Receipt,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  CreditCard,
+  Briefcase,
 } from 'lucide-react'
+
+interface BankTransaction {
+  date?: string
+  type: 'credit' | 'debit'
+  amount: number
+  description?: string
+  reference?: string
+  counterparty?: string
+  counterparty_iban?: string
+  // For matching with invoices
+  matched_invoice_id?: string
+  matched_invoice_number?: string
+}
 
 interface ExtractedData {
   document_number?: string
@@ -50,6 +67,7 @@ interface ExtractedData {
   driver_name?: string
   items?: string[]
   description?: string
+  // Fuel transactions
   transactions?: Array<{
     date?: string
     truck_registration?: string
@@ -58,6 +76,16 @@ interface ExtractedData {
     amount?: number
     type?: string
   }>
+  // Bank statement specific
+  bank_statement_type?: 'per_camion' | 'administrativ'
+  bank_name?: string
+  account_number?: string
+  opening_balance?: number
+  closing_balance?: number
+  total_income?: number
+  total_expenses?: number
+  // Bank transactions (credit/debit)
+  bank_transactions?: BankTransaction[]
   [key: string]: unknown
 }
 
@@ -254,6 +282,37 @@ export default function DocumentValidationPage() {
     },
   })
 
+  // Bank statement confirm mutation - processes all transactions
+  const confirmBankStatementMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const response = await uploadedDocumentsApi.confirmBankStatement(id!, data)
+      return response.data
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['document', id] })
+      queryClient.invalidateQueries({ queryKey: ['uploaded-documents'] })
+      queryClient.invalidateQueries({ queryKey: ['transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['trips'] })
+
+      // Show detailed success message
+      const results = data.results
+      console.log(
+        `Extras bancar procesat: ${results?.credits?.processed || 0} intrări ` +
+        `(${results?.credits?.matched_invoices?.length || 0} facturi marcate ca plătite), ` +
+        `${results?.debits?.processed || 0} plăți procesate`
+      )
+
+      // If there are more documents in the batch, go to the next one
+      if (batchIds.length > 0 && currentIndex < batchIds.length - 1) {
+        const nextId = batchIds[currentIndex + 1]
+        navigate(`/documents/${nextId}/validate?batch=${batchIds.join(',')}`)
+      } else {
+        // All done, go back to documents list
+        navigate('/documents')
+      }
+    },
+  })
+
   // Reject mutation
   const rejectMutation = useMutation({
     mutationFn: async () => {
@@ -270,6 +329,14 @@ export default function DocumentValidationPage() {
   })
 
   const handleConfirm = () => {
+    // Check if this is a bank statement - use special endpoint
+    if (document?.document_type === 'extras_bancar') {
+      const bankStatementData: Record<string, unknown> = {}
+      if (selectedTripId) bankStatementData.trip_id = selectedTripId
+      confirmBankStatementMutation.mutate(bankStatementData)
+      return
+    }
+
     // Build request data, only including fields with actual values
     // Don't send null values as they fail validation (trip_id must be UUID if present)
     const requestData: Record<string, unknown> = {
@@ -325,6 +392,24 @@ export default function DocumentValidationPage() {
   const needsReview = document.status === 'needs_review'
   const isFuel = isFuelDocument(document.document_type)
   const hasExtractedTransactions = (extractedData.transactions?.length || 0) > 0
+
+  // Bank statement specific
+  const isBankStatement = document.document_type === 'extras_bancar'
+  const bankStatementType = document.extracted_data?.bank_statement_type || extractedData.bank_statement_type || 'administrativ'
+
+  // Process bank transactions - the AI extracts them as 'transactions' array
+  const bankTransactions = isBankStatement
+    ? (extractedData.transactions || []).map((tx: Record<string, unknown>) => ({
+        ...tx,
+        type: tx.type as 'credit' | 'debit',
+        amount: Number(tx.amount) || 0,
+      })) as BankTransaction[]
+    : []
+
+  // Separate into credits (intrări) and debits (plăți)
+  const creditTransactions = bankTransactions.filter((tx) => tx.type === 'credit')
+  const debitTransactions = bankTransactions.filter((tx) => tx.type === 'debit')
+  const hasBankTransactions = bankTransactions.length > 0
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -733,8 +818,8 @@ export default function DocumentValidationPage() {
         </Card>
       )}
 
-      {/* Extracted Transactions for Fuel Documents */}
-      {hasExtractedTransactions && (
+      {/* Extracted Transactions for Fuel Documents (NOT bank statements) */}
+      {hasExtractedTransactions && !isBankStatement && (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Tranzactii Extrase ({extractedData.transactions?.length})</CardTitle>
@@ -771,6 +856,141 @@ export default function DocumentValidationPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Bank Statement Transactions */}
+      {isBankStatement && hasBankTransactions && (
+        <div className="mt-6 space-y-6">
+          {/* Bank Statement Info Header */}
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Building className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="font-medium text-blue-800">
+                      Extras Bancar - {bankStatementType === 'per_camion' ? 'Per Camion' : 'Administrativ'}
+                    </p>
+                    <p className="text-sm text-blue-600">
+                      {extractedData.bank_name && `${extractedData.bank_name} • `}
+                      {extractedData.account_number && `IBAN: ${extractedData.account_number}`}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-blue-600">
+                    Sold inițial: {extractedData.opening_balance?.toLocaleString()} {formData.currency}
+                  </p>
+                  <p className="text-sm text-blue-600">
+                    Sold final: {extractedData.closing_balance?.toLocaleString()} {formData.currency}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Credit Transactions (Intrări/Încasări) */}
+          {creditTransactions.length > 0 && (
+            <Card className="border-green-200">
+              <CardHeader className="bg-green-50">
+                <CardTitle className="flex items-center gap-2 text-green-800">
+                  <ArrowDownCircle className="h-5 w-5" />
+                  Intrări / Încasări ({creditTransactions.length})
+                </CardTitle>
+                <CardDescription className="text-green-600">
+                  Bani primiți în cont - se pot potrivi cu facturi de ieșire pentru a le marca ca plătite
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-green-50">
+                      <tr className="border-b">
+                        <th className="text-left p-3">Data</th>
+                        <th className="text-left p-3">De la (Plătitor)</th>
+                        <th className="text-left p-3">Descriere</th>
+                        <th className="text-left p-3">Referință</th>
+                        <th className="text-right p-3">Suma</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {creditTransactions.map((tx, index) => (
+                        <tr key={index} className="border-b hover:bg-green-50/50">
+                          <td className="p-3">{tx.date || '-'}</td>
+                          <td className="p-3 font-medium">{tx.counterparty || '-'}</td>
+                          <td className="p-3 text-muted-foreground">{tx.description || '-'}</td>
+                          <td className="p-3">{tx.reference || '-'}</td>
+                          <td className="p-3 text-right font-bold text-green-600">
+                            +{tx.amount?.toLocaleString()} {formData.currency}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-green-100">
+                      <tr>
+                        <td colSpan={4} className="p-3 font-medium text-right">Total Intrări:</td>
+                        <td className="p-3 text-right font-bold text-green-700">
+                          +{creditTransactions.reduce((sum, tx) => sum + tx.amount, 0).toLocaleString()} {formData.currency}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Debit Transactions (Plăți/Ieșiri) */}
+          {debitTransactions.length > 0 && (
+            <Card className="border-red-200">
+              <CardHeader className="bg-red-50">
+                <CardTitle className="flex items-center gap-2 text-red-800">
+                  <ArrowUpCircle className="h-5 w-5" />
+                  Plăți / Ieșiri ({debitTransactions.length})
+                </CardTitle>
+                <CardDescription className="text-red-600">
+                  Bani plătiți din cont - cheltuieli: parcări, taxe drum, amenzi, furnizori, etc.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-red-50">
+                      <tr className="border-b">
+                        <th className="text-left p-3">Data</th>
+                        <th className="text-left p-3">Către (Beneficiar)</th>
+                        <th className="text-left p-3">Descriere</th>
+                        <th className="text-left p-3">Referință</th>
+                        <th className="text-right p-3">Suma</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {debitTransactions.map((tx, index) => (
+                        <tr key={index} className="border-b hover:bg-red-50/50">
+                          <td className="p-3">{tx.date || '-'}</td>
+                          <td className="p-3 font-medium">{tx.counterparty || '-'}</td>
+                          <td className="p-3 text-muted-foreground">{tx.description || '-'}</td>
+                          <td className="p-3">{tx.reference || '-'}</td>
+                          <td className="p-3 text-right font-bold text-red-600">
+                            -{tx.amount?.toLocaleString()} {formData.currency}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-red-100">
+                      <tr>
+                        <td colSpan={4} className="p-3 font-medium text-right">Total Plăți:</td>
+                        <td className="p-3 text-right font-bold text-red-700">
+                          -{debitTransactions.reduce((sum, tx) => sum + tx.amount, 0).toLocaleString()} {formData.currency}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* Raw Extracted Text */}
@@ -821,19 +1041,23 @@ export default function DocumentValidationPage() {
 
             <Button
               onClick={handleConfirm}
-              disabled={confirmMutation.isPending}
+              disabled={confirmMutation.isPending || confirmBankStatementMutation.isPending}
               className="bg-green-600 hover:bg-green-700"
             >
-              {confirmMutation.isPending ? (
+              {(confirmMutation.isPending || confirmBankStatementMutation.isPending) ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Check className="mr-2 h-4 w-4" />
               )}
-              {batchIds.length > 1 && currentIndex < batchIds.length - 1
-                ? 'Confirma si Urmatorul'
-                : createExpense
-                  ? 'Confirma si Creeaza Cheltuiala'
-                  : 'Confirma si Salveaza'}
+              {isBankStatement
+                ? (batchIds.length > 1 && currentIndex < batchIds.length - 1
+                    ? 'Proceseaza Extras si Urmatorul'
+                    : 'Proceseaza Extras Bancar')
+                : (batchIds.length > 1 && currentIndex < batchIds.length - 1
+                    ? 'Confirma si Urmatorul'
+                    : createExpense
+                      ? 'Confirma si Creeaza Cheltuiala'
+                      : 'Confirma si Salveaza')}
             </Button>
           </div>
         </div>
