@@ -9,6 +9,7 @@ const {
   createExpenseFromDKV,
   getDKVBatches,
   getDKVTransactions,
+  bulkIgnoreTransactions,
 } = require('../services/dkvParsingService');
 const { importEurowagTransactions } = require('../services/eurowagParsingService');
 const { importVeragTransactions } = require('../services/veragParsingService');
@@ -128,12 +129,14 @@ router.post(
 /**
  * GET /api/v1/dkv/batches
  * List all DKV import batches
+ * Query param: provider=dkv|eurowag|verag (optional filter)
  */
 router.get(
   '/batches',
   [
     query('page').optional().isInt({ min: 1 }).toInt(),
     query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
   ],
   async (req, res, next) => {
     try {
@@ -144,8 +147,9 @@ router.get(
 
       const page = req.query.page || 1;
       const limit = req.query.limit || 20;
+      const provider = req.query.provider;
 
-      const result = await getDKVBatches(req.companyId, page, limit);
+      const result = await getDKVBatches(req.companyId, page, limit, provider);
       res.json(result);
     } catch (error) {
       next(error);
@@ -487,6 +491,38 @@ router.post(
 );
 
 /**
+ * POST /api/v1/dkv/transactions/bulk-ignore
+ * Bulk ignore DKV transactions
+ */
+router.post(
+  '/transactions/bulk-ignore',
+  authorize('admin', 'manager', 'operator'),
+  [
+    body('transaction_ids').isArray({ min: 1, max: 500 }),
+    body('transaction_ids.*').isUUID(),
+    body('notes').optional().isString().trim(),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const result = await bulkIgnoreTransactions(
+        req.body.transaction_ids,
+        req.companyId,
+        req.body.notes
+      );
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * PATCH /api/v1/dkv/transactions/:id/ignore
  * Mark a DKV transaction as ignored
  */
@@ -529,49 +565,102 @@ router.patch(
 /**
  * GET /api/v1/dkv/summary
  * Get DKV summary statistics
+ * Query param: provider=dkv|eurowag|verag (optional filter)
  */
-router.get('/summary', async (req, res, next) => {
-  try {
-    // Get total counts by status
-    const { data: transactions, error: txError } = await supabase
-      .from('dkv_transactions')
-      .select('status, net_purchase_value')
-      .eq('company_id', req.companyId);
+router.get(
+  '/summary',
+  [query('provider').optional().isIn(['dkv', 'eurowag', 'verag'])],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
-    if (txError) throw txError;
+      const provider = req.query.provider;
 
-    const summary = {
-      total_transactions: transactions?.length || 0,
-      pending: 0,
-      matched: 0,
-      unmatched: 0,
-      created_expense: 0,
-      ignored: 0,
-      total_value: 0,
-      pending_value: 0,
-    };
+      // First, get batch IDs for the provider filter if needed
+      let batchIds = null;
+      if (provider) {
+        let batchQuery = supabase
+          .from('dkv_import_batches')
+          .select('id')
+          .eq('company_id', req.companyId);
 
-    if (transactions) {
-      transactions.forEach((tx) => {
-        if (summary[tx.status] !== undefined) {
-          summary[tx.status]++;
+        if (provider === 'eurowag') {
+          batchQuery = batchQuery.or('file_name.ilike.%ew_export%,file_name.ilike.%eurowag%');
+        } else if (provider === 'verag') {
+          batchQuery = batchQuery.or('file_name.ilike.%maut%,file_name.ilike.%verag%,file_name.ilike.%.pdf');
+        } else if (provider === 'dkv') {
+          batchQuery = batchQuery.or('file_name.ilike.%invoice-transactions%,file_name.ilike.%dkv%')
+            .not('file_name', 'ilike', '%eurowag%')
+            .not('file_name', 'ilike', '%maut%')
+            .not('file_name', 'ilike', '%verag%');
         }
-        if (tx.net_purchase_value) {
-          summary.total_value += parseFloat(tx.net_purchase_value);
-          if (tx.status !== 'created_expense' && tx.status !== 'ignored') {
-            summary.pending_value += parseFloat(tx.net_purchase_value);
+
+        const { data: batches } = await batchQuery;
+        batchIds = batches?.map((b) => b.id) || [];
+      }
+
+      // Get transactions, filtered by batch if provider specified
+      let txQuery = supabase
+        .from('dkv_transactions')
+        .select('status, net_purchase_value')
+        .eq('company_id', req.companyId);
+
+      if (batchIds && batchIds.length > 0) {
+        txQuery = txQuery.in('batch_id', batchIds);
+      } else if (batchIds && batchIds.length === 0) {
+        // No batches match the provider filter
+        return res.json({
+          total_transactions: 0,
+          pending: 0,
+          matched: 0,
+          unmatched: 0,
+          created_expense: 0,
+          ignored: 0,
+          total_value: 0,
+          pending_value: 0,
+        });
+      }
+
+      const { data: transactions, error: txError } = await txQuery;
+
+      if (txError) throw txError;
+
+      const summary = {
+        total_transactions: transactions?.length || 0,
+        pending: 0,
+        matched: 0,
+        unmatched: 0,
+        created_expense: 0,
+        ignored: 0,
+        total_value: 0,
+        pending_value: 0,
+      };
+
+      if (transactions) {
+        transactions.forEach((tx) => {
+          if (summary[tx.status] !== undefined) {
+            summary[tx.status]++;
           }
-        }
-      });
+          if (tx.net_purchase_value) {
+            summary.total_value += parseFloat(tx.net_purchase_value);
+            if (tx.status !== 'created_expense' && tx.status !== 'ignored') {
+              summary.pending_value += parseFloat(tx.net_purchase_value);
+            }
+          }
+        });
+      }
+
+      summary.total_value = Math.round(summary.total_value * 100) / 100;
+      summary.pending_value = Math.round(summary.pending_value * 100) / 100;
+
+      res.json(summary);
+    } catch (error) {
+      next(error);
     }
-
-    summary.total_value = Math.round(summary.total_value * 100) / 100;
-    summary.pending_value = Math.round(summary.pending_value * 100) / 100;
-
-    res.json(summary);
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 module.exports = router;

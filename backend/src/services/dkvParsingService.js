@@ -542,14 +542,34 @@ async function createExpenseFromDKV(transactionId, companyId, userId, tripId = n
 
 /**
  * Get DKV import batches for a company
+ * @param {string} companyId - Company UUID
+ * @param {number} page - Page number
+ * @param {number} limit - Items per page
+ * @param {string} provider - Optional provider filter (dkv, eurowag, verag)
  */
-async function getDKVBatches(companyId, page = 1, limit = 20) {
+async function getDKVBatches(companyId, page = 1, limit = 20, provider = null) {
   const offset = (page - 1) * limit;
 
-  const { data, error, count } = await supabase
+  let query = supabase
     .from('dkv_import_batches')
     .select('*', { count: 'exact' })
-    .eq('company_id', companyId)
+    .eq('company_id', companyId);
+
+  // Filter by provider based on file name patterns
+  if (provider) {
+    if (provider === 'eurowag') {
+      query = query.or('file_name.ilike.%ew_export%,file_name.ilike.%eurowag%');
+    } else if (provider === 'verag') {
+      query = query.or('file_name.ilike.%maut%,file_name.ilike.%verag%,file_name.ilike.%.pdf');
+    } else if (provider === 'dkv') {
+      query = query.or('file_name.ilike.%invoice-transactions%,file_name.ilike.%dkv%')
+        .not('file_name', 'ilike', '%eurowag%')
+        .not('file_name', 'ilike', '%maut%')
+        .not('file_name', 'ilike', '%verag%');
+    }
+  }
+
+  const { data, error, count } = await query
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -610,6 +630,56 @@ async function getDKVTransactions(companyId, filters = {}) {
   };
 }
 
+/**
+ * Bulk ignore DKV transactions
+ * @param {string[]} transactionIds - Array of transaction UUIDs
+ * @param {string} companyId - Company UUID for validation
+ * @param {string} notes - Optional notes for why transactions were ignored
+ */
+async function bulkIgnoreTransactions(transactionIds, companyId, notes = null) {
+  const results = {
+    success: [],
+    failed: [],
+  };
+
+  // Process in chunks to avoid hitting limits
+  const CHUNK_SIZE = 50;
+  for (let i = 0; i < transactionIds.length; i += CHUNK_SIZE) {
+    const chunk = transactionIds.slice(i, i + CHUNK_SIZE);
+
+    const { data, error } = await supabase
+      .from('dkv_transactions')
+      .update({
+        status: 'ignored',
+        notes: notes || 'Bulk ignored'
+      })
+      .eq('company_id', companyId)
+      .in('id', chunk)
+      .neq('status', 'created_expense') // Don't ignore already processed
+      .select('id');
+
+    if (error) {
+      chunk.forEach(id => results.failed.push({ id, error: error.message }));
+    } else {
+      data.forEach(tx => results.success.push(tx.id));
+      // Track which ones weren't updated (already processed)
+      const updatedIds = new Set(data.map(tx => tx.id));
+      chunk.forEach(id => {
+        if (!updatedIds.has(id)) {
+          results.failed.push({ id, error: 'Already processed or not found' });
+        }
+      });
+    }
+  }
+
+  return {
+    total: transactionIds.length,
+    ignored: results.success.length,
+    failed: results.failed.length,
+    results,
+  };
+}
+
 module.exports = {
   parseDKVExcel,
   importDKVTransactions,
@@ -617,5 +687,6 @@ module.exports = {
   createExpenseFromDKV,
   getDKVBatches,
   getDKVTransactions,
+  bulkIgnoreTransactions,
   DKV_COLUMNS,
 };

@@ -110,21 +110,31 @@ export const uploadedDocumentsApi = {
 }
 
 export const dkvApi = {
-  // Import
-  import: (formData: FormData) => api.post('/dkv/import', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }),
-  // Batches
-  getBatches: (params?: Record<string, unknown>) => api.get('/dkv/batches', { params }),
+  // Import - supports provider parameter for DKV, EUROWAG, VERAG
+  import: (formData: FormData, provider?: string) => {
+    const url = provider ? `/dkv/import?provider=${provider}` : '/dkv/import'
+    return api.post(url, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  // Batches - supports provider filtering
+  getBatches: (provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.get('/dkv/batches', { params })
+  },
   getBatch: (id: string) => api.get(`/dkv/batches/${id}`),
   deleteBatch: (id: string) => api.delete(`/dkv/batches/${id}`),
-  // Transactions
+  // Transactions - supports status and provider filtering
   getTransactions: (params?: Record<string, unknown>) => api.get('/dkv/transactions', { params }),
   getTransaction: (id: string) => api.get(`/dkv/transactions/${id}`),
   matchTransaction: (id: string, truckId: string) => api.patch(`/dkv/transactions/${id}/match`, { truck_id: truckId }),
   ignoreTransaction: (id: string, notes?: string) => api.patch(`/dkv/transactions/${id}/ignore`, { notes }),
   createExpense: (id: string, tripId?: string) => api.post(`/dkv/transactions/${id}/create-expense`, { trip_id: tripId }),
   bulkCreateExpenses: (transactionIds: string[]) => api.post('/dkv/transactions/bulk-create-expenses', { transaction_ids: transactionIds }),
-  // Summary
-  getSummary: () => api.get('/dkv/summary'),
+  bulkIgnoreTransactions: (transactionIds: string[]) => api.post('/dkv/transactions/bulk-ignore', { transaction_ids: transactionIds }),
+  // Summary - supports provider filtering
+  getSummary: (provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.get('/dkv/summary', { params })
+  },
 }
