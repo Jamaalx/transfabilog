@@ -53,6 +53,47 @@ const VAT_RATES = {
   'NO': { rate: 25, name: 'Norway', refundable: false },
 };
 
+// Country to currency mapping
+const COUNTRY_CURRENCY = {
+  // Eurozone countries
+  'AT': 'EUR', // Austria
+  'BE': 'EUR', // Belgium
+  'CY': 'EUR', // Cyprus
+  'DE': 'EUR', // Germany
+  'EE': 'EUR', // Estonia
+  'ES': 'EUR', // Spain
+  'FI': 'EUR', // Finland
+  'FR': 'EUR', // France
+  'GR': 'EUR', // Greece
+  'IE': 'EUR', // Ireland
+  'IT': 'EUR', // Italy
+  'LT': 'EUR', // Lithuania
+  'LU': 'EUR', // Luxembourg
+  'LV': 'EUR', // Latvia
+  'MT': 'EUR', // Malta
+  'NL': 'EUR', // Netherlands
+  'PT': 'EUR', // Portugal
+  'SI': 'EUR', // Slovenia
+  'SK': 'EUR', // Slovakia
+  'HR': 'EUR', // Croatia (joined 2023)
+  // Non-Eurozone EU
+  'BG': 'BGN', // Bulgaria
+  'CZ': 'CZK', // Czech Republic
+  'DK': 'DKK', // Denmark
+  'HU': 'HUF', // Hungary
+  'PL': 'PLN', // Poland
+  'RO': 'RON', // Romania
+  'SE': 'SEK', // Sweden
+  // Non-EU
+  'CH': 'CHF', // Switzerland
+  'GB': 'GBP', // United Kingdom
+  'NO': 'NOK', // Norway
+  'RS': 'RSD', // Serbia
+  'UA': 'UAH', // Ukraine
+  'MD': 'MDL', // Moldova
+  'TR': 'TRY', // Turkey
+};
+
 // Country name to code mapping (for DKV reports which use full names)
 const COUNTRY_NAME_TO_CODE = {
   'romania': 'RO',
@@ -165,6 +206,19 @@ function getCountryCode(country) {
   }
 
   return COUNTRY_NAME_TO_CODE[normalized] || null;
+}
+
+/**
+ * Get currency for a country
+ * @param {string} country - Country name or code
+ * @returns {string} Currency code (e.g., 'EUR', 'RON', 'HUF')
+ */
+function getCountryCurrency(country) {
+  const code = getCountryCode(country);
+  if (!code || !COUNTRY_CURRENCY[code]) {
+    return 'EUR'; // Default to EUR if unknown
+  }
+  return COUNTRY_CURRENCY[code];
 }
 
 /**
@@ -538,9 +592,11 @@ module.exports = {
   convertFromEur,
   getVatRate,
   getCountryCode,
+  getCountryCurrency,
   calculateVat,
   getAllVatRates,
   clearCache,
   VAT_RATES,
   COUNTRY_NAME_TO_CODE,
+  COUNTRY_CURRENCY,
 };

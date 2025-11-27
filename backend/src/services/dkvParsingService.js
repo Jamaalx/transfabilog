@@ -141,13 +141,21 @@ async function parseDKVExcel(fileBuffer, mimeType) {
     const vatAmountFromFile = parseNumber(row[columnMap.VAT_AMOUNT]);
     const paymentValue = parseNumber(row[columnMap.PAYMENT_VALUE]);
 
-    // Get actual currency from file
-    const paymentCurrency = (getString(row[columnMap.PAYMENT_CURRENCY]) || 'EUR').toUpperCase().trim();
-
-    // Get country info for VAT
+    // Get country info for VAT and currency
     const countryRaw = getString(row[columnMap.COUNTRY]);
     const countryCode = bnrService.getCountryCode(countryRaw);
     const vatInfo = bnrService.getVatRate(countryRaw);
+
+    // Get the actual currency from payment column (for reference)
+    const paymentCurrencyFromFile = (getString(row[columnMap.PAYMENT_CURRENCY]) || 'EUR').toUpperCase().trim();
+
+    // IMPORTANT: The "Valoarea netă a achiziției" (net purchase value) is in the COUNTRY's currency,
+    // not the payment currency. For example, in Romania it's RON, in Hungary it's HUF, etc.
+    // The "Moneda de plată" column shows the billing currency (often EUR), not the transaction currency.
+    const countryCurrency = bnrService.getCountryCurrency(countryRaw);
+
+    // Use country currency for conversion of net purchase value, gross value, etc.
+    const transactionCurrency = countryCurrency;
 
     // Calculate VAT amount (Brutto - Netto)
     let calculatedVatAmount = 0;
@@ -176,26 +184,31 @@ async function parseDKVExcel(fileBuffer, mimeType) {
     let rateDate = null;
 
     // Convert ALL non-EUR currencies (RON, HUF, PLN, CZK, BGN, etc.)
-    if (paymentCurrency && paymentCurrency !== 'EUR') {
+    // Use the COUNTRY's currency (transactionCurrency) for net purchase value, gross value, VAT
+    // because these values are in the local currency of the country where the transaction occurred
+    if (transactionCurrency && transactionCurrency !== 'EUR') {
       // Convert to EUR using BNR rates based on transaction date
-      const conversionResult = await bnrService.convertToEur(netPurchaseValue, paymentCurrency, transactionTime);
+      const conversionResult = await bnrService.convertToEur(netPurchaseValue, transactionCurrency, transactionTime);
       netPurchaseValueEur = conversionResult.amountEur;
       exchangeRate = conversionResult.rate;
       rateDate = conversionResult.rateDate;
 
-      // Convert other amounts with the same rate
+      // Convert other amounts with the same rate (they're all in the same country currency)
       if (grossValue) {
-        const grossConv = await bnrService.convertToEur(grossValue, paymentCurrency, transactionTime);
+        const grossConv = await bnrService.convertToEur(grossValue, transactionCurrency, transactionTime);
         grossValueEur = grossConv.amountEur;
       }
       if (calculatedVatAmount) {
-        const vatConv = await bnrService.convertToEur(calculatedVatAmount, paymentCurrency, transactionTime);
+        const vatConv = await bnrService.convertToEur(calculatedVatAmount, transactionCurrency, transactionTime);
         vatAmountEur = vatConv.amountEur;
       }
-      if (paymentValue) {
-        const payConv = await bnrService.convertToEur(paymentValue, paymentCurrency, transactionTime);
-        paymentValueEur = payConv.amountEur;
-      }
+    }
+
+    // Payment value is in the payment currency (from "Moneda de plată" column)
+    // This might be different from the transaction currency
+    if (paymentValue && paymentCurrencyFromFile && paymentCurrencyFromFile !== 'EUR') {
+      const payConv = await bnrService.convertToEur(paymentValue, paymentCurrencyFromFile, transactionTime);
+      paymentValueEur = payConv.amountEur;
     }
 
     const transaction = {
@@ -210,12 +223,12 @@ async function parseDKVExcel(fileBuffer, mimeType) {
       product_group: getString(row[columnMap.PRODUCT_GROUP]),
       goods_type: getString(row[columnMap.GOODS_TYPE]),
       goods_code: getString(row[columnMap.GOODS_CODE]),
-      payment_currency: paymentCurrency,
+      payment_currency: paymentCurrencyFromFile, // Currency from "Moneda de plată" column
       unit: getString(row[columnMap.UNIT]) || 'L',
       quantity: quantity,
       price_per_unit: pricePerUnit,
       currency: 'EUR', // Amounts converted to EUR
-      original_currency: paymentCurrency, // Original currency from file
+      original_currency: transactionCurrency, // Country's currency (RON for Romania, HUF for Hungary, etc.)
       exchange_rate: exchangeRate,
       exchange_rate_date: rateDate,
       net_base_value: netBaseValue,
