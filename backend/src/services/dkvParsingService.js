@@ -163,8 +163,9 @@ function parseDKVExcel(fileBuffer, mimeType) {
     transactions.push(transaction);
 
     // Track totals and date range
-    if (netPurchaseValue) {
-      totalAmount += netPurchaseValue;
+    // Use payment_value (EUR) for totals, not net_purchase_value (local currency)
+    if (paymentValue) {
+      totalAmount += paymentValue;
     }
 
     if (!minDate || transactionTime < minDate) {
@@ -225,6 +226,7 @@ function parseDate(value) {
 
 /**
  * Parse number from various formats
+ * Handles European format: 5.972,33 or 5.972.33 (thousands sep = period, decimal = comma or last period)
  */
 function parseNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -233,10 +235,30 @@ function parseNumber(value) {
     return value;
   }
 
-  // Handle string numbers with comma as decimal separator
-  const str = String(value)
+  let str = String(value)
     .replace(/\s/g, '') // Remove spaces
-    .replace(/,/g, '.'); // Replace comma with dot
+    .replace(/[A-Za-z]/g, ''); // Remove currency codes like PLN, EUR, CZK
+
+  // Handle European number formats
+  // Examples: "5.972,33" or "5.972.33" or "357,59" or "357.59"
+
+  // Count periods and commas
+  const periods = (str.match(/\./g) || []).length;
+  const commas = (str.match(/,/g) || []).length;
+
+  if (periods > 1) {
+    // Multiple periods like "5.972.33" - last one is decimal separator
+    const parts = str.split('.');
+    const decimal = parts.pop();
+    str = parts.join('') + '.' + decimal;
+  } else if (periods === 1 && commas === 1) {
+    // Both present like "5.972,33" - comma is decimal
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (commas === 1 && periods === 0) {
+    // Single comma, no period - comma is decimal like "357,59"
+    str = str.replace(',', '.');
+  }
+  // else: single period is already decimal separator
 
   const num = parseFloat(str);
   return isNaN(num) ? null : num;
@@ -252,10 +274,22 @@ function getString(value) {
 
 /**
  * Normalize vehicle registration for matching
+ * Returns the original with normalized spaces
  */
 function normalizeRegistration(registration) {
   if (!registration) return null;
   return registration.replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+/**
+ * Create a standardized key for truck matching
+ * Removes all spaces, hyphens, and converts to uppercase
+ */
+function createMatchKey(registration) {
+  if (!registration) return '';
+  return registration
+    .replace(/[\s\-_.]/g, '') // Remove spaces, hyphens, underscores, dots
+    .toUpperCase();
 }
 
 /**
@@ -285,16 +319,24 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
     throw new Error('Failed to fetch company trucks: ' + trucksError.message);
   }
 
-  // Create normalized truck lookup map
+  // Create normalized truck lookup map with multiple key variations
   const truckMap = new Map();
   if (trucks) {
     trucks.forEach(truck => {
-      const normalized = truck.registration_number.replace(/\s+/g, '').toUpperCase();
-      truckMap.set(normalized, truck.id);
-      // Also add with spaces removed differently
-      truckMap.set(truck.registration_number.toUpperCase(), truck.id);
+      const reg = truck.registration_number;
+      // Add multiple variations for matching
+      truckMap.set(createMatchKey(reg), truck.id);                    // MS35TFL
+      truckMap.set(reg.toUpperCase(), truck.id);                      // MS 35 TFL
+      truckMap.set(reg.replace(/\s+/g, '').toUpperCase(), truck.id);  // MS35TFL
+      // Handle UNIVERSAL type names
+      if (reg.toUpperCase().includes('UNIVERSAL')) {
+        truckMap.set('UNIVERSAL2', truck.id);
+        truckMap.set('UNIVERSAL 2', truck.id);
+      }
     });
   }
+
+  console.log('Truck map keys:', [...truckMap.keys()]);
 
   // Create import batch
   const { data: batch, error: batchError } = await supabase
@@ -329,19 +371,23 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
     let status = 'pending';
 
     if (tx.vehicle_registration) {
-      const normalizedReg = tx.vehicle_registration.replace(/\s+/g, '').toUpperCase();
+      const matchKey = createMatchKey(tx.vehicle_registration);
+      const regUpper = tx.vehicle_registration.toUpperCase();
 
-      // Direct match
-      if (truckMap.has(normalizedReg)) {
-        truckId = truckMap.get(normalizedReg);
-      } else if (truckMap.has(tx.vehicle_registration.toUpperCase())) {
-        truckId = truckMap.get(tx.vehicle_registration.toUpperCase());
+      // Try multiple matching strategies
+      if (truckMap.has(matchKey)) {
+        // Match by normalized key (no spaces/hyphens)
+        truckId = truckMap.get(matchKey);
+      } else if (truckMap.has(regUpper)) {
+        // Match by uppercase with spaces
+        truckId = truckMap.get(regUpper);
       } else {
-        // Fuzzy match - check if registration contains any known truck
-        for (const [reg, id] of truckMap.entries()) {
-          if (normalizedReg.includes(reg.replace(/\s+/g, '')) ||
-              reg.replace(/\s+/g, '').includes(normalizedReg)) {
+        // Fuzzy match - check if registration contains any known truck key
+        for (const [key, id] of truckMap.entries()) {
+          const keyNorm = createMatchKey(key);
+          if (matchKey.includes(keyNorm) || keyNorm.includes(matchKey)) {
             truckId = id;
+            console.log(`Fuzzy matched: "${tx.vehicle_registration}" -> "${key}"`);
             break;
           }
         }
@@ -463,7 +509,7 @@ async function createExpenseFromDKV(transactionId, companyId, userId, tripId = n
     company_id: companyId,
     type: 'expense',
     category: category,
-    amount: tx.net_purchase_value || tx.payment_value,
+    amount: tx.payment_value || tx.net_purchase_value, // payment_value is in EUR
     currency: tx.currency || 'EUR',
     date: tx.transaction_time ? tx.transaction_time.split('T')[0] : new Date().toISOString().split('T')[0],
     description: `DKV - ${tx.goods_type || 'Fuel'} - ${tx.station_name || ''} (${tx.country || ''}) - ${tx.quantity || ''}${tx.unit || 'L'}`,

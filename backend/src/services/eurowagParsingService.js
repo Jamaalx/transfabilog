@@ -1,0 +1,385 @@
+const xlsx = require('xlsx');
+const { supabaseAdmin: supabase } = require('../config/supabase');
+
+/**
+ * EUROWAG Excel Column Mappings
+ * Based on EW_Export_TR format
+ */
+const EUROWAG_COLUMNS = {
+  SERVICE: 'Serviciu',
+  DATETIME: 'Data si ora',
+  REGISTRATION: 'Înmatriculare',
+  CARD: 'Cartelă',
+  PRODUCT: 'Articol',
+  NET_AMOUNT: 'Sumă netă',
+  CURRENCY: 'Valută',
+  GROSS_AMOUNT: 'Valoarea brută',
+  QUANTITY: 'Cantitate',
+  UNIT: 'Unităte de cantitate',
+  COUNTRY: 'Țară',
+  LOCATION: 'Locație',
+  OBU_ID: 'ID OBU',
+};
+
+/**
+ * Create a standardized key for truck matching
+ */
+function createMatchKey(registration) {
+  if (!registration) return '';
+  return registration
+    .replace(/[\s\-_.]/g, '')
+    .toUpperCase();
+}
+
+/**
+ * Parse number from various formats (European style)
+ */
+function parseNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return value;
+
+  let str = String(value).replace(/\s/g, '');
+
+  const periods = (str.match(/\./g) || []).length;
+  const commas = (str.match(/,/g) || []).length;
+
+  if (periods > 1) {
+    const parts = str.split('.');
+    const decimal = parts.pop();
+    str = parts.join('') + '.' + decimal;
+  } else if (periods === 1 && commas === 1) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (commas === 1 && periods === 0) {
+    str = str.replace(',', '.');
+  }
+
+  const num = parseFloat(str);
+  return isNaN(num) ? null : num;
+}
+
+/**
+ * Parse date from various formats
+ */
+function parseDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+
+  const str = String(value).trim();
+
+  // Try ISO format
+  let date = new Date(str);
+  if (!isNaN(date.getTime())) return date;
+
+  // Try DD.MM.YYYY HH:MM format
+  const euMatch = str.match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
+  if (euMatch) {
+    const [, day, month, year, hour, minute] = euMatch;
+    return new Date(year, month - 1, day, hour, minute);
+  }
+
+  // Try YYYY-MM-DD HH:MM:SS format
+  const isoMatch = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):?(\d{2})?/);
+  if (isoMatch) {
+    const [, year, month, day, hour, minute, second] = isoMatch;
+    return new Date(year, month - 1, day, hour, minute, second || 0);
+  }
+
+  return null;
+}
+
+/**
+ * Parse EUROWAG Excel file buffer
+ * @param {Buffer} fileBuffer - Excel file buffer
+ * @returns {Object} Parsed data with transactions and metadata
+ */
+function parseEurowagExcel(fileBuffer) {
+  const workbook = xlsx.read(fileBuffer, { type: 'buffer', cellDates: true });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rawData = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+
+  if (rawData.length < 2) {
+    throw new Error('EUROWAG Excel file is empty or has no data rows');
+  }
+
+  const headers = rawData[0];
+
+  // Map column indices
+  const columnMap = {};
+  headers.forEach((header, index) => {
+    const trimmedHeader = String(header).trim();
+    for (const [key, label] of Object.entries(EUROWAG_COLUMNS)) {
+      if (trimmedHeader === label || trimmedHeader.includes(label)) {
+        columnMap[key] = index;
+        break;
+      }
+    }
+  });
+
+  // Validate required columns
+  const requiredColumns = ['DATETIME', 'REGISTRATION', 'NET_AMOUNT'];
+  const missingColumns = requiredColumns.filter(col => columnMap[col] === undefined);
+  if (missingColumns.length > 0) {
+    throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
+  }
+
+  const transactions = [];
+  let totalNetEUR = 0;
+  let totalGrossEUR = 0;
+  let totalVatEUR = 0;
+  let minDate = null;
+  let maxDate = null;
+
+  for (let i = 1; i < rawData.length; i++) {
+    const row = rawData[i];
+    if (!row || row.length === 0) continue;
+
+    // Parse date
+    let transactionTime = null;
+    const timeValue = row[columnMap.DATETIME];
+    if (timeValue) {
+      transactionTime = timeValue instanceof Date ? timeValue : parseDate(timeValue);
+    }
+
+    if (!transactionTime) {
+      console.warn(`EUROWAG Row ${i + 1}: Could not parse date, skipping`);
+      continue;
+    }
+
+    const netAmount = parseNumber(row[columnMap.NET_AMOUNT]);
+    const grossAmount = parseNumber(row[columnMap.GROSS_AMOUNT]);
+    const quantity = parseNumber(row[columnMap.QUANTITY]);
+    const currency = String(row[columnMap.CURRENCY] || 'EUR').trim();
+
+    // Calculate VAT
+    const vatAmount = grossAmount && netAmount ? grossAmount - netAmount : 0;
+
+    // Convert to EUR if needed (for Romanian transactions in RON)
+    let netEUR = netAmount;
+    let grossEUR = grossAmount;
+    let vatEUR = vatAmount;
+
+    if (currency === 'RON') {
+      // Approximate conversion (should use real exchange rate)
+      const ronToEur = 0.2; // ~5 RON = 1 EUR
+      netEUR = netAmount * ronToEur;
+      grossEUR = grossAmount * ronToEur;
+      vatEUR = vatAmount * ronToEur;
+    }
+
+    const registration = String(row[columnMap.REGISTRATION] || '').trim().toUpperCase();
+    const service = String(row[columnMap.SERVICE] || '').trim();
+    const product = String(row[columnMap.PRODUCT] || '').trim();
+    const country = String(row[columnMap.COUNTRY] || '').trim();
+
+    const transaction = {
+      transaction_time: transactionTime.toISOString(),
+      service_type: service, // FUEL, TOLL, etc.
+      vehicle_registration: registration,
+      card_number: String(row[columnMap.CARD] || '').trim(),
+      product_type: product, // Motorină, AdBlue, etc.
+      quantity: quantity,
+      unit: String(row[columnMap.UNIT] || 'LTR').trim(),
+      country: country,
+      location: String(row[columnMap.LOCATION] || '').trim(),
+      obu_id: String(row[columnMap.OBU_ID] || '').trim(),
+      // Amounts in original currency
+      net_amount: netAmount,
+      gross_amount: grossAmount,
+      vat_amount: vatAmount,
+      currency: currency,
+      // Amounts converted to EUR
+      net_amount_eur: Math.round(netEUR * 100) / 100,
+      gross_amount_eur: Math.round(grossEUR * 100) / 100,
+      vat_amount_eur: Math.round(vatEUR * 100) / 100,
+      // Provider info
+      provider: 'eurowag',
+    };
+
+    transactions.push(transaction);
+
+    // Track totals in EUR
+    if (netEUR) totalNetEUR += netEUR;
+    if (grossEUR) totalGrossEUR += grossEUR;
+    if (vatEUR) totalVatEUR += vatEUR;
+
+    if (!minDate || transactionTime < minDate) minDate = transactionTime;
+    if (!maxDate || transactionTime > maxDate) maxDate = transactionTime;
+  }
+
+  return {
+    transactions,
+    metadata: {
+      provider: 'eurowag',
+      total_transactions: transactions.length,
+      total_net_eur: Math.round(totalNetEUR * 100) / 100,
+      total_gross_eur: Math.round(totalGrossEUR * 100) / 100,
+      total_vat_eur: Math.round(totalVatEUR * 100) / 100,
+      currency: 'EUR',
+      period_start: minDate ? minDate.toISOString().split('T')[0] : null,
+      period_end: maxDate ? maxDate.toISOString().split('T')[0] : null,
+      vehicles: [...new Set(transactions.map(t => t.vehicle_registration).filter(Boolean))],
+      countries: [...new Set(transactions.map(t => t.country).filter(Boolean))],
+    },
+  };
+}
+
+/**
+ * Import EUROWAG transactions into database
+ */
+async function importEurowagTransactions(fileBuffer, companyId, userId, documentId, fileName) {
+  const parsed = parseEurowagExcel(fileBuffer);
+
+  if (parsed.transactions.length === 0) {
+    throw new Error('No transactions found in EUROWAG file');
+  }
+
+  // Get company trucks for matching
+  const { data: trucks, error: trucksError } = await supabase
+    .from('truck_heads')
+    .select('id, registration_number')
+    .eq('company_id', companyId);
+
+  if (trucksError) {
+    throw new Error('Failed to fetch company trucks: ' + trucksError.message);
+  }
+
+  // Create truck lookup map
+  const truckMap = new Map();
+  if (trucks) {
+    trucks.forEach(truck => {
+      const reg = truck.registration_number;
+      truckMap.set(createMatchKey(reg), truck.id);
+      truckMap.set(reg.toUpperCase(), truck.id);
+      truckMap.set(reg.replace(/\s+/g, '').toUpperCase(), truck.id);
+      if (reg.toUpperCase().includes('UNIVERSAL')) {
+        truckMap.set('UNIVERSAL2', truck.id);
+        truckMap.set('UNIVERSAL 2', truck.id);
+      }
+    });
+  }
+
+  // Create import batch
+  const { data: batch, error: batchError } = await supabase
+    .from('dkv_import_batches')
+    .insert({
+      company_id: companyId,
+      uploaded_document_id: documentId,
+      file_name: fileName,
+      total_transactions: parsed.metadata.total_transactions,
+      total_amount: parsed.metadata.total_net_eur,
+      currency: 'EUR',
+      period_start: parsed.metadata.period_start,
+      period_end: parsed.metadata.period_end,
+      status: 'processing',
+      imported_by: userId,
+      notes: `Provider: EUROWAG | VAT: ${parsed.metadata.total_vat_eur} EUR`,
+    })
+    .select()
+    .single();
+
+  if (batchError) {
+    throw new Error('Failed to create import batch: ' + batchError.message);
+  }
+
+  // Process transactions
+  let matchedCount = 0;
+  let unmatchedCount = 0;
+  const transactionsToInsert = [];
+
+  for (const tx of parsed.transactions) {
+    let truckId = null;
+    let status = 'pending';
+
+    if (tx.vehicle_registration) {
+      const matchKey = createMatchKey(tx.vehicle_registration);
+
+      if (truckMap.has(matchKey)) {
+        truckId = truckMap.get(matchKey);
+      } else if (truckMap.has(tx.vehicle_registration)) {
+        truckId = truckMap.get(tx.vehicle_registration);
+      }
+
+      if (truckId) {
+        status = 'matched';
+        matchedCount++;
+      } else {
+        status = 'unmatched';
+        unmatchedCount++;
+      }
+    } else {
+      status = 'unmatched';
+      unmatchedCount++;
+    }
+
+    // Map EUROWAG fields to DKV table structure
+    transactionsToInsert.push({
+      company_id: companyId,
+      batch_id: batch.id,
+      uploaded_document_id: documentId,
+      truck_id: truckId,
+      status: status,
+      // Map fields
+      transaction_time: tx.transaction_time,
+      station_name: tx.location,
+      country: tx.country,
+      cost_group: tx.service_type,
+      goods_type: tx.product_type,
+      quantity: tx.quantity,
+      unit: tx.unit,
+      currency: 'EUR',
+      // Use EUR amounts
+      net_base_value: tx.net_amount,
+      net_purchase_value: tx.net_amount_eur,
+      payment_value: tx.gross_amount_eur,
+      payment_currency: tx.currency,
+      vehicle_registration: tx.vehicle_registration,
+      card_number: tx.card_number,
+      notes: `Provider: EUROWAG | Original: ${tx.net_amount} ${tx.currency} | VAT: ${tx.vat_amount_eur} EUR`,
+    });
+  }
+
+  // Batch insert
+  const CHUNK_SIZE = 100;
+  for (let i = 0; i < transactionsToInsert.length; i += CHUNK_SIZE) {
+    const chunk = transactionsToInsert.slice(i, i + CHUNK_SIZE);
+    const { error: insertError } = await supabase
+      .from('dkv_transactions')
+      .insert(chunk);
+
+    if (insertError) {
+      console.error('Error inserting EUROWAG transactions chunk:', insertError);
+    }
+  }
+
+  // Update batch status
+  await supabase
+    .from('dkv_import_batches')
+    .update({
+      matched_transactions: matchedCount,
+      unmatched_transactions: unmatchedCount,
+      status: unmatchedCount > 0 ? 'partial' : 'completed',
+    })
+    .eq('id', batch.id);
+
+  return {
+    success: true,
+    provider: 'eurowag',
+    batch_id: batch.id,
+    total_transactions: parsed.metadata.total_transactions,
+    matched_transactions: matchedCount,
+    unmatched_transactions: unmatchedCount,
+    total_net_eur: parsed.metadata.total_net_eur,
+    total_vat_eur: parsed.metadata.total_vat_eur,
+    period_start: parsed.metadata.period_start,
+    period_end: parsed.metadata.period_end,
+    vehicles: parsed.metadata.vehicles,
+    countries: parsed.metadata.countries,
+  };
+}
+
+module.exports = {
+  parseEurowagExcel,
+  importEurowagTransactions,
+  EUROWAG_COLUMNS,
+};
