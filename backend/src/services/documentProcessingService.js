@@ -66,14 +66,30 @@ function getMimeCategory(mimeType) {
 }
 
 /**
- * Extract text from PDF using pdf-parse library
+ * Extract text from PDF using pdf-parse library, with fallback to OpenAI Vision
  */
-async function extractTextFromPDF(fileBuffer) {
+async function extractTextFromPDF(fileBuffer, useVisionFallback = true) {
   try {
     const data = await pdfParse(fileBuffer);
-    return data.text;
+    if (data.text && data.text.trim().length > 0) {
+      return data.text;
+    }
+    throw new Error('PDF parsed but no text extracted');
   } catch (error) {
-    console.error('Error extracting text from PDF:', error);
+    console.error('Error extracting text from PDF with pdf-parse:', error.message);
+
+    // Fallback to OpenAI Vision for problematic PDFs
+    if (useVisionFallback) {
+      console.log('Falling back to OpenAI Vision for PDF extraction...');
+      try {
+        const base64 = fileBuffer.toString('base64');
+        const text = await extractTextFromImage(base64, 'application/pdf');
+        return text;
+      } catch (visionError) {
+        console.error('Vision fallback also failed:', visionError.message);
+        throw new Error(`PDF extraction failed: ${error.message}`);
+      }
+    }
     throw error;
   }
 }
