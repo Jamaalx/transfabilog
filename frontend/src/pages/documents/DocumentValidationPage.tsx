@@ -38,6 +38,8 @@ import {
   ArrowUpCircle,
   CreditCard,
   Briefcase,
+  Fuel,
+  ExternalLink,
 } from 'lucide-react'
 
 interface BankTransaction {
@@ -810,8 +812,136 @@ export default function DocumentValidationPage() {
         </Card>
       </div>
 
-      {/* Expense/Income Settings Card - dynamic based on document type */}
-      {!isProcessed && (
+      {/* Fuel Report - Dedicated UI - show INSTEAD of expense settings */}
+      {!isProcessed && isFuel && (
+        <Card className="mt-6 border-amber-200 bg-amber-50/30">
+          <CardHeader className="bg-amber-50">
+            <CardTitle className="flex items-center gap-2 text-amber-800">
+              <Fuel className="h-5 w-5" />
+              Raport Combustibil - {typeLabels[document.document_type]}
+            </CardTitle>
+            <CardDescription className="text-amber-700">
+              Acest document conține {extractedData.transactions?.length || 0} tranzacții de combustibil.
+              Pentru gestionare avansată (asociere vehicule, creare cheltuieli individuale), folosește pagina DKV.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Fuel className="h-8 w-8 text-blue-600" />
+                  <div>
+                    <p className="font-medium text-blue-800">Gestionare Avansată Combustibil</p>
+                    <p className="text-sm text-blue-600">
+                      Importă acest raport în pagina DKV pentru a asocia tranzacțiile la vehicule și a crea cheltuieli individuale.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => navigate('/dkv')}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Mergi la DKV
+                </Button>
+              </div>
+            </div>
+
+            {/* Quick summary */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-3 bg-white rounded-lg border">
+                <div className="text-2xl font-bold">{extractedData.transactions?.length || 0}</div>
+                <div className="text-sm text-muted-foreground">Tranzacții</div>
+              </div>
+              <div className="p-3 bg-white rounded-lg border">
+                <div className="text-2xl font-bold text-amber-600">
+                  {extractedData.transactions?.reduce((sum: number, tx: { amount?: number }) => sum + (tx.amount || 0), 0).toLocaleString() || 0}
+                </div>
+                <div className="text-sm text-muted-foreground">Total EUR</div>
+              </div>
+              <div className="p-3 bg-white rounded-lg border">
+                <div className="text-2xl font-bold text-blue-600">
+                  {extractedData.transactions?.reduce((sum: number, tx: { fuel_liters?: number }) => sum + (tx.fuel_liters || 0), 0).toFixed(0) || 0}
+                </div>
+                <div className="text-sm text-muted-foreground">Litri Total</div>
+              </div>
+              <div className="p-3 bg-white rounded-lg border">
+                <div className="text-2xl font-bold text-green-600">
+                  {[...new Set(extractedData.transactions?.map((tx: { truck_registration?: string }) => tx.truck_registration).filter(Boolean))].length || 0}
+                </div>
+                <div className="text-sm text-muted-foreground">Vehicule</div>
+              </div>
+            </div>
+
+            {/* Trip Selection for bulk expense creation */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  Categorie Cheltuială
+                </Label>
+                <Select value={expenseCategory} onValueChange={setExpenseCategory}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selectează categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseCategories.map((cat) => (
+                      <SelectItem key={cat.value} value={cat.value}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Asociază cu Trip (opțional)
+                </Label>
+                <Select
+                  value={selectedTripId || '__none__'}
+                  onValueChange={(val) => setSelectedTripId(val === '__none__' ? '' : val)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Fara trip - tranzactie generala" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Fara trip - tranzactie generala</SelectItem>
+                    {trips.map((trip) => (
+                      <SelectItem key={trip.id} value={trip.id}>
+                        {trip.origin_city} → {trip.destination_city} ({new Date(trip.departure_date).toLocaleDateString('ro-RO')})
+                        {trip.truck && ` - ${trip.truck.registration_number}`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+              <div>
+                <p className="font-medium">Creează cheltuială sumară</p>
+                <p className="text-sm text-muted-foreground">
+                  La confirmare, va fi creată o singură cheltuială cu suma totală din raport
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={createExpense}
+                  onChange={(e) => setCreateExpense(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+              </label>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Expense/Income Settings Card - for NON-fuel documents only */}
+      {!isProcessed && !isFuel && (
         <Card className={`mt-6 ${document.document_type === 'factura_iesire' ? 'border-green-200' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -901,24 +1031,6 @@ export default function DocumentValidationPage() {
               </div>
               )}
             </div>
-
-            {/* Info for fuel documents */}
-            {isFuel && hasExtractedTransactions && (
-              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-orange-800">Document cu tranzactii multiple</p>
-                    <p className="text-sm text-orange-600">
-                      Acest raport contine {extractedData.transactions?.length} tranzactii individuale.
-                      {selectedTripId
-                        ? ' Toate vor fi adaugate ca cheltuieli separate la trip-ul selectat.'
-                        : ' Selecteaza un trip pentru a le adauga ca cheltuieli individuale.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}

@@ -29,12 +29,41 @@ const DKV_COLUMNS = {
 };
 
 /**
- * Parse DKV Excel file buffer
- * @param {Buffer} fileBuffer - Excel file buffer
+ * Parse DKV Excel/CSV file buffer
+ * @param {Buffer} fileBuffer - Excel or CSV file buffer
+ * @param {string} mimeType - MIME type of the file (optional)
  * @returns {Object} Parsed data with transactions and metadata
  */
-function parseDKVExcel(fileBuffer) {
-  const workbook = xlsx.read(fileBuffer, { type: 'buffer', cellDates: true });
+function parseDKVExcel(fileBuffer, mimeType) {
+  let workbook;
+
+  // Check if this is a CSV file (might use semicolons as delimiter)
+  const isCSV = mimeType === 'text/csv' ||
+                (typeof fileBuffer === 'object' && fileBuffer.toString('utf-8', 0, 100).includes(';'));
+
+  if (isCSV) {
+    // For CSV files, first check the delimiter
+    const csvText = fileBuffer.toString('utf-8');
+    const firstLine = csvText.split('\n')[0];
+
+    // Determine delimiter (semicolon or comma)
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const delimiter = semicolonCount > commaCount ? ';' : ',';
+
+    console.log(`Detected CSV delimiter: "${delimiter}" (semicolons: ${semicolonCount}, commas: ${commaCount})`);
+
+    // Parse CSV with detected delimiter
+    workbook = xlsx.read(csvText, {
+      type: 'string',
+      FS: delimiter,
+      cellDates: true,
+      raw: false  // Parse numbers and dates
+    });
+  } else {
+    // For Excel files
+    workbook = xlsx.read(fileBuffer, { type: 'buffer', cellDates: true });
+  }
 
   // Get first sheet (transactions are typically on first sheet)
   const sheetName = workbook.SheetNames[0];
@@ -238,9 +267,9 @@ function normalizeRegistration(registration) {
  * @param {string} fileName - Original file name
  * @returns {Object} Import result
  */
-async function importDKVTransactions(fileBuffer, companyId, userId, documentId, fileName) {
-  // Parse Excel file
-  const parsed = parseDKVExcel(fileBuffer);
+async function importDKVTransactions(fileBuffer, companyId, userId, documentId, fileName, mimeType) {
+  // Parse Excel/CSV file
+  const parsed = parseDKVExcel(fileBuffer, mimeType);
 
   if (parsed.transactions.length === 0) {
     throw new Error('No transactions found in DKV file');
