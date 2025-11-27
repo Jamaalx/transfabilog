@@ -1,6 +1,7 @@
 const OpenAI = require('openai');
 const { supabaseAdmin: supabase } = require('../config/supabase');
 const path = require('path');
+const pdfParse = require('pdf-parse');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -63,7 +64,20 @@ function getMimeCategory(mimeType) {
 }
 
 /**
- * Extract text from document using AI Vision (for images and PDFs)
+ * Extract text from PDF using pdf-parse library
+ */
+async function extractTextFromPDF(fileBuffer) {
+  try {
+    const data = await pdfParse(fileBuffer);
+    return data.text;
+  } catch (error) {
+    console.error('Error extracting text from PDF:', error);
+    throw error;
+  }
+}
+
+/**
+ * Extract text from image using AI Vision (for images only)
  */
 async function extractTextFromImage(base64Image, mimeType) {
   try {
@@ -393,7 +407,11 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
     const mimeCategory = getMimeCategory(mimeType);
 
     // Extract text based on file type
-    if (mimeCategory === 'image' || mimeCategory === 'pdf') {
+    if (mimeCategory === 'pdf') {
+      // Use pdf-parse for PDF files
+      extractedText = await extractTextFromPDF(fileBuffer);
+    } else if (mimeCategory === 'image') {
+      // Use OpenAI Vision for images
       const base64 = fileBuffer.toString('base64');
       extractedText = await extractTextFromImage(base64, mimeType);
     } else if (mimeCategory === 'spreadsheet') {
