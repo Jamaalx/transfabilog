@@ -108,3 +108,23 @@ export const uploadedDocumentsApi = {
   confirmBankStatement: (id: string, data: Record<string, unknown>) => api.post(`/uploaded-documents/${id}/confirm-bank-statement`, data),
   getUnpaidInvoices: () => api.get('/uploaded-documents/unpaid-invoices'),
 }
+
+export const dkvApi = {
+  // Import
+  import: (formData: FormData) => api.post('/dkv/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  // Batches
+  getBatches: (params?: Record<string, unknown>) => api.get('/dkv/batches', { params }),
+  getBatch: (id: string) => api.get(`/dkv/batches/${id}`),
+  deleteBatch: (id: string) => api.delete(`/dkv/batches/${id}`),
+  // Transactions
+  getTransactions: (params?: Record<string, unknown>) => api.get('/dkv/transactions', { params }),
+  getTransaction: (id: string) => api.get(`/dkv/transactions/${id}`),
+  matchTransaction: (id: string, truckId: string) => api.patch(`/dkv/transactions/${id}/match`, { truck_id: truckId }),
+  ignoreTransaction: (id: string, notes?: string) => api.patch(`/dkv/transactions/${id}/ignore`, { notes }),
+  createExpense: (id: string, tripId?: string) => api.post(`/dkv/transactions/${id}/create-expense`, { trip_id: tripId }),
+  bulkCreateExpenses: (transactionIds: string[]) => api.post('/dkv/transactions/bulk-create-expenses', { transaction_ids: transactionIds }),
+  // Summary
+  getSummary: () => api.get('/dkv/summary'),
+}
