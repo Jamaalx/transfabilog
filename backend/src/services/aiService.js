@@ -1,5 +1,5 @@
 const OpenAI = require('openai');
-const { supabase } = require('../config/supabase');
+const { supabaseAdmin: supabase } = require('../config/supabase');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
