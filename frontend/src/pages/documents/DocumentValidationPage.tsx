@@ -798,26 +798,6 @@ export default function DocumentValidationPage() {
                 )}
               </div>
             )}
-
-            {/* Driver Association */}
-            {(extractedData.driver_name || document.driver) && (
-              <div>
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <User className="h-4 w-4" /> Sofer Asociat
-                </label>
-                <div className="mt-1 p-2 bg-green-50 rounded flex items-center gap-2">
-                  <User className="h-4 w-4 text-green-600" />
-                  <span>
-                    {document.driver ? `${document.driver.first_name} ${document.driver.last_name}` : extractedData.driver_name}
-                  </span>
-                  {document.driver && (
-                    <Badge variant="outline" className="ml-auto">
-                      Asociat automat
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>
