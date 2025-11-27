@@ -25,6 +25,7 @@
     "node-cron": "^3.0.3",
     "openai": "^4.20.0",
     "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^4.0.379",
     "uuid": "^9.0.0",
     "winston": "^3.11.0",
     "xlsx": "^0.18.5"

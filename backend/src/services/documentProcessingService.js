@@ -4,6 +4,7 @@ const path = require('path');
 const xlsx = require('xlsx');
 const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
+const { getDocument } = require('pdfjs-dist/legacy/build/pdf.mjs');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -66,9 +67,33 @@ function getMimeCategory(mimeType) {
 }
 
 /**
- * Extract text from PDF using pdf-parse library, with fallback to OpenAI Vision
+ * Extract text from PDF using pdfjs-dist (more robust)
  */
-async function extractTextFromPDF(fileBuffer, useVisionFallback = true) {
+async function extractTextWithPdfJs(fileBuffer) {
+  try {
+    const uint8Array = new Uint8Array(fileBuffer);
+    const pdf = await getDocument({ data: uint8Array, useSystemFonts: true }).promise;
+
+    let fullText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map((item) => item.str).join(' ');
+      fullText += pageText + '\n';
+    }
+
+    return fullText;
+  } catch (error) {
+    console.error('Error with pdfjs-dist:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Extract text from PDF using pdf-parse library, with fallback to pdfjs-dist
+ */
+async function extractTextFromPDF(fileBuffer) {
+  // First try with pdf-parse (faster for simple PDFs)
   try {
     const data = await pdfParse(fileBuffer);
     if (data.text && data.text.trim().length > 0) {
@@ -78,19 +103,18 @@ async function extractTextFromPDF(fileBuffer, useVisionFallback = true) {
   } catch (error) {
     console.error('Error extracting text from PDF with pdf-parse:', error.message);
 
-    // Fallback to OpenAI Vision for problematic PDFs
-    if (useVisionFallback) {
-      console.log('Falling back to OpenAI Vision for PDF extraction...');
-      try {
-        const base64 = fileBuffer.toString('base64');
-        const text = await extractTextFromImage(base64, 'application/pdf');
+    // Fallback to pdfjs-dist for problematic PDFs
+    console.log('Falling back to pdfjs-dist for PDF extraction...');
+    try {
+      const text = await extractTextWithPdfJs(fileBuffer);
+      if (text && text.trim().length > 0) {
         return text;
-      } catch (visionError) {
-        console.error('Vision fallback also failed:', visionError.message);
-        throw new Error(`PDF extraction failed: ${error.message}`);
       }
+      throw new Error('pdfjs-dist extracted no text');
+    } catch (pdfjsError) {
+      console.error('pdfjs-dist fallback also failed:', pdfjsError.message);
+      throw new Error(`PDF extraction failed with both methods: ${error.message}`);
     }
-    throw error;
   }
 }
 
