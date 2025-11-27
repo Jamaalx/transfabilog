@@ -682,12 +682,15 @@ export default function DocumentValidationPage() {
                   <MapPin className="h-4 w-4" />
                   Asociaza cu Trip (optional)
                 </Label>
-                <Select value={selectedTripId} onValueChange={setSelectedTripId}>
+                <Select
+                  value={selectedTripId || '__none__'}
+                  onValueChange={(val) => setSelectedTripId(val === '__none__' ? '' : val)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Fara trip - tranzactie generala" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Fara trip - tranzactie generala</SelectItem>
+                    <SelectItem value="__none__">Fara trip - tranzactie generala</SelectItem>
                     {trips.map((trip) => (
                       <SelectItem key={trip.id} value={trip.id}>
                         {trip.origin_city} → {trip.destination_city} ({new Date(trip.departure_date).toLocaleDateString('ro-RO')})
