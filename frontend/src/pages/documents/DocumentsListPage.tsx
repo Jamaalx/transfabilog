@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { uploadedDocumentsApi } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -85,6 +86,7 @@ export default function DocumentsListPage() {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [selectedDocs, setSelectedDocs] = useState<string[]>([])
 
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   // Fetch documents
@@ -113,12 +115,18 @@ export default function DocumentsListPage() {
   const processMutation = useMutation({
     mutationFn: async (ids: string[]) => {
       const response = await uploadedDocumentsApi.processBatch(ids)
-      return response.data
+      return { ...response.data, documentIds: ids }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['uploaded-documents'] })
       queryClient.invalidateQueries({ queryKey: ['uploaded-documents-stats'] })
       setSelectedDocs([])
+      // Navigate to validation page with the batch of document IDs
+      if (data.documentIds && data.documentIds.length > 0) {
+        const firstId = data.documentIds[0]
+        const batchParam = data.documentIds.join(',')
+        navigate(`/documents/${firstId}/validate?batch=${batchParam}`)
+      }
     },
   })
 
@@ -421,7 +429,8 @@ export default function DocumentsListPage() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => (window.location.href = `/documents/${doc.id}`)}
+                              onClick={() => navigate(`/documents/${doc.id}`)}
+                              title="Vizualizeaza / Valideaza"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>

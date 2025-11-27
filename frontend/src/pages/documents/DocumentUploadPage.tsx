@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { uploadedDocumentsApi } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -92,7 +93,9 @@ export default function DocumentUploadPage() {
   const [periodEnd, setPeriodEnd] = useState('')
   const [notes, setNotes] = useState('')
   const [dragActive, setDragActive] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   // Fetch document types
@@ -155,10 +158,20 @@ export default function DocumentUploadPage() {
   const processMutation = useMutation({
     mutationFn: async (documentIds: string[]) => {
       const response = await uploadedDocumentsApi.processBatch(documentIds)
-      return response.data
+      return { ...response.data, documentIds }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['uploaded-documents'] })
+      setIsProcessing(false)
+      // Navigate to validation page with the batch of document IDs
+      if (data.documentIds && data.documentIds.length > 0) {
+        const firstId = data.documentIds[0]
+        const batchParam = data.documentIds.join(',')
+        navigate(`/documents/${firstId}/validate?batch=${batchParam}`)
+      }
+    },
+    onError: () => {
+      setIsProcessing(false)
     },
   })
 
@@ -222,6 +235,7 @@ export default function DocumentUploadPage() {
   const handleProcess = () => {
     const documentIds = files.filter((f) => f.documentId).map((f) => f.documentId!)
     if (documentIds.length > 0) {
+      setIsProcessing(true)
       processMutation.mutate(documentIds)
     }
   }
@@ -534,16 +548,16 @@ export default function DocumentUploadPage() {
               </Button>
               <Button
                 onClick={handleProcess}
-                disabled={processMutation.isPending}
+                disabled={processMutation.isPending || isProcessing}
                 size="lg"
               >
-                {processMutation.isPending ? (
+                {processMutation.isPending || isProcessing ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se procesează...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Se proceseaza... Te vom redirectiona la validare
                   </>
                 ) : (
                   <>
-                    <Brain className="mr-2 h-4 w-4" /> Procesează cu AI
+                    <Brain className="mr-2 h-4 w-4" /> Proceseaza cu AI
                   </>
                 )}
               </Button>

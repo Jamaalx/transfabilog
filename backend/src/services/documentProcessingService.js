@@ -1,6 +1,8 @@
 const OpenAI = require('openai');
 const { supabaseAdmin: supabase } = require('../config/supabase');
 const path = require('path');
+const xlsx = require('xlsx');
+const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
 
 // Initialize OpenAI client
@@ -72,6 +74,54 @@ async function extractTextFromPDF(fileBuffer) {
     return data.text;
   } catch (error) {
     console.error('Error extracting text from PDF:', error);
+    throw error;
+  }
+}
+
+/**
+ * Extract text from Excel (xlsx/xls) files
+ */
+function extractTextFromExcel(fileBuffer) {
+  try {
+    const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+    let fullText = '';
+
+    workbook.SheetNames.forEach((sheetName) => {
+      const sheet = workbook.Sheets[sheetName];
+      const sheetText = xlsx.utils.sheet_to_csv(sheet, { FS: '\t', RS: '\n' });
+      fullText += `--- Sheet: ${sheetName} ---\n${sheetText}\n\n`;
+    });
+
+    return fullText;
+  } catch (error) {
+    console.error('Error extracting text from Excel:', error);
+    throw error;
+  }
+}
+
+/**
+ * Extract text from CSV files
+ */
+function extractTextFromCSV(fileBuffer) {
+  try {
+    // CSV is already text, just decode the buffer
+    const text = fileBuffer.toString('utf-8');
+    return text;
+  } catch (error) {
+    console.error('Error extracting text from CSV:', error);
+    throw error;
+  }
+}
+
+/**
+ * Extract text from DOCX files using mammoth
+ */
+async function extractTextFromDOCX(fileBuffer) {
+  try {
+    const result = await mammoth.extractRawText({ buffer: fileBuffer });
+    return result.value;
+  } catch (error) {
+    console.error('Error extracting text from DOCX:', error);
     throw error;
   }
 }
@@ -415,12 +465,21 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       const base64 = fileBuffer.toString('base64');
       extractedText = await extractTextFromImage(base64, mimeType);
     } else if (mimeCategory === 'spreadsheet') {
-      // For spreadsheets, we'd need to parse them differently
-      // For now, just extract what we can
-      extractedText = `Fișier spreadsheet: ${fileName}`;
+      // Handle Excel and CSV files
+      if (mimeType === 'text/csv') {
+        extractedText = extractTextFromCSV(fileBuffer);
+      } else {
+        // Excel files (xlsx, xls)
+        extractedText = extractTextFromExcel(fileBuffer);
+      }
     } else if (mimeCategory === 'document') {
-      // For Word documents, we'd need a parser
-      extractedText = `Document Word: ${fileName}`;
+      // Handle Word documents (DOCX)
+      if (mimeType.includes('wordprocessingml') || mimeType.includes('openxmlformats')) {
+        extractedText = await extractTextFromDOCX(fileBuffer);
+      } else {
+        // Old .doc format - try to extract basic text
+        extractedText = fileBuffer.toString('utf-8').replace(/[^\x20-\x7E\n\r]/g, ' ');
+      }
     }
 
     // Classify document
