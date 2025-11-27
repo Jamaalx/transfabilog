@@ -270,17 +270,22 @@ export default function DocumentValidationPage() {
   })
 
   const handleConfirm = () => {
-    confirmMutation.mutate({
-      document_number: formData.document_number,
-      document_date: formData.document_date,
-      amount: formData.amount ? parseFloat(String(formData.amount)) : null,
-      currency: formData.currency,
-      supplier_name: formData.supplier_name,
-      supplier_cui: formData.supplier_cui,
-      expense_category: expenseCategory,
-      trip_id: selectedTripId || null,
+    // Build request data, only including fields with actual values
+    // Don't send null values as they fail validation (trip_id must be UUID if present)
+    const requestData: Record<string, unknown> = {
       create_expense: createExpense,
-    })
+    }
+
+    if (formData.document_number) requestData.document_number = formData.document_number
+    if (formData.document_date) requestData.document_date = formData.document_date
+    if (formData.amount) requestData.amount = parseFloat(String(formData.amount))
+    if (formData.currency) requestData.currency = formData.currency
+    if (formData.supplier_name) requestData.supplier_name = formData.supplier_name
+    if (formData.supplier_cui) requestData.supplier_cui = formData.supplier_cui
+    if (expenseCategory) requestData.expense_category = expenseCategory
+    if (selectedTripId) requestData.trip_id = selectedTripId
+
+    confirmMutation.mutate(requestData)
   }
 
   const handleInputChange = (field: string, value: string | number) => {
