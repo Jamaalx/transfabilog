@@ -132,9 +132,12 @@ export const dkvApi = {
   createExpense: (id: string, tripId?: string) => api.post(`/dkv/transactions/${id}/create-expense`, { trip_id: tripId }),
   bulkCreateExpenses: (transactionIds: string[]) => api.post('/dkv/transactions/bulk-create-expenses', { transaction_ids: transactionIds }),
   bulkIgnoreTransactions: (transactionIds: string[]) => api.post('/dkv/transactions/bulk-ignore', { transaction_ids: transactionIds }),
-  // Summary - supports provider filtering
-  getSummary: (provider?: string) => {
-    const params = provider ? { provider } : {}
+  // Summary - supports provider filtering and batch filtering
+  getSummary: (provider?: string, options?: { batch_id?: string; latest?: boolean }) => {
+    const params: Record<string, string | boolean> = {}
+    if (provider) params.provider = provider
+    if (options?.batch_id) params.batch_id = options.batch_id
+    if (options?.latest) params.latest = true
     return api.get('/dkv/summary', { params })
   },
 }
