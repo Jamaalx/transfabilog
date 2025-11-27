@@ -112,7 +112,7 @@ router.post(
     body('period_start').optional().isISO8601(),
     body('period_end').optional().isISO8601(),
     body('notes').optional().isString(),
-    body('truck_id').optional().isUUID(),
+    body('truck_id').optional().isUUID('all'), // Accept any UUID version
     body('bank_statement_type').optional().isIn(['per_camion', 'administrativ']),
   ],
   async (req, res, next) => {
@@ -528,7 +528,7 @@ router.put(
     body('document_number').optional().isString(),
     body('amount').optional().isNumeric(),
     body('currency').optional().isString(),
-    body('truck_id').optional().isUUID(),
+    body('truck_id').optional().isUUID('all'), // Accept any UUID version
     body('driver_id').optional().isUUID(),
     body('trip_id').optional().isUUID(),
     body('status').optional().isIn(['uploaded', 'processing', 'processed', 'failed', 'needs_review', 'archived']),
