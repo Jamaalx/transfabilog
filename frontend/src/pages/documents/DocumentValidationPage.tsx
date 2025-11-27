@@ -175,10 +175,18 @@ const expenseCategories = [
   { value: 'transport', label: 'Transport' },
   { value: 'taxa_drum', label: 'Taxe Drum' },
   { value: 'parcare', label: 'Parcare' },
-  { value: 'mentenanta', label: 'Mentenanta' },
+  { value: 'mentenanta', label: 'Mentenanță' },
   { value: 'asigurare', label: 'Asigurare' },
   { value: 'bancar', label: 'Bancar' },
   { value: 'diverse', label: 'Diverse' },
+  { value: 'altele', label: 'Altele' },
+]
+
+// Income categories for outgoing invoices (factura_iesire)
+const incomeCategories = [
+  { value: 'transport', label: 'Servicii Transport' },
+  { value: 'transport_international', label: 'Transport Internațional' },
+  { value: 'transport_intern', label: 'Transport Intern' },
   { value: 'altele', label: 'Altele' },
 ]
 
@@ -802,25 +810,31 @@ export default function DocumentValidationPage() {
         </Card>
       </div>
 
-      {/* Expense Settings Card */}
+      {/* Expense/Income Settings Card - dynamic based on document type */}
       {!isProcessed && (
-        <Card className="mt-6">
+        <Card className={`mt-6 ${document.document_type === 'factura_iesire' ? 'border-green-200' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Receipt className="h-5 w-5" />
-              Setari Cheltuiala
+              {document.document_type === 'factura_iesire' ? 'Setări Încasare' : 'Setări Cheltuială'}
             </CardTitle>
             <CardDescription>
-              Configureaza cum va fi inregistrata cheltuiala din acest document
+              {document.document_type === 'factura_iesire'
+                ? 'Configurează cum va fi înregistrată încasarea din această factură'
+                : 'Configurează cum va fi înregistrată cheltuiala din acest document'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Create Expense Toggle */}
+            {/* Create Expense/Income Toggle */}
             <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
               <div>
-                <p className="font-medium">Creeaza cheltuiala automat</p>
+                <p className="font-medium">
+                  {document.document_type === 'factura_iesire' ? 'Creează încasare automat' : 'Creează cheltuială automat'}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  La confirmare, va fi creata o inregistrare in {selectedTripId ? 'cheltuielile trip-ului' : 'tranzactii'}
+                  {document.document_type === 'factura_iesire'
+                    ? 'La confirmare, va fi creată o încasare în tranzacții'
+                    : `La confirmare, va fi creată o înregistrare în ${selectedTripId ? 'cheltuielile trip-ului' : 'tranzacții'}`}
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -830,23 +844,23 @@ export default function DocumentValidationPage() {
                   onChange={(e) => setCreateExpense(e.target.checked)}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 ${document.document_type === 'factura_iesire' ? 'peer-focus:ring-green-300 peer-checked:bg-green-600' : 'peer-focus:ring-blue-300 peer-checked:bg-blue-600'} rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all`}></div>
               </label>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Expense Category */}
+              {/* Category - different for income vs expense */}
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <Tag className="h-4 w-4" />
-                  Categorie Cheltuiala
+                  {document.document_type === 'factura_iesire' ? 'Categorie Venit' : 'Categorie Cheltuială'}
                 </Label>
                 <Select value={expenseCategory} onValueChange={setExpenseCategory}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecteaza categoria" />
+                    <SelectValue placeholder="Selectează categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    {expenseCategories.map((cat) => (
+                    {(document.document_type === 'factura_iesire' ? incomeCategories : expenseCategories).map((cat) => (
                       <SelectItem key={cat.value} value={cat.value}>
                         {cat.label}
                       </SelectItem>
@@ -855,11 +869,12 @@ export default function DocumentValidationPage() {
                 </Select>
               </div>
 
-              {/* Trip Selection */}
+              {/* Trip Selection - only for expenses, not for income */}
+              {document.document_type !== 'factura_iesire' && (
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />
-                  Asociaza cu Trip (optional)
+                  Asociază cu Trip (opțional)
                 </Label>
                 <Select
                   value={selectedTripId || '__none__'}
@@ -880,10 +895,11 @@ export default function DocumentValidationPage() {
                 </Select>
                 {selectedTripId && (
                   <p className="text-xs text-muted-foreground">
-                    Cheltuiala va fi adaugata la cheltuielile trip-ului selectat
+                    Cheltuiala va fi adăugată la cheltuielile trip-ului selectat
                   </p>
                 )}
               </div>
+              )}
             </div>
 
             {/* Info for fuel documents */}
@@ -1198,13 +1214,13 @@ export default function DocumentValidationPage() {
               )}
               {isBankStatement
                 ? (batchIds.length > 1 && currentIndex < batchIds.length - 1
-                    ? 'Proceseaza Extras si Urmatorul'
-                    : 'Proceseaza Extras Bancar')
+                    ? 'Procesează Extras și Următorul'
+                    : 'Procesează Extras Bancar')
                 : (batchIds.length > 1 && currentIndex < batchIds.length - 1
-                    ? 'Confirma si Urmatorul'
+                    ? 'Confirmă și Următorul'
                     : createExpense
-                      ? 'Confirma si Creeaza Cheltuiala'
-                      : 'Confirma si Salveaza')}
+                      ? (document.document_type === 'factura_iesire' ? 'Confirmă și Creează Încasare' : 'Confirmă și Creează Cheltuială')
+                      : 'Confirmă și Salvează')}
             </Button>
           </div>
         </div>
