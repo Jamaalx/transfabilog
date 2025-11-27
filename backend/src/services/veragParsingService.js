@@ -1,5 +1,6 @@
 const pdfParse = require('pdf-parse');
 const { supabaseAdmin: supabase } = require('../config/supabase');
+const bnrService = require('./bnrExchangeService');
 
 /**
  * VERAG Maut Report PDF Parser
@@ -304,16 +305,30 @@ function parseTransactionLine(line, vehicleRegistration) {
   // Clean up product name
   product = product.trim();
 
+  // Calculate VAT rate from amounts
+  const vatRate = vatAmount > 0 && netAmount > 0
+    ? Math.round((vatAmount / netAmount) * 10000) / 100
+    : 0;
+
+  // Get country VAT info
+  const countryCode = bnrService.getCountryCode(country) || country;
+  const vatInfo = bnrService.getVatRate(country);
+
   return {
     vehicle_registration: vehicleRegistration,
     transaction_date: transactionDate.toISOString(),
     country: country,
+    country_code: countryCode,
     product_type: product || null,
     product_category: getProductCategory(product, country),
     card_number: cardNumber || null,
     route_info: routeInfo || null,
     net_amount: netAmount,
     vat_amount: vatAmount,
+    vat_rate: vatRate,
+    vat_country: countryCode,
+    vat_country_rate: vatInfo.rate,
+    vat_refundable: vatInfo.refundable && vatAmount > 0,
     gross_amount: grossAmount,
     currency: 'EUR',
     provider: 'verag',
@@ -416,24 +431,33 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
       // Map fields
       transaction_time: tx.transaction_date,
       country: tx.country,
+      country_code: tx.country_code,
       cost_group: 'TOLL', // VERAG is toll-only
       goods_type: tx.product_type || tx.product_category,
       currency: 'EUR',
-      // Amounts
+      original_currency: 'EUR',
+      // Amounts (all in EUR for VERAG)
       net_base_value: tx.net_amount,
       net_purchase_value: tx.net_amount,
+      net_purchase_value_eur: tx.net_amount,
+      gross_value: tx.gross_amount,
+      gross_value_eur: tx.gross_amount,
       payment_value: tx.gross_amount,
+      payment_value_eur: tx.gross_amount,
       payment_currency: 'EUR',
       vehicle_registration: tx.vehicle_registration,
       card_number: tx.card_number,
       // VAT tracking
       vat_amount: tx.vat_amount,
-      vat_country: tx.country,
-      vat_refundable: tx.vat_amount > 0, // VAT is refundable if paid
+      vat_amount_original: tx.vat_amount,
+      vat_rate: tx.vat_rate,
+      vat_country: tx.vat_country,
+      vat_country_rate: tx.vat_country_rate,
+      vat_refundable: tx.vat_refundable,
       vat_refund_status: tx.vat_amount > 0 ? 'pending' : 'not_applicable',
       // Provider
       provider: 'verag',
-      notes: `${tx.product_category}${tx.route_info ? ' | Route: ' + tx.route_info : ''}`,
+      notes: `${tx.product_category} | VAT: ${tx.vat_amount?.toFixed(2)} EUR (${tx.vat_rate?.toFixed(0)}%)${tx.route_info ? ' | Route: ' + tx.route_info : ''}`,
     });
   }
 

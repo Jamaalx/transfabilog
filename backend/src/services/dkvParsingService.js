@@ -175,8 +175,9 @@ async function parseDKVExcel(fileBuffer, mimeType) {
     let exchangeRate = 1;
     let rateDate = null;
 
-    if (paymentCurrency !== 'EUR' && paymentCurrency === 'RON') {
-      // Convert RON to EUR using BNR rates based on transaction date
+    // Convert ALL non-EUR currencies (RON, HUF, PLN, CZK, BGN, etc.)
+    if (paymentCurrency && paymentCurrency !== 'EUR') {
+      // Convert to EUR using BNR rates based on transaction date
       const conversionResult = await bnrService.convertToEur(netPurchaseValue, paymentCurrency, transactionTime);
       netPurchaseValueEur = conversionResult.amountEur;
       exchangeRate = conversionResult.rate;

@@ -1,5 +1,6 @@
 const xlsx = require('xlsx');
 const { supabaseAdmin: supabase } = require('../config/supabase');
+const bnrService = require('./bnrExchangeService');
 
 /**
  * EUROWAG Excel Column Mappings
@@ -92,7 +93,7 @@ function parseDate(value) {
  * @param {Buffer} fileBuffer - Excel file buffer
  * @returns {Object} Parsed data with transactions and metadata
  */
-function parseEurowagExcel(fileBuffer) {
+async function parseEurowagExcel(fileBuffer) {
   const workbook = xlsx.read(fileBuffer, { type: 'buffer', cellDates: true });
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
@@ -149,28 +150,51 @@ function parseEurowagExcel(fileBuffer) {
     const netAmount = parseNumber(row[columnMap.NET_AMOUNT]);
     const grossAmount = parseNumber(row[columnMap.GROSS_AMOUNT]);
     const quantity = parseNumber(row[columnMap.QUANTITY]);
-    const currency = String(row[columnMap.CURRENCY] || 'EUR').trim();
+    const currency = String(row[columnMap.CURRENCY] || 'EUR').trim().toUpperCase();
 
-    // Calculate VAT
-    const vatAmount = grossAmount && netAmount ? grossAmount - netAmount : 0;
+    // Calculate VAT (Brutto - Netto)
+    const vatAmount = grossAmount && netAmount && grossAmount > netAmount
+      ? Math.round((grossAmount - netAmount) * 100) / 100
+      : 0;
 
-    // Convert to EUR if needed (for Romanian transactions in RON)
+    // Calculate VAT rate
+    const vatRate = vatAmount > 0 && netAmount > 0
+      ? Math.round((vatAmount / netAmount) * 10000) / 100
+      : 0;
+
+    // Convert to EUR if needed - ALL non-EUR currencies (RON, HUF, PLN, CZK, etc.)
     let netEUR = netAmount;
     let grossEUR = grossAmount;
     let vatEUR = vatAmount;
+    let exchangeRate = 1;
+    let rateDate = null;
 
-    if (currency === 'RON') {
-      // Approximate conversion (should use real exchange rate)
-      const ronToEur = 0.2; // ~5 RON = 1 EUR
-      netEUR = netAmount * ronToEur;
-      grossEUR = grossAmount * ronToEur;
-      vatEUR = vatAmount * ronToEur;
+    if (currency && currency !== 'EUR') {
+      // Convert to EUR using BNR rates based on transaction date
+      if (netAmount) {
+        const netConv = await bnrService.convertToEur(netAmount, currency, transactionTime);
+        netEUR = netConv.amountEur;
+        exchangeRate = netConv.rate;
+        rateDate = netConv.rateDate;
+      }
+      if (grossAmount) {
+        const grossConv = await bnrService.convertToEur(grossAmount, currency, transactionTime);
+        grossEUR = grossConv.amountEur;
+      }
+      if (vatAmount) {
+        const vatConv = await bnrService.convertToEur(vatAmount, currency, transactionTime);
+        vatEUR = vatConv.amountEur;
+      }
     }
+
+    // Get country info for VAT
+    const country = String(row[columnMap.COUNTRY] || '').trim();
+    const countryCode = bnrService.getCountryCode(country);
+    const vatInfo = bnrService.getVatRate(country);
 
     const registration = String(row[columnMap.REGISTRATION] || '').trim().toUpperCase();
     const service = String(row[columnMap.SERVICE] || '').trim();
     const product = String(row[columnMap.PRODUCT] || '').trim();
-    const country = String(row[columnMap.COUNTRY] || '').trim();
 
     const transaction = {
       transaction_time: transactionTime.toISOString(),
@@ -181,17 +205,26 @@ function parseEurowagExcel(fileBuffer) {
       quantity: quantity,
       unit: String(row[columnMap.UNIT] || 'LTR').trim(),
       country: country,
+      country_code: countryCode,
       location: String(row[columnMap.LOCATION] || '').trim(),
       obu_id: String(row[columnMap.OBU_ID] || '').trim(),
       // Amounts in original currency
       net_amount: netAmount,
       gross_amount: grossAmount,
       vat_amount: vatAmount,
-      currency: currency,
+      vat_rate: vatRate,
+      original_currency: currency,
+      exchange_rate: exchangeRate,
+      exchange_rate_date: rateDate,
+      // VAT info
+      vat_country: countryCode,
+      vat_country_rate: vatInfo.rate,
+      vat_refundable: vatInfo.refundable && vatEUR > 0,
       // Amounts converted to EUR
-      net_amount_eur: Math.round(netEUR * 100) / 100,
-      gross_amount_eur: Math.round(grossEUR * 100) / 100,
-      vat_amount_eur: Math.round(vatEUR * 100) / 100,
+      currency: 'EUR',
+      net_amount_eur: Math.round((netEUR || 0) * 100) / 100,
+      gross_amount_eur: Math.round((grossEUR || 0) * 100) / 100,
+      vat_amount_eur: Math.round((vatEUR || 0) * 100) / 100,
       // Provider info
       provider: 'eurowag',
     };
@@ -228,7 +261,8 @@ function parseEurowagExcel(fileBuffer) {
  * Import EUROWAG transactions into database
  */
 async function importEurowagTransactions(fileBuffer, companyId, userId, documentId, fileName) {
-  const parsed = parseEurowagExcel(fileBuffer);
+  // Parse with async currency conversion
+  const parsed = await parseEurowagExcel(fileBuffer);
 
   if (parsed.transactions.length === 0) {
     throw new Error('No transactions found in EUROWAG file');
@@ -324,21 +358,39 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
       transaction_time: tx.transaction_time,
       station_name: tx.location,
       country: tx.country,
+      country_code: tx.country_code,
       cost_group: tx.service_type,
       goods_type: tx.product_type,
       quantity: tx.quantity,
       unit: tx.unit,
       currency: 'EUR',
-      // Use EUR amounts
+      original_currency: tx.original_currency,
+      exchange_rate: tx.exchange_rate,
+      exchange_rate_date: tx.exchange_rate_date,
+      // Original amounts
       net_base_value: tx.net_amount,
-      net_purchase_value: tx.net_amount_eur,
+      gross_value: tx.gross_amount,
+      // EUR converted amounts
+      net_purchase_value: tx.net_amount,
+      net_purchase_value_eur: tx.net_amount_eur,
+      gross_value_eur: tx.gross_amount_eur,
       payment_value: tx.gross_amount_eur,
-      payment_currency: tx.currency,
+      payment_value_eur: tx.gross_amount_eur,
+      payment_currency: tx.original_currency,
+      // VAT info
+      vat_amount: tx.vat_amount_eur,
+      vat_amount_original: tx.vat_amount,
+      vat_rate: tx.vat_rate,
+      vat_country: tx.vat_country,
+      vat_country_rate: tx.vat_country_rate,
+      vat_refundable: tx.vat_refundable,
+      // Other fields
       vehicle_registration: tx.vehicle_registration,
       card_number: tx.card_number,
       provider: 'eurowag',
-      vat_amount: tx.vat_amount_eur,
-      notes: `Original: ${tx.net_amount} ${tx.currency} | VAT: ${tx.vat_amount_eur} EUR`,
+      notes: tx.original_currency !== 'EUR'
+        ? `Original: ${tx.net_amount?.toFixed(2)} ${tx.original_currency} | VAT: ${tx.vat_amount?.toFixed(2)} ${tx.original_currency} | Rate: ${tx.exchange_rate?.toFixed(4)}`
+        : `VAT: ${tx.vat_amount_eur?.toFixed(2)} EUR (${tx.vat_rate?.toFixed(0)}%)`,
     });
   }
 
