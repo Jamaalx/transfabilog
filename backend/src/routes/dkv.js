@@ -265,6 +265,10 @@ router.delete(
 /**
  * GET /api/v1/dkv/transactions
  * List DKV transactions with filters
+ * Query params:
+ *   - provider: dkv|eurowag|verag - filter by provider
+ *   - hide_processed: true|false - hide ignored/created_expense (default: true)
+ *   - status: filter by specific status (overrides hide_processed)
  */
 router.get(
   '/transactions',
@@ -274,6 +278,8 @@ router.get(
     query('batch_id').optional().isUUID(),
     query('truck_id').optional().isUUID(),
     query('status').optional().isIn(['pending', 'matched', 'unmatched', 'created_expense', 'ignored']),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+    query('hide_processed').optional().isBoolean().toBoolean(),
   ],
   async (req, res, next) => {
     try {
@@ -282,10 +288,15 @@ router.get(
         return res.status(400).json({ errors: errors.array() });
       }
 
+      // Default hide_processed to true unless explicitly set to false
+      const hideProcessed = req.query.hide_processed !== false;
+
       const result = await getDKVTransactions(req.companyId, {
         batch_id: req.query.batch_id,
         truck_id: req.query.truck_id,
         status: req.query.status,
+        provider: req.query.provider,
+        hide_processed: hideProcessed,
         page: req.query.page || 1,
         limit: req.query.limit || 50,
       });
@@ -588,14 +599,20 @@ router.get(
           .eq('company_id', req.companyId);
 
         if (provider === 'eurowag') {
-          batchQuery = batchQuery.or('file_name.ilike.%ew_export%,file_name.ilike.%eurowag%');
+          batchQuery = batchQuery.or('provider.eq.eurowag,file_name.ilike.%ew_export%,file_name.ilike.%eurowag%')
+            .not('provider', 'eq', 'verag')
+            .not('provider', 'eq', 'dkv');
         } else if (provider === 'verag') {
-          batchQuery = batchQuery.or('file_name.ilike.%maut%,file_name.ilike.%verag%,file_name.ilike.%.pdf');
+          batchQuery = batchQuery.or('provider.eq.verag,file_name.ilike.%maut%')
+            .not('provider', 'eq', 'eurowag')
+            .not('provider', 'eq', 'dkv');
         } else if (provider === 'dkv') {
-          batchQuery = batchQuery.or('file_name.ilike.%invoice-transactions%,file_name.ilike.%dkv%')
+          batchQuery = batchQuery.or('provider.eq.dkv,provider.is.null')
+            .not('provider', 'eq', 'eurowag')
+            .not('provider', 'eq', 'verag')
             .not('file_name', 'ilike', '%eurowag%')
             .not('file_name', 'ilike', '%maut%')
-            .not('file_name', 'ilike', '%verag%');
+            .not('file_name', 'ilike', '%ew_export%');
         }
 
         const { data: batches } = await batchQuery;

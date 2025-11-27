@@ -273,6 +273,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
       period_end: parsed.metadata.period_end,
       status: 'processing',
       imported_by: userId,
+      provider: 'eurowag',
       notes: `Provider: EUROWAG | VAT: ${parsed.metadata.total_vat_eur} EUR`,
     })
     .select()
@@ -335,7 +336,9 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
       payment_currency: tx.currency,
       vehicle_registration: tx.vehicle_registration,
       card_number: tx.card_number,
-      notes: `Provider: EUROWAG | Original: ${tx.net_amount} ${tx.currency} | VAT: ${tx.vat_amount_eur} EUR`,
+      provider: 'eurowag',
+      vat_amount: tx.vat_amount_eur,
+      notes: `Original: ${tx.net_amount} ${tx.currency} | VAT: ${tx.vat_amount_eur} EUR`,
     });
   }
 

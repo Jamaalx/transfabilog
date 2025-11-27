@@ -352,6 +352,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
       period_end: parsed.metadata.period_end,
       status: 'processing',
       imported_by: userId,
+      provider: 'dkv',
     })
     .select()
     .single();
@@ -411,6 +412,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
       uploaded_document_id: documentId,
       truck_id: truckId,
       status: status,
+      provider: 'dkv',
       ...tx,
     });
   }
@@ -555,17 +557,23 @@ async function getDKVBatches(companyId, page = 1, limit = 20, provider = null) {
     .select('*', { count: 'exact' })
     .eq('company_id', companyId);
 
-  // Filter by provider based on file name patterns
+  // Filter by provider - use provider column if set, otherwise fall back to file name patterns
   if (provider) {
     if (provider === 'eurowag') {
-      query = query.or('file_name.ilike.%ew_export%,file_name.ilike.%eurowag%');
+      query = query.or('provider.eq.eurowag,file_name.ilike.%ew_export%,file_name.ilike.%eurowag%')
+        .not('provider', 'eq', 'verag')
+        .not('provider', 'eq', 'dkv');
     } else if (provider === 'verag') {
-      query = query.or('file_name.ilike.%maut%,file_name.ilike.%verag%,file_name.ilike.%.pdf');
+      query = query.or('provider.eq.verag,file_name.ilike.%maut%')
+        .not('provider', 'eq', 'eurowag')
+        .not('provider', 'eq', 'dkv');
     } else if (provider === 'dkv') {
-      query = query.or('file_name.ilike.%invoice-transactions%,file_name.ilike.%dkv%')
+      query = query.or('provider.eq.dkv,provider.is.null')
+        .not('provider', 'eq', 'eurowag')
+        .not('provider', 'eq', 'verag')
         .not('file_name', 'ilike', '%eurowag%')
         .not('file_name', 'ilike', '%maut%')
-        .not('file_name', 'ilike', '%verag%');
+        .not('file_name', 'ilike', '%ew_export%');
     }
   }
 
@@ -588,10 +596,68 @@ async function getDKVBatches(companyId, page = 1, limit = 20, provider = null) {
 
 /**
  * Get DKV transactions for a batch or company
+ * @param {string} companyId - Company UUID
+ * @param {Object} filters - Filter options
+ * @param {string} filters.batch_id - Filter by batch ID
+ * @param {string} filters.truck_id - Filter by truck ID
+ * @param {string} filters.status - Filter by status
+ * @param {string} filters.provider - Filter by provider (dkv, eurowag, verag)
+ * @param {boolean} filters.hide_processed - Hide ignored and created_expense items (default: true)
+ * @param {number} filters.page - Page number
+ * @param {number} filters.limit - Items per page
  */
 async function getDKVTransactions(companyId, filters = {}) {
-  const { batch_id, truck_id, status, page = 1, limit = 50 } = filters;
+  const { batch_id, truck_id, status, provider, hide_processed = true, page = 1, limit = 50 } = filters;
   const offset = (page - 1) * limit;
+
+  // For provider filtering, we can filter transactions directly by provider column
+  // Fall back to batch-based filtering for older data without provider column
+  let providerBatchIds = null;
+  let directProviderFilter = null;
+
+  if (provider && !batch_id) {
+    // First try to filter by provider column directly on transactions
+    directProviderFilter = provider;
+
+    // Also get batch IDs for older data that may not have provider on transactions
+    let batchQuery = supabase
+      .from('dkv_import_batches')
+      .select('id')
+      .eq('company_id', companyId);
+
+    if (provider === 'eurowag') {
+      batchQuery = batchQuery.or('provider.eq.eurowag,file_name.ilike.%ew_export%,file_name.ilike.%eurowag%')
+        .not('provider', 'eq', 'verag')
+        .not('provider', 'eq', 'dkv');
+    } else if (provider === 'verag') {
+      batchQuery = batchQuery.or('provider.eq.verag,file_name.ilike.%maut%')
+        .not('provider', 'eq', 'eurowag')
+        .not('provider', 'eq', 'dkv');
+    } else if (provider === 'dkv') {
+      batchQuery = batchQuery.or('provider.eq.dkv,provider.is.null')
+        .not('provider', 'eq', 'eurowag')
+        .not('provider', 'eq', 'verag')
+        .not('file_name', 'ilike', '%eurowag%')
+        .not('file_name', 'ilike', '%maut%')
+        .not('file_name', 'ilike', '%ew_export%');
+    }
+
+    const { data: batches } = await batchQuery;
+    providerBatchIds = batches?.map((b) => b.id) || [];
+
+    // If no batches match, return empty result
+    if (providerBatchIds.length === 0) {
+      return {
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+        },
+      };
+    }
+  }
 
   let query = supabase
     .from('dkv_transactions')
@@ -603,6 +669,11 @@ async function getDKVTransactions(companyId, filters = {}) {
     .eq('company_id', companyId)
     .order('transaction_time', { ascending: false });
 
+  // Apply provider batch filter
+  if (providerBatchIds && providerBatchIds.length > 0) {
+    query = query.in('batch_id', providerBatchIds);
+  }
+
   if (batch_id) {
     query = query.eq('batch_id', batch_id);
   }
@@ -613,6 +684,9 @@ async function getDKVTransactions(companyId, filters = {}) {
 
   if (status) {
     query = query.eq('status', status);
+  } else if (hide_processed) {
+    // By default, hide processed items (ignored and created_expense)
+    query = query.in('status', ['pending', 'matched', 'unmatched']);
   }
 
   const { data, error, count } = await query.range(offset, offset + limit - 1);
