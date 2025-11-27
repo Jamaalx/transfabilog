@@ -4,14 +4,11 @@ import { dkvApi, vehiclesApi } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import {
   Upload,
   Fuel,
   Truck,
   FileSpreadsheet,
-  Calendar,
   Euro,
   Loader2,
   CheckCircle,
@@ -22,15 +19,14 @@ import {
   Trash2,
   Link,
   Plus,
-  Search,
-  Filter,
-  MoreVertical,
-  Check,
-  X,
-  MapPin,
   Clock,
   CreditCard,
-  Download,
+  MapPin,
+  X,
+  Ban,
+  FileText,
+  Globe,
+  Receipt,
 } from 'lucide-react'
 
 interface DKVTransaction {
@@ -46,6 +42,8 @@ interface DKVTransaction {
   unit: string
   price_per_unit: number
   net_purchase_value: number
+  net_base_value: number
+  payment_value: number
   payment_currency: string
   vehicle_registration: string
   card_number: string
@@ -53,6 +51,10 @@ interface DKVTransaction {
   truck_id: string | null
   truck?: { id: string; registration_number: string; brand: string }
   batch?: { id: string; file_name: string; import_date: string }
+  provider?: string
+  vat_amount?: number
+  vat_country?: string
+  notes?: string
 }
 
 interface DKVBatch {
@@ -63,10 +65,13 @@ interface DKVBatch {
   matched_transactions: number
   unmatched_transactions: number
   total_amount: number
+  total_vat?: number
   currency: string
   period_start: string
   period_end: string
   status: string
+  provider?: string
+  notes?: string
 }
 
 interface DKVSummary {
@@ -80,6 +85,10 @@ interface DKVSummary {
   pending_value: number
 }
 
+interface FuelReportPageProps {
+  provider?: 'dkv' | 'eurowag' | 'verag' | 'all'
+}
+
 const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   pending: { label: 'In Asteptare', color: 'bg-blue-100 text-blue-800', icon: Clock },
   matched: { label: 'Asociat', color: 'bg-green-100 text-green-800', icon: CheckCircle },
@@ -88,7 +97,13 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
   ignored: { label: 'Ignorat', color: 'bg-gray-100 text-gray-800', icon: XCircle },
 }
 
-export default function DKVPage() {
+const providerConfig: Record<string, { name: string; color: string; bgColor: string; icon: React.ElementType; fileTypes: string }> = {
+  dkv: { name: 'DKV', color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-200', icon: Fuel, fileTypes: '.xlsx,.xls,.csv' },
+  eurowag: { name: 'EUROWAG', color: 'text-blue-700', bgColor: 'bg-blue-50 border-blue-200', icon: CreditCard, fileTypes: '.xlsx,.xls' },
+  verag: { name: 'VERAG Maut', color: 'text-green-700', bgColor: 'bg-green-50 border-green-200', icon: Receipt, fileTypes: '.pdf' },
+}
+
+export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
   const [activeTab, setActiveTab] = useState<'transactions' | 'batches'>('transactions')
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('')
@@ -97,22 +112,24 @@ export default function DKVPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const queryClient = useQueryClient()
+  const config = providerConfig[provider] || providerConfig.dkv
 
   // Fetch summary
   const { data: summary } = useQuery<DKVSummary>({
-    queryKey: ['dkv-summary'],
+    queryKey: ['dkv-summary', provider],
     queryFn: async () => {
-      const res = await dkvApi.getSummary()
+      const res = await dkvApi.getSummary(provider !== 'all' ? provider : undefined)
       return res.data
     },
   })
 
   // Fetch transactions
   const { data: txData, isLoading: txLoading } = useQuery({
-    queryKey: ['dkv-transactions', page, statusFilter],
+    queryKey: ['dkv-transactions', page, statusFilter, provider],
     queryFn: async () => {
       const params: Record<string, unknown> = { page, limit: 50 }
       if (statusFilter) params.status = statusFilter
+      if (provider !== 'all') params.provider = provider
       const res = await dkvApi.getTransactions(params)
       return res.data
     },
@@ -121,9 +138,9 @@ export default function DKVPage() {
 
   // Fetch batches
   const { data: batchData, isLoading: batchLoading } = useQuery({
-    queryKey: ['dkv-batches'],
+    queryKey: ['dkv-batches', provider],
     queryFn: async () => {
-      const res = await dkvApi.getBatches()
+      const res = await dkvApi.getBatches(provider !== 'all' ? provider : undefined)
       return res.data
     },
     enabled: activeTab === 'batches',
@@ -143,7 +160,7 @@ export default function DKVPage() {
     mutationFn: async (file: File) => {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await dkvApi.import(formData)
+      const res = await dkvApi.import(formData, provider)
       return res.data
     },
     onSuccess: () => {
@@ -203,6 +220,19 @@ export default function DKVPage() {
     },
   })
 
+  // Bulk ignore mutation (Reject All)
+  const bulkIgnoreMutation = useMutation({
+    mutationFn: async (txIds: string[]) => {
+      const res = await dkvApi.bulkIgnoreTransactions(txIds)
+      return res.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      setSelectedTx([])
+    },
+  })
+
   // Delete batch mutation
   const deleteBatchMutation = useMutation({
     mutationFn: async (batchId: string) => {
@@ -245,7 +275,6 @@ export default function DKVPage() {
   }
 
   const handleBulkCreateExpenses = () => {
-    // Only create expenses for matched transactions
     const matchedIds = selectedTx.filter((id) => {
       const tx = transactions.find((t) => t.id === id)
       return tx && tx.status === 'matched'
@@ -255,36 +284,74 @@ export default function DKVPage() {
     }
   }
 
+  const handleRejectAll = () => {
+    const toRejectIds = selectedTx.length > 0
+      ? selectedTx.filter((id) => {
+          const tx = transactions.find((t) => t.id === id)
+          return tx && ['pending', 'matched', 'unmatched'].includes(tx.status)
+        })
+      : transactions
+          .filter((tx) => ['pending', 'matched', 'unmatched'].includes(tx.status))
+          .map((tx) => tx.id)
+
+    if (toRejectIds.length > 0) {
+      if (confirm(`Sigur doriti sa refuzati ${toRejectIds.length} tranzactii? Acestea vor fi marcate ca ignorate.`)) {
+        bulkIgnoreMutation.mutate(toRejectIds)
+      }
+    }
+  }
+
+  const getProviderBadge = (prov?: string) => {
+    const p = prov || 'dkv'
+    const cfg = providerConfig[p]
+    if (!cfg) return null
+    return (
+      <Badge variant="outline" className={`${cfg.bgColor} ${cfg.color} border`}>
+        {cfg.name}
+      </Badge>
+    )
+  }
+
+  // Determine if this is a toll page (VERAG) vs fuel page (DKV/EUROWAG)
+  const isTollProvider = provider === 'verag'
+  const pageTitle = isTollProvider ? 'Rapoarte Taxe Drum (Maut)' : `Rapoarte ${config.name}`
+  const pageDesc = isTollProvider
+    ? 'Importa si gestioneaza taxele de drum VERAG'
+    : `Importa si gestioneaza tranzactiile de carburant ${config.name}`
+
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Fuel className="h-6 w-6" />
-            Rapoarte DKV
-          </h1>
-          <p className="text-muted-foreground">Importa si gestioneaza tranzactiile DKV</p>
-        </div>
-        <div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-          />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importMutation.isPending}
-          >
-            {importMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Upload className="mr-2 h-4 w-4" />
-            )}
-            Importa Raport DKV
-          </Button>
+      {/* Header with provider-specific styling */}
+      <div className={`rounded-lg border p-4 mb-6 ${config.bgColor}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className={`text-2xl font-bold flex items-center gap-2 ${config.color}`}>
+              <config.icon className="h-6 w-6" />
+              {pageTitle}
+            </h1>
+            <p className="text-muted-foreground mt-1">{pageDesc}</p>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept={config.fileTypes}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importMutation.isPending}
+              className="bg-white hover:bg-gray-50 text-gray-900 border"
+            >
+              {importMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" />
+              )}
+              Importa Raport {config.name}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -299,6 +366,9 @@ export default function DKVPage() {
             {importMutation.data.total_transactions} tranzactii importate,{' '}
             {importMutation.data.matched_transactions} asociate automat,{' '}
             {importMutation.data.unmatched_transactions} necesita asociere manuala
+            {importMutation.data.total_vat_eur > 0 && (
+              <> | TVA total: {importMutation.data.total_vat_eur?.toFixed(2)} EUR</>
+            )}
           </p>
         </div>
       )}
@@ -315,48 +385,50 @@ export default function DKVPage() {
         </div>
       )}
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-        <Card>
+      {/* Summary Cards - Different layout for toll vs fuel */}
+      <div className={`grid gap-4 mb-6 ${isTollProvider ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6'}`}>
+        <Card className="border-l-4 border-l-gray-400">
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{summary?.total_transactions || 0}</div>
             <div className="text-sm text-muted-foreground">Total Tranzactii</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-green-500">
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-green-600">{summary?.matched || 0}</div>
             <div className="text-sm text-muted-foreground">Asociate</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-orange-500">
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-orange-600">{summary?.unmatched || 0}</div>
             <div className="text-sm text-muted-foreground">Neasociate</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-purple-500">
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-purple-600">{summary?.created_expense || 0}</div>
             <div className="text-sm text-muted-foreground">Cheltuieli Create</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-l-4 border-l-blue-500">
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-blue-600">
-              {summary?.total_value?.toLocaleString() || 0} EUR
+              {summary?.total_value?.toLocaleString('ro-RO', { minimumFractionDigits: 2 })} EUR
             </div>
             <div className="text-sm text-muted-foreground">Valoare Totala</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-amber-600">
-              {summary?.pending_value?.toLocaleString() || 0} EUR
-            </div>
-            <div className="text-sm text-muted-foreground">In Asteptare</div>
-          </CardContent>
-        </Card>
+        {!isTollProvider && (
+          <Card className="border-l-4 border-l-amber-500">
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-amber-600">
+                {summary?.pending_value?.toLocaleString('ro-RO', { minimumFractionDigits: 2 })} EUR
+              </div>
+              <div className="text-sm text-muted-foreground">In Asteptare</div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Tabs */}
@@ -365,7 +437,7 @@ export default function DKVPage() {
           variant={activeTab === 'transactions' ? 'default' : 'outline'}
           onClick={() => setActiveTab('transactions')}
         >
-          <Fuel className="mr-2 h-4 w-4" />
+          {isTollProvider ? <Globe className="mr-2 h-4 w-4" /> : <Fuel className="mr-2 h-4 w-4" />}
           Tranzactii
         </Button>
         <Button
@@ -380,7 +452,7 @@ export default function DKVPage() {
       {/* Transactions Tab */}
       {activeTab === 'transactions' && (
         <>
-          {/* Filters */}
+          {/* Filters & Actions */}
           <Card className="mb-4">
             <CardContent className="p-4">
               <div className="flex flex-wrap gap-4 items-center">
@@ -400,25 +472,43 @@ export default function DKVPage() {
                   <option value="ignored">Ignorate</option>
                 </select>
 
-                {selectedTx.length > 0 && (
-                  <div className="flex items-center gap-2 ml-auto">
-                    <span className="text-sm text-muted-foreground">
-                      {selectedTx.length} selectate
-                    </span>
-                    <Button
-                      size="sm"
-                      onClick={handleBulkCreateExpenses}
-                      disabled={bulkCreateMutation.isPending}
-                    >
-                      {bulkCreateMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Plus className="mr-2 h-4 w-4" />
-                      )}
-                      Creeaza Cheltuieli
-                    </Button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 ml-auto">
+                  {/* Reject All Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRejectAll}
+                    disabled={bulkIgnoreMutation.isPending}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    {bulkIgnoreMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Ban className="mr-2 h-4 w-4" />
+                    )}
+                    {selectedTx.length > 0 ? `Refuza ${selectedTx.length} selectate` : 'Refuza Toate'}
+                  </Button>
+
+                  {selectedTx.length > 0 && (
+                    <>
+                      <span className="text-sm text-muted-foreground">
+                        {selectedTx.length} selectate
+                      </span>
+                      <Button
+                        size="sm"
+                        onClick={handleBulkCreateExpenses}
+                        disabled={bulkCreateMutation.isPending}
+                      >
+                        {bulkCreateMutation.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="mr-2 h-4 w-4" />
+                        )}
+                        Creeaza Cheltuieli
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -426,7 +516,10 @@ export default function DKVPage() {
           {/* Transactions Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Tranzactii DKV</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                {isTollProvider ? <Receipt className="h-5 w-5" /> : <Fuel className="h-5 w-5" />}
+                Tranzactii {config.name}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {txLoading ? (
@@ -435,19 +528,19 @@ export default function DKVPage() {
                 </div>
               ) : transactions.length === 0 ? (
                 <div className="text-center py-12">
-                  <Fuel className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-lg font-medium mb-2">Nu exista tranzactii DKV</p>
-                  <p className="text-muted-foreground mb-4">Importa un raport DKV pentru a incepe</p>
+                  <config.icon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-lg font-medium mb-2">Nu exista tranzactii {config.name}</p>
+                  <p className="text-muted-foreground mb-4">Importa un raport {config.name} pentru a incepe</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b">
+                      <tr className="border-b bg-muted/50">
                         <th className="text-left p-3 w-10">
                           <input
                             type="checkbox"
-                            checked={selectedTx.length === transactions.length}
+                            checked={selectedTx.length === transactions.length && transactions.length > 0}
                             onChange={() => {
                               if (selectedTx.length === transactions.length) {
                                 setSelectedTx([])
@@ -459,11 +552,22 @@ export default function DKVPage() {
                           />
                         </th>
                         <th className="text-left p-3">Data</th>
-                        <th className="text-left p-3">Statie</th>
-                        <th className="text-left p-3">Produs</th>
-                        <th className="text-left p-3">Cantitate</th>
-                        <th className="text-left p-3">Valoare</th>
-                        <th className="text-left p-3">Vehicul DKV</th>
+                        {isTollProvider ? (
+                          <>
+                            <th className="text-left p-3">Tara</th>
+                            <th className="text-left p-3">Tip Taxa</th>
+                          </>
+                        ) : (
+                          <>
+                            <th className="text-left p-3">Statie</th>
+                            <th className="text-left p-3">Produs</th>
+                            <th className="text-left p-3">Cantitate</th>
+                          </>
+                        )}
+                        <th className="text-left p-3">Netto</th>
+                        <th className="text-left p-3">TVA</th>
+                        <th className="text-left p-3">Brutto</th>
+                        <th className="text-left p-3">Vehicul</th>
                         <th className="text-left p-3">Camion Asociat</th>
                         <th className="text-left p-3">Status</th>
                         <th className="text-left p-3">Actiuni</th>
@@ -488,27 +592,58 @@ export default function DKVPage() {
                                 {formatDate(tx.transaction_time)}
                               </div>
                             </td>
-                            <td className="p-3">
-                              <div className="font-medium">{tx.station_name}</div>
-                              <div className="text-sm text-muted-foreground flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {tx.station_city}, {tx.country}
-                              </div>
-                            </td>
-                            <td className="p-3">
-                              <div className="font-medium">{tx.goods_type || tx.cost_group}</div>
-                            </td>
+                            {isTollProvider ? (
+                              <>
+                                <td className="p-3">
+                                  <Badge variant="outline" className="font-mono">
+                                    <Globe className="h-3 w-3 mr-1" />
+                                    {tx.country}
+                                  </Badge>
+                                </td>
+                                <td className="p-3">
+                                  <div className="font-medium">{tx.goods_type || tx.cost_group}</div>
+                                  {tx.notes && (
+                                    <div className="text-xs text-muted-foreground truncate max-w-[150px]">{tx.notes}</div>
+                                  )}
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="p-3">
+                                  <div className="font-medium">{tx.station_name}</div>
+                                  <div className="text-sm text-muted-foreground flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {tx.station_city}, {tx.country}
+                                  </div>
+                                </td>
+                                <td className="p-3">
+                                  <div className="font-medium">{tx.goods_type || tx.cost_group}</div>
+                                </td>
+                                <td className="p-3">
+                                  <div className="font-medium">
+                                    {tx.quantity?.toFixed(2)} {tx.unit}
+                                  </div>
+                                  {tx.price_per_unit && (
+                                    <div className="text-sm text-muted-foreground">
+                                      @ {tx.price_per_unit?.toFixed(4)} {tx.payment_currency}
+                                    </div>
+                                  )}
+                                </td>
+                              </>
+                            )}
                             <td className="p-3">
                               <div className="font-medium">
-                                {tx.quantity?.toFixed(2)} {tx.unit}
+                                {(tx.net_base_value || tx.net_purchase_value)?.toFixed(2)} EUR
                               </div>
+                            </td>
+                            <td className="p-3">
                               <div className="text-sm text-muted-foreground">
-                                @ {tx.price_per_unit?.toFixed(4)} {tx.payment_currency}
+                                {tx.vat_amount?.toFixed(2) || '0.00'} EUR
                               </div>
                             </td>
                             <td className="p-3">
-                              <div className="font-medium">
-                                {tx.net_purchase_value?.toFixed(2)} EUR
+                              <div className="font-bold text-green-700">
+                                {tx.payment_value?.toFixed(2)} EUR
                               </div>
                             </td>
                             <td className="p-3">
@@ -544,7 +679,7 @@ export default function DKVPage() {
                                   </Button>
                                 </div>
                               ) : tx.truck ? (
-                                <Badge variant="outline" className="font-mono">
+                                <Badge variant="outline" className="font-mono bg-green-50">
                                   <Truck className="h-3 w-3 mr-1" />
                                   {tx.truck.registration_number}
                                 </Badge>
@@ -553,6 +688,7 @@ export default function DKVPage() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => setMatchingTxId(tx.id)}
+                                  className="text-orange-600 hover:text-orange-700"
                                 >
                                   <Link className="h-4 w-4 mr-1" />
                                   Asociaza
@@ -578,12 +714,13 @@ export default function DKVPage() {
                                     <Plus className="h-4 w-4" />
                                   </Button>
                                 )}
-                                {(tx.status === 'pending' || tx.status === 'matched' || tx.status === 'unmatched') && (
+                                {['pending', 'matched', 'unmatched'].includes(tx.status) && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => ignoreMutation.mutate(tx.id)}
                                     title="Ignora"
+                                    className="text-red-500 hover:text-red-600"
                                   >
                                     <XCircle className="h-4 w-4" />
                                   </Button>
@@ -633,7 +770,10 @@ export default function DKVPage() {
       {activeTab === 'batches' && (
         <Card>
           <CardHeader>
-            <CardTitle>Istoricul Importurilor</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Istoricul Importurilor {config.name}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {batchLoading ? (
@@ -644,18 +784,20 @@ export default function DKVPage() {
               <div className="text-center py-12">
                 <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-lg font-medium mb-2">Nu exista importuri</p>
-                <p className="text-muted-foreground mb-4">Importa primul raport DKV</p>
+                <p className="text-muted-foreground mb-4">Importa primul raport {config.name}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b">
+                    <tr className="border-b bg-muted/50">
                       <th className="text-left p-3">Fisier</th>
+                      <th className="text-left p-3">Provider</th>
                       <th className="text-left p-3">Data Import</th>
                       <th className="text-left p-3">Perioada</th>
                       <th className="text-left p-3">Tranzactii</th>
                       <th className="text-left p-3">Valoare</th>
+                      <th className="text-left p-3">TVA</th>
                       <th className="text-left p-3">Status</th>
                       <th className="text-left p-3">Actiuni</th>
                     </tr>
@@ -670,6 +812,9 @@ export default function DKVPage() {
                               {batch.file_name}
                             </span>
                           </div>
+                        </td>
+                        <td className="p-3">
+                          {getProviderBadge(batch.provider)}
                         </td>
                         <td className="p-3">
                           {new Date(batch.import_date).toLocaleDateString('ro-RO')}
@@ -694,7 +839,12 @@ export default function DKVPage() {
                         </td>
                         <td className="p-3">
                           <span className="font-medium">
-                            {batch.total_amount?.toLocaleString()} {batch.currency}
+                            {batch.total_amount?.toLocaleString('ro-RO', { minimumFractionDigits: 2 })} {batch.currency}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className="text-sm text-muted-foreground">
+                            {batch.total_vat?.toLocaleString('ro-RO', { minimumFractionDigits: 2 }) || '0.00'} EUR
                           </span>
                         </td>
                         <td className="p-3">
@@ -723,6 +873,7 @@ export default function DKVPage() {
                                 deleteBatchMutation.mutate(batch.id)
                               }
                             }}
+                            className="text-red-500 hover:text-red-600"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
