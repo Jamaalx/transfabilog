@@ -43,3 +43,6 @@ coverage/
 *.pem
 .cache/
 temp_images/
+
+# Sample data files
+samples/

@@ -11,6 +11,7 @@ const {
   getDKVTransactions,
 } = require('../services/dkvParsingService');
 const { importEurowagTransactions } = require('../services/eurowagParsingService');
+const { importVeragTransactions } = require('../services/veragParsingService');
 
 const router = express.Router();
 
@@ -21,16 +22,17 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Accept Excel files only
+    // Accept Excel, CSV, and PDF files
     const allowedMimes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
       'application/vnd.ms-excel', // .xls
       'text/csv',
+      'application/pdf', // .pdf for VERAG
     ];
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only Excel (.xlsx, .xls) and CSV files are allowed'));
+      cb(new Error('Only Excel (.xlsx, .xls), CSV, and PDF files are allowed'));
     }
   },
 });
@@ -59,17 +61,20 @@ router.post(
       const provider = req.query.provider || req.body.provider || 'auto';
       const fileName = req.file.originalname.toLowerCase();
 
-      // Auto-detect provider from filename
+      // Auto-detect provider from filename and mimetype
       let detectedProvider = provider;
       if (provider === 'auto') {
+        const isPdf = req.file.mimetype === 'application/pdf' || fileName.endsWith('.pdf');
+
         if (fileName.includes('ew_export') || fileName.includes('eurowag')) {
           detectedProvider = 'eurowag';
         } else if (fileName.includes('invoice-transactions') || fileName.includes('dkv')) {
           detectedProvider = 'dkv';
-        } else if (fileName.includes('maut') || fileName.includes('verag')) {
+        } else if (fileName.includes('maut') || fileName.includes('verag') || (isPdf && !fileName.includes('dkv'))) {
+          // VERAG reports are PDFs with "Maut" in the name, or any PDF that's not DKV
           detectedProvider = 'verag';
         } else {
-          // Default to DKV
+          // Default to DKV for CSV/Excel files
           detectedProvider = 'dkv';
         }
       }
@@ -80,6 +85,15 @@ router.post(
       switch (detectedProvider) {
         case 'eurowag':
           result = await importEurowagTransactions(
+            req.file.buffer,
+            req.companyId,
+            req.user.id,
+            null,
+            req.file.originalname
+          );
+          break;
+        case 'verag':
+          result = await importVeragTransactions(
             req.file.buffer,
             req.companyId,
             req.user.id,
