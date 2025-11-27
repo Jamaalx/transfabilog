@@ -21,6 +21,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const reportRoutes = require('./routes/reports');
 const aiRoutes = require('./routes/ai');
 const uploadedDocumentsRoutes = require('./routes/uploadedDocuments');
+const dkvRoutes = require('./routes/dkv');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -91,6 +92,7 @@ app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/uploaded-documents', uploadedDocumentsRoutes);
+app.use('/api/v1/dkv', dkvRoutes);
 
 // Error handling
 app.use(notFoundHandler);

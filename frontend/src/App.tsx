@@ -17,6 +17,7 @@ import AIAnalyticsPage from '@/pages/ai/AIAnalyticsPage'
 import DocumentsListPage from '@/pages/documents/DocumentsListPage'
 import DocumentUploadPage from '@/pages/documents/DocumentUploadPage'
 import DocumentValidationPage from '@/pages/documents/DocumentValidationPage'
+import DKVPage from '@/pages/dkv/DKVPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -64,6 +65,7 @@ function App() {
           <Route path="/documents/upload" element={<DocumentUploadPage />} />
           <Route path="/documents/:id" element={<DocumentValidationPage />} />
           <Route path="/documents/:id/validate" element={<DocumentValidationPage />} />
+          <Route path="/dkv" element={<DKVPage />} />
         </Route>
 
         {/* 404 */}

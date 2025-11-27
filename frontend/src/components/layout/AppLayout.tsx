@@ -14,6 +14,7 @@ import {
   FileText,
   Brain,
   Upload,
+  Fuel,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Soferi', href: '/drivers', icon: Users },
   { name: 'Curse', href: '/trips', icon: MapPin },
   { name: 'Documente', href: '/documents', icon: Upload },
+  { name: 'DKV', href: '/dkv', icon: Fuel },
   { name: 'Rapoarte', href: '/reports', icon: FileText },
   { name: 'AI Analytics', href: '/ai', icon: Brain },
 ]
