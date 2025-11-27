@@ -13,6 +13,7 @@ const {
 } = require('../services/dkvParsingService');
 const { importEurowagTransactions } = require('../services/eurowagParsingService');
 const { importVeragTransactions } = require('../services/veragParsingService');
+const bnrService = require('../services/bnrExchangeService');
 
 const router = express.Router();
 
@@ -674,6 +675,174 @@ router.get(
       summary.pending_value = Math.round(summary.pending_value * 100) / 100;
 
       res.json(summary);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/dkv/vat-rates
+ * Get VAT rates for all countries
+ */
+router.get('/vat-rates', async (req, res, next) => {
+  try {
+    const vatRates = bnrService.getAllVatRates();
+
+    // Transform to array format for easier frontend consumption
+    const rates = Object.entries(vatRates).map(([code, info]) => ({
+      country_code: code,
+      country_name: info.name,
+      vat_rate: info.rate,
+      refundable: info.refundable !== false,
+    }));
+
+    res.json({
+      rates,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/dkv/vat-rates/:country
+ * Get VAT rate for a specific country
+ */
+router.get(
+  '/vat-rates/:country',
+  param('country').isString().isLength({ min: 2 }),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const vatInfo = bnrService.getVatRate(req.params.country);
+
+      if (!vatInfo.code) {
+        return res.status(404).json({
+          error: 'Not Found',
+          message: `VAT rate not found for country: ${req.params.country}`,
+        });
+      }
+
+      res.json(vatInfo);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/dkv/exchange-rates
+ * Get current BNR exchange rates
+ */
+router.get('/exchange-rates', async (req, res, next) => {
+  try {
+    const rates = await bnrService.fetchCurrentRates();
+
+    res.json({
+      rates,
+      base_currency: 'EUR',
+      source: 'BNR (Banca Națională a României)',
+      updated_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/dkv/exchange-rates/historical
+ * Get historical BNR exchange rates for a specific date
+ * Query param: date=YYYY-MM-DD
+ */
+router.get(
+  '/exchange-rates/historical',
+  query('date').isISO8601().toDate(),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const rates = await bnrService.fetchHistoricalRates(req.query.date);
+
+      res.json({
+        rates,
+        date: req.query.date.toISOString().split('T')[0],
+        base_currency: 'EUR',
+        source: 'BNR (Banca Națională a României)',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/dkv/convert
+ * Convert an amount between currencies
+ * Body: { amount, from_currency, to_currency, date? }
+ */
+router.post(
+  '/convert',
+  [
+    body('amount').isFloat({ min: 0 }),
+    body('from_currency').isString().isLength({ min: 3, max: 3 }),
+    body('to_currency').optional().isString().isLength({ min: 3, max: 3 }),
+    body('date').optional().isISO8601(),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { amount, from_currency, to_currency = 'EUR', date } = req.body;
+
+      let result;
+      if (to_currency === 'EUR') {
+        result = await bnrService.convertToEur(amount, from_currency, date);
+        res.json({
+          original_amount: amount,
+          original_currency: from_currency,
+          converted_amount: result.amountEur,
+          converted_currency: 'EUR',
+          exchange_rate: result.rate,
+          rate_date: result.rateDate,
+        });
+      } else if (from_currency === 'EUR') {
+        result = await bnrService.convertFromEur(amount, to_currency, date);
+        res.json({
+          original_amount: amount,
+          original_currency: 'EUR',
+          converted_amount: result.amount,
+          converted_currency: to_currency,
+          exchange_rate: result.rate,
+          rate_date: result.rateDate,
+        });
+      } else {
+        // Convert through EUR
+        const toEur = await bnrService.convertToEur(amount, from_currency, date);
+        const fromEur = await bnrService.convertFromEur(toEur.amountEur, to_currency, date);
+
+        res.json({
+          original_amount: amount,
+          original_currency: from_currency,
+          converted_amount: fromEur.amount,
+          converted_currency: to_currency,
+          intermediate_eur: toEur.amountEur,
+          exchange_rate_to_eur: toEur.rate,
+          exchange_rate_from_eur: fromEur.rate,
+          rate_date: toEur.rateDate,
+        });
+      }
     } catch (error) {
       next(error);
     }

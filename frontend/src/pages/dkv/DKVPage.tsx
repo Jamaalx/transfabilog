@@ -36,15 +36,23 @@ interface DKVTransaction {
   station_name: string
   station_city: string
   country: string
+  country_code?: string
   cost_group: string
   goods_type: string
   quantity: number
   unit: string
   price_per_unit: number
   net_purchase_value: number
+  net_purchase_value_eur?: number
   net_base_value: number
+  gross_value?: number
+  gross_value_eur?: number
   payment_value: number
+  payment_value_eur?: number
   payment_currency: string
+  original_currency?: string
+  exchange_rate?: number
+  exchange_rate_date?: string
   vehicle_registration: string
   card_number: string
   status: 'pending' | 'matched' | 'unmatched' | 'created_expense' | 'ignored'
@@ -53,7 +61,11 @@ interface DKVTransaction {
   batch?: { id: string; file_name: string; import_date: string }
   provider?: string
   vat_amount?: number
+  vat_amount_original?: number
+  vat_rate?: number
   vat_country?: string
+  vat_country_rate?: number
+  vat_refundable?: boolean
   notes?: string
 }
 
@@ -643,18 +655,54 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
                             )}
                             <td className="p-3">
                               <div className="font-medium">
-                                {(tx.net_base_value || tx.net_purchase_value)?.toFixed(2)} EUR
+                                {(tx.net_purchase_value_eur || tx.net_base_value || tx.net_purchase_value)?.toFixed(2)} EUR
                               </div>
+                              {tx.original_currency && tx.original_currency !== 'EUR' && (
+                                <div className="text-xs text-muted-foreground">
+                                  ({tx.net_purchase_value?.toFixed(2)} {tx.original_currency})
+                                </div>
+                              )}
                             </td>
                             <td className="p-3">
-                              <div className="text-sm text-muted-foreground">
+                              <div className="text-sm">
                                 {tx.vat_amount?.toFixed(2) || '0.00'} EUR
+                                {tx.vat_rate && tx.vat_rate > 0 && (
+                                  <span className="ml-1 text-xs text-blue-600 font-medium">
+                                    ({tx.vat_rate.toFixed(0)}%)
+                                  </span>
+                                )}
                               </div>
+                              {tx.vat_country && (
+                                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Globe className="h-3 w-3" />
+                                  {tx.vat_country}
+                                  {tx.vat_country_rate && (
+                                    <span className="text-blue-500">
+                                      (std: {tx.vat_country_rate}%)
+                                    </span>
+                                  )}
+                                  {tx.vat_refundable && (
+                                    <Badge variant="outline" className="ml-1 text-xs px-1 py-0 bg-green-50 text-green-700 border-green-200">
+                                      Recuperabil
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="p-3">
                               <div className="font-bold text-green-700">
-                                {tx.payment_value?.toFixed(2)} EUR
+                                {(tx.payment_value_eur || tx.gross_value_eur || tx.payment_value)?.toFixed(2)} EUR
                               </div>
+                              {tx.original_currency && tx.original_currency !== 'EUR' && (
+                                <div className="text-xs text-muted-foreground">
+                                  ({(tx.gross_value || tx.payment_value)?.toFixed(2)} {tx.original_currency})
+                                  {tx.exchange_rate && (
+                                    <span className="ml-1 text-blue-500">
+                                      @{tx.exchange_rate.toFixed(4)}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="p-3">
                               <div className="flex items-center gap-1">
