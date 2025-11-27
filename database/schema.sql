@@ -286,10 +286,32 @@ ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to get user's company_id
+-- Checks user_profiles first, then falls back to auth.users metadata
 CREATE OR REPLACE FUNCTION get_user_company_id()
 RETURNS UUID AS $$
-  SELECT company_id FROM user_profiles WHERE id = auth.uid();
-$$ LANGUAGE SQL SECURITY DEFINER;
+DECLARE
+  v_company_id UUID;
+BEGIN
+  -- First, try to get company_id from user_profiles
+  SELECT company_id INTO v_company_id
+  FROM user_profiles
+  WHERE id = auth.uid();
+
+  -- If found, return it
+  IF v_company_id IS NOT NULL THEN
+    RETURN v_company_id;
+  END IF;
+
+  -- If not in user_profiles, try auth.users raw_user_meta_data
+  SELECT (raw_user_meta_data->>'company_id')::UUID INTO v_company_id
+  FROM auth.users
+  WHERE id = auth.uid();
+
+  RETURN v_company_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
+GRANT EXECUTE ON FUNCTION get_user_company_id() TO authenticated;
 
 -- Companies policies
 CREATE POLICY "Users can view their company"
@@ -302,12 +324,23 @@ CREATE POLICY "Admins can update their company"
   WITH CHECK (id = get_user_company_id());
 
 -- User profiles policies
+-- CRITICAL: Allow users to INSERT their own profile (for first login)
+CREATE POLICY "Users can insert their own profile"
+  ON user_profiles FOR INSERT
+  TO authenticated
+  WITH CHECK (id = auth.uid());
+
 CREATE POLICY "Users can view profiles in their company"
   ON user_profiles FOR SELECT
-  USING (company_id = get_user_company_id());
+  TO authenticated
+  USING (
+    company_id = get_user_company_id()
+    OR id = auth.uid()  -- Can always see own profile
+  );
 
 CREATE POLICY "Users can update their own profile"
   ON user_profiles FOR UPDATE
+  TO authenticated
   USING (id = auth.uid())
   WITH CHECK (id = auth.uid());
 
