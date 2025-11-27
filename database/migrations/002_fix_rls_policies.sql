@@ -377,7 +377,7 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'document_processing_queue') THEN
     DROP POLICY IF EXISTS "Users can view processing queue for their documents" ON document_processing_queue;
 
-    EXECUTE 'CREATE POLICY "document_processing_queue_select" ON document_processing_queue FOR SELECT TO authenticated USING (uploaded_document_id IN (SELECT id FROM uploaded_documents WHERE company_id = get_user_company_id()))';
+    EXECUTE 'CREATE POLICY "document_processing_queue_select" ON document_processing_queue FOR SELECT TO authenticated USING (document_id IN (SELECT id FROM uploaded_documents WHERE company_id = get_user_company_id()))';
   END IF;
 END $$;
 
