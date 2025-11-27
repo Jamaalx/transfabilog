@@ -128,7 +128,16 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
     queryKey: ['dkv-transactions', page, statusFilter, provider],
     queryFn: async () => {
       const params: Record<string, unknown> = { page, limit: 50 }
-      if (statusFilter) params.status = statusFilter
+      // If a specific status is selected, pass it and disable hide_processed
+      if (statusFilter) {
+        params.status = statusFilter
+        params.hide_processed = false // Show the specific status even if processed
+      }
+      // If "all" is selected (including processed), disable hide_processed
+      if (statusFilter === 'all') {
+        delete params.status
+        params.hide_processed = false
+      }
       if (provider !== 'all') params.provider = provider
       const res = await dkvApi.getTransactions(params)
       return res.data
@@ -464,12 +473,13 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
                   }}
                   className="border rounded-md px-3 py-2"
                 >
-                  <option value="">Toate statusurile</option>
+                  <option value="">De procesat (activi)</option>
                   <option value="pending">In Asteptare</option>
                   <option value="matched">Asociate</option>
                   <option value="unmatched">Neasociate</option>
                   <option value="created_expense">Cheltuieli Create</option>
                   <option value="ignored">Ignorate</option>
+                  <option value="all">Toate (inclusiv procesate)</option>
                 </select>
 
                 <div className="flex items-center gap-2 ml-auto">
