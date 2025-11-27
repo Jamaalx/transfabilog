@@ -48,6 +48,11 @@ interface BankTransaction {
   reference?: string
   counterparty?: string
   counterparty_iban?: string
+  // AI-suggested category
+  ai_category?: string
+  ai_category_confidence?: number
+  // User-selected category (can override AI)
+  category?: string
   // For matching with invoices
   matched_invoice_id?: string
   matched_invoice_number?: string
@@ -171,6 +176,39 @@ const expenseCategories = [
   { value: 'altele', label: 'Altele' },
 ]
 
+// Bank statement transaction categories - more detailed for transport
+const bankDebitCategories = [
+  { value: 'combustibil', label: '⛽ Combustibil', icon: '⛽' },
+  { value: 'taxa_drum', label: '🛣️ Taxe Drum', icon: '🛣️' },
+  { value: 'parcare', label: '🅿️ Parcare', icon: '🅿️' },
+  { value: 'amenzi', label: '⚠️ Amenzi', icon: '⚠️' },
+  { value: 'reparatii', label: '🔧 Reparații', icon: '🔧' },
+  { value: 'asigurare', label: '🛡️ Asigurare', icon: '🛡️' },
+  { value: 'diurna', label: '💰 Diurnă', icon: '💰' },
+  { value: 'salariu', label: '👤 Salariu', icon: '👤' },
+  { value: 'furnizori', label: '📦 Furnizori', icon: '📦' },
+  { value: 'leasing', label: '🚛 Leasing', icon: '🚛' },
+  { value: 'utilitati', label: '💡 Utilități', icon: '💡' },
+  { value: 'chirie', label: '🏢 Chirie', icon: '🏢' },
+  { value: 'taxe_stat', label: '🏛️ Taxe Stat', icon: '🏛️' },
+  { value: 'bancar', label: '🏦 Bancar', icon: '🏦' },
+  { value: 'altele', label: '📋 Altele', icon: '📋' },
+]
+
+const bankCreditCategories = [
+  { value: 'incasare_client', label: '💵 Încasare Client', icon: '💵' },
+  { value: 'rambursare', label: '↩️ Rambursare', icon: '↩️' },
+  { value: 'dobanda', label: '📈 Dobândă', icon: '📈' },
+  { value: 'altele', label: '📋 Altele', icon: '📋' },
+]
+
+// Get category label by value
+function getCategoryLabel(category: string, type: 'credit' | 'debit'): string {
+  const categories = type === 'credit' ? bankCreditCategories : bankDebitCategories
+  const found = categories.find(c => c.value === category)
+  return found?.label || category
+}
+
 // Get default expense category based on document type
 function getDefaultExpenseCategory(documentType: string): string {
   const categoryMap: Record<string, string> = {
@@ -210,6 +248,8 @@ export default function DocumentValidationPage() {
   const [expenseCategory, setExpenseCategory] = useState<string>('')
   const [selectedTripId, setSelectedTripId] = useState<string>('')
   const [createExpense, setCreateExpense] = useState(true)
+  // State for bank transaction categories (user can override AI suggestions)
+  const [transactionCategories, setTransactionCategories] = useState<Record<number, string>>({})
 
   // Fetch document details
   const { data: document, isLoading, error } = useQuery({
@@ -249,6 +289,16 @@ export default function DocumentValidationPage() {
       setExpenseCategory(getDefaultExpenseCategory(document.document_type))
       if (document.trip_id) {
         setSelectedTripId(document.trip_id)
+      }
+
+      // Initialize transaction categories from AI suggestions
+      if (document.document_type === 'extras_bancar' && structured.transactions) {
+        const initialCategories: Record<number, string> = {}
+        structured.transactions.forEach((tx: BankTransaction, index: number) => {
+          // Use AI category if available, otherwise default to 'altele'
+          initialCategories[index] = tx.ai_category || tx.category || 'altele'
+        })
+        setTransactionCategories(initialCategories)
       }
     }
   }, [document])
@@ -328,10 +378,20 @@ export default function DocumentValidationPage() {
     },
   })
 
+  // Handler for changing transaction category
+  const handleTransactionCategoryChange = (index: number, category: string) => {
+    setTransactionCategories(prev => ({
+      ...prev,
+      [index]: category
+    }))
+  }
+
   const handleConfirm = () => {
     // Check if this is a bank statement - use special endpoint
     if (document?.document_type === 'extras_bancar') {
-      const bankStatementData: Record<string, unknown> = {}
+      const bankStatementData: Record<string, unknown> = {
+        transaction_categories: transactionCategories, // Send user-modified categories
+      }
       if (selectedTripId) bankStatementData.trip_id = selectedTripId
       confirmBankStatementMutation.mutate(bankStatementData)
       return
@@ -909,22 +969,50 @@ export default function DocumentValidationPage() {
                         <th className="text-left p-3">Data</th>
                         <th className="text-left p-3">De la (Plătitor)</th>
                         <th className="text-left p-3">Descriere</th>
-                        <th className="text-left p-3">Referință</th>
+                        <th className="text-left p-3">Tip Încasare</th>
                         <th className="text-right p-3">Suma</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {creditTransactions.map((tx, index) => (
-                        <tr key={index} className="border-b hover:bg-green-50/50">
-                          <td className="p-3">{tx.date || '-'}</td>
-                          <td className="p-3 font-medium">{tx.counterparty || '-'}</td>
-                          <td className="p-3 text-muted-foreground">{tx.description || '-'}</td>
-                          <td className="p-3">{tx.reference || '-'}</td>
-                          <td className="p-3 text-right font-bold text-green-600">
-                            +{tx.amount?.toLocaleString()} {formData.currency}
-                          </td>
-                        </tr>
-                      ))}
+                      {creditTransactions.map((tx, index) => {
+                        // Find the original index in all transactions
+                        const originalIndex = bankTransactions.findIndex(t => t === tx)
+                        const currentCategory = transactionCategories[originalIndex] || tx.ai_category || 'incasare_client'
+                        const aiConfidence = tx.ai_category_confidence
+
+                        return (
+                          <tr key={index} className="border-b hover:bg-green-50/50">
+                            <td className="p-3">{tx.date || '-'}</td>
+                            <td className="p-3 font-medium">{tx.counterparty || '-'}</td>
+                            <td className="p-3 text-muted-foreground max-w-[200px] truncate" title={tx.description}>
+                              {tx.description || '-'}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex flex-col gap-1">
+                                <select
+                                  value={currentCategory}
+                                  onChange={(e) => handleTransactionCategoryChange(originalIndex, e.target.value)}
+                                  className="text-sm p-1.5 border rounded-md bg-white min-w-[140px]"
+                                >
+                                  {bankCreditCategories.map((cat) => (
+                                    <option key={cat.value} value={cat.value}>
+                                      {cat.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                {tx.ai_category && aiConfidence !== undefined && (
+                                  <span className={`text-xs ${aiConfidence > 0.7 ? 'text-green-600' : 'text-yellow-600'}`}>
+                                    AI: {Math.round(aiConfidence * 100)}% sigur
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 text-right font-bold text-green-600">
+                              +{tx.amount?.toLocaleString()} {formData.currency}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                     <tfoot className="bg-green-100">
                       <tr>
@@ -950,6 +1038,8 @@ export default function DocumentValidationPage() {
                 </CardTitle>
                 <CardDescription className="text-red-600">
                   Bani plătiți din cont - cheltuieli: parcări, taxe drum, amenzi, furnizori, etc.
+                  <br />
+                  <span className="font-medium">AI a sugerat categorii pentru fiecare tranzacție. Poți modifica dacă e necesar.</span>
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
@@ -960,22 +1050,50 @@ export default function DocumentValidationPage() {
                         <th className="text-left p-3">Data</th>
                         <th className="text-left p-3">Către (Beneficiar)</th>
                         <th className="text-left p-3">Descriere</th>
-                        <th className="text-left p-3">Referință</th>
+                        <th className="text-left p-3">Categorie</th>
                         <th className="text-right p-3">Suma</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {debitTransactions.map((tx, index) => (
-                        <tr key={index} className="border-b hover:bg-red-50/50">
-                          <td className="p-3">{tx.date || '-'}</td>
-                          <td className="p-3 font-medium">{tx.counterparty || '-'}</td>
-                          <td className="p-3 text-muted-foreground">{tx.description || '-'}</td>
-                          <td className="p-3">{tx.reference || '-'}</td>
-                          <td className="p-3 text-right font-bold text-red-600">
-                            -{tx.amount?.toLocaleString()} {formData.currency}
-                          </td>
-                        </tr>
-                      ))}
+                      {debitTransactions.map((tx, index) => {
+                        // Find the original index in all transactions
+                        const originalIndex = bankTransactions.findIndex(t => t === tx)
+                        const currentCategory = transactionCategories[originalIndex] || tx.ai_category || 'altele'
+                        const aiConfidence = tx.ai_category_confidence
+
+                        return (
+                          <tr key={index} className="border-b hover:bg-red-50/50">
+                            <td className="p-3">{tx.date || '-'}</td>
+                            <td className="p-3 font-medium">{tx.counterparty || '-'}</td>
+                            <td className="p-3 text-muted-foreground max-w-[200px] truncate" title={tx.description}>
+                              {tx.description || '-'}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex flex-col gap-1">
+                                <select
+                                  value={currentCategory}
+                                  onChange={(e) => handleTransactionCategoryChange(originalIndex, e.target.value)}
+                                  className="text-sm p-1.5 border rounded-md bg-white min-w-[140px]"
+                                >
+                                  {bankDebitCategories.map((cat) => (
+                                    <option key={cat.value} value={cat.value}>
+                                      {cat.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                {tx.ai_category && aiConfidence !== undefined && (
+                                  <span className={`text-xs ${aiConfidence > 0.7 ? 'text-green-600' : 'text-yellow-600'}`}>
+                                    AI: {Math.round(aiConfidence * 100)}% sigur
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 text-right font-bold text-red-600">
+                              -{tx.amount?.toLocaleString()} {formData.currency}
+                            </td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                     <tfoot className="bg-red-100">
                       <tr>

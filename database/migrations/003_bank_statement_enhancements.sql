@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS bank_statement_payments (
 
   -- Expense category for debit transactions
   expense_category VARCHAR(50),
+  ai_suggested_category VARCHAR(50),  -- Category suggested by AI
+  user_modified_category BOOLEAN DEFAULT FALSE,  -- Whether user changed the category
 
   -- Status
   status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processed', 'ignored')),
@@ -94,3 +96,37 @@ CREATE POLICY "Users can delete bank payments in their company"
 CREATE TRIGGER update_bank_statement_payments_updated_at
   BEFORE UPDATE ON bank_statement_payments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- COMMENTS FOR AI CATEGORY FIELDS
+-- ============================================================
+COMMENT ON COLUMN bank_statement_payments.expense_category IS 'Final expense category (user-modified or AI-suggested)';
+COMMENT ON COLUMN bank_statement_payments.ai_suggested_category IS 'Original category suggested by AI';
+COMMENT ON COLUMN bank_statement_payments.user_modified_category IS 'Whether the user modified the AI-suggested category';
+
+-- ============================================================
+-- EXPENSE CATEGORY TYPES FOR BANK STATEMENTS
+-- These are used for categorizing debit/credit transactions
+-- ============================================================
+-- DEBIT (expenses):
+-- - combustibil: Fuel, diesel, benzină, AdBlue
+-- - taxa_drum: Road taxes, vignettes, tolls, GO-Box, HU-GO
+-- - parcare: Parking fees
+-- - amenzi: Traffic fines, penalties
+-- - reparatii: Repairs, maintenance, ITP, vulcanization
+-- - asigurare: Insurance (RCA, CASCO, CMR)
+-- - diurna: Per diem, driver advances
+-- - salariu: Salaries, employee payments
+-- - furnizori: Supplier payments
+-- - leasing: Leasing payments
+-- - utilitati: Utilities (electricity, gas, water, phone)
+-- - chirie: Rent
+-- - taxe_stat: State taxes, contributions, ANAF
+-- - bancar: Bank fees, interest
+-- - altele: Other expenses
+--
+-- CREDIT (income):
+-- - incasare_client: Client payments, invoice receipts
+-- - rambursare: Refunds, returns
+-- - dobanda: Interest income
+-- - altele: Other income

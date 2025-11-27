@@ -983,11 +983,42 @@ function mapPaymentDescriptionToCategory(description, counterparty) {
   if (text.includes('parcare') || text.includes('parking')) return 'parcare';
   if (text.includes('taxa') || text.includes('toll') || text.includes('vigneta') || text.includes('rovinieta')) return 'taxa_drum';
   if (text.includes('combustibil') || text.includes('fuel') || text.includes('diesel') || text.includes('benzina')) return 'combustibil';
-  if (text.includes('amenda') || text.includes('fine')) return 'amenzi';
-  if (text.includes('reparatie') || text.includes('service') || text.includes('piese')) return 'reparatii';
-  if (text.includes('asigurare') || text.includes('insurance')) return 'asigurare';
+  if (text.includes('shell') || text.includes('omv') || text.includes('mol') || text.includes('petrom') || text.includes('lukoil')) return 'combustibil';
+  if (text.includes('hu-go') || text.includes('go-box') || text.includes('viapass') || text.includes('telepass')) return 'taxa_drum';
+  if (text.includes('amenda') || text.includes('fine') || text.includes('politia')) return 'amenzi';
+  if (text.includes('reparatie') || text.includes('service') || text.includes('piese') || text.includes('vulcanizare')) return 'reparatii';
+  if (text.includes('asigurare') || text.includes('insurance') || text.includes('rca') || text.includes('casco')) return 'asigurare';
+  if (text.includes('diurna') || text.includes('avans sofer')) return 'diurna';
+  if (text.includes('salar') || text.includes('plata angajat')) return 'salariu';
+  if (text.includes('leasing') || text.includes('rate')) return 'leasing';
+  if (text.includes('comision') || text.includes('dobanda')) return 'bancar';
 
   return 'altele';
+}
+
+// Get display label for category
+function getCategoryDisplayLabel(category) {
+  const labels = {
+    combustibil: 'Combustibil',
+    taxa_drum: 'Taxă drum',
+    parcare: 'Parcare',
+    amenzi: 'Amendă',
+    reparatii: 'Reparații',
+    asigurare: 'Asigurare',
+    diurna: 'Diurnă',
+    salariu: 'Salariu',
+    furnizori: 'Furnizori',
+    leasing: 'Leasing',
+    utilitati: 'Utilități',
+    chirie: 'Chirie',
+    taxe_stat: 'Taxe stat',
+    bancar: 'Bancar',
+    incasare_client: 'Încasare client',
+    rambursare: 'Rambursare',
+    dobanda: 'Dobândă',
+    altele: 'Altele',
+  };
+  return labels[category] || category;
 }
 
 /**
@@ -995,6 +1026,7 @@ function mapPaymentDescriptionToCategory(description, counterparty) {
  * Confirm bank statement and process all transactions
  * - Credit transactions: match with factura_iesire and mark as paid
  * - Debit transactions: create expenses (trip expenses or general transactions)
+ * - Accepts user-modified categories that override AI suggestions
  */
 router.post(
   '/:id/confirm-bank-statement',
@@ -1002,6 +1034,7 @@ router.post(
   [
     param('id').isUUID(),
     body('trip_id').optional().isUUID(),
+    body('transaction_categories').optional().isObject(), // User-modified categories by index
   ],
   async (req, res, next) => {
     try {
@@ -1011,7 +1044,7 @@ router.post(
       }
 
       const { id } = req.params;
-      const { trip_id } = req.body;
+      const { trip_id, transaction_categories = {} } = req.body;
 
       // Get the bank statement document
       const { data: doc, error: fetchError } = await supabase
@@ -1038,12 +1071,17 @@ router.post(
       };
 
       // Process each transaction
-      for (const tx of transactions) {
+      for (let txIndex = 0; txIndex < transactions.length; txIndex++) {
+        const tx = transactions[txIndex];
         try {
           const txType = tx.type; // 'credit' or 'debit'
           const txAmount = parseFloat(tx.amount) || 0;
           const txDate = tx.date || doc.document_date || new Date().toISOString().split('T')[0];
           const txCurrency = doc.currency || extractedData.currency || 'EUR';
+
+          // Use user-modified category if provided, otherwise use AI category or fallback
+          const userCategory = transaction_categories[txIndex.toString()];
+          const aiCategory = tx.ai_category;
 
           // Save transaction to bank_statement_payments table
           const paymentData = {
@@ -1118,17 +1156,22 @@ router.post(
 
           } else if (txType === 'debit') {
             // DEBIT = money paid = create expense
-            const expenseCategory = mapPaymentDescriptionToCategory(tx.description, tx.counterparty);
+            // Priority: user category > AI category > description-based category
+            const expenseCategory = userCategory || aiCategory || mapPaymentDescriptionToCategory(tx.description, tx.counterparty);
             paymentData.expense_category = expenseCategory;
+            paymentData.ai_suggested_category = aiCategory || null;
+            paymentData.user_modified_category = userCategory ? true : false;
 
             // If trip_id is provided, create trip expense
             if (trip_id) {
+              // Use direct category for trip expenses (simplified mapping)
+              const tripCategory = mapToTripExpenseCategory(expenseCategory);
               const tripExpenseData = {
                 trip_id,
-                category: mapToTripExpenseCategory(expenseCategory),
+                category: tripCategory,
                 amount: txAmount,
                 currency: txCurrency,
-                description: tx.description || tx.counterparty || 'Bank payment',
+                description: `${getCategoryDisplayLabel(expenseCategory)}: ${tx.description || tx.counterparty || 'Plată bancară'}`,
                 receipt_number: tx.reference,
                 date: txDate,
                 created_by: req.user.id,

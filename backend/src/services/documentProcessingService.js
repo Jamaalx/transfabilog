@@ -314,7 +314,9 @@ Returnează DOAR JSON valid.`;
   "items": ["descriere articole/servicii"],
   "route": "rută transport dacă apare" sau null
 }`,
-    extras_bancar: `Extrage din acest extras bancar toate tranzacțiile individuale:
+    extras_bancar: `Extrage din acest extras bancar toate tranzacțiile individuale.
+FOARTE IMPORTANT: Acest extras poate avea MULTE PAGINI (1-50+). Trebuie să extragi TOATE tranzacțiile din TOATE paginile!
+
 {
   "document_date": "YYYY-MM-DD",
   "bank_name": "nume bancă",
@@ -334,17 +336,52 @@ Returnează DOAR JSON valid.`;
       "description": "descrierea tranzacției",
       "reference": "referință/număr document dacă există",
       "counterparty": "nume plătitor sau beneficiar",
-      "counterparty_iban": "IBAN contrapartidă dacă apare"
+      "counterparty_iban": "IBAN contrapartidă dacă apare",
+      "ai_category": "categoria sugerată",
+      "ai_category_confidence": număr între 0 și 1
     }
   ]
 }
 
-IMPORTANT:
-- "credit" = intrări/încasări în cont (bani primiți)
-- "debit" = ieșiri/plăți din cont (bani plătiți)
-- Extrage TOATE tranzacțiile individuale pe care le găsești
-- amount trebuie să fie întotdeauna pozitiv
-- counterparty = cine a plătit (pentru credit) sau cui s-a plătit (pentru debit)`,
+CATEGORII DISPONIBILE PENTRU TRANSPORT (ai_category):
+Pentru DEBIT (plăți/cheltuieli):
+- "combustibil" - diesel, benzină, AdBlue, alimentări la benzinării
+- "taxa_drum" - roviniete, vignete, taxe de pod, taxe autostradă, GO-Box, HU-GO, Toll
+- "parcare" - parcări, parking, TIR parking
+- "amenzi" - amenzi rutiere, penalități, sancțiuni
+- "reparatii" - service, piese auto, mentenanță, vulcanizare, ITP
+- "asigurare" - RCA, CASCO, CMR, asigurări
+- "diurna" - diurnă șoferi, avansuri șoferi
+- "salariu" - salarii, plăți angajați
+- "furnizori" - plăți către furnizori, factură
+- "leasing" - rate leasing, rate mașini
+- "utilitati" - curent, gaz, apă, telefon, internet
+- "chirie" - chirii, arendă
+- "taxe_stat" - impozite, taxe, contribuții ANAF
+- "bancar" - comisioane bancare, dobânzi
+- "altele" - alte plăți neîncadrate
+
+Pentru CREDIT (încasări):
+- "incasare_client" - plăți de la clienți, încasări facturi
+- "rambursare" - rambursări, returnări
+- "dobanda" - dobânzi încasate
+- "altele" - alte încasări
+
+REGULI IMPORTANTE:
+1. "credit" = intrări/încasări în cont (bani primiți) - SUNT VENITURI
+2. "debit" = ieșiri/plăți din cont (bani plătiți) - SUNT CHELTUIELI
+3. Extrage TOATE tranzacțiile individuale din TOATE paginile documentului
+4. amount trebuie să fie întotdeauna POZITIV
+5. counterparty = cine a plătit (pentru credit) sau cui s-a plătit (pentru debit)
+6. Analizează descrierea și beneficiarul pentru a determina categoria corectă
+7. Setează ai_category_confidence mai mare dacă ești sigur de categorie
+
+EXEMPLE DE CATEGORISARE:
+- "SHELL", "OMV", "MOL", "PETROM" → combustibil
+- "HU-GO", "GO-BOX", "VIGNETA", "A4" → taxa_drum
+- "PARKING", "PARCARE" → parcare
+- "POLITIA", "AMENDA" → amenzi
+- "SERVICE", "PIESE", "VULCANIZARE" → reparatii`,
     bon_fiscal: `Extrage din acest bon fiscal:
 {
   "document_number": "număr bon",
