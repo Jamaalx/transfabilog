@@ -328,9 +328,24 @@ Returnează DOAR JSON valid.`;
   "currency": "RON|EUR",
   "transactions_count": număr
 }`,
+    bon_fiscal: `Extrage din acest bon fiscal:
+{
+  "document_number": "număr bon",
+  "document_date": "YYYY-MM-DD",
+  "supplier_name": "nume firmă/magazin emitent",
+  "supplier_cui": "CUI/CIF firmă emitentă",
+  "amount": număr total,
+  "currency": "RON|EUR",
+  "vat_amount": TVA dacă apare,
+  "items": ["produse/servicii cumpărate"],
+  "truck_registration": "nr înmatriculare dacă apare" sau null
+}`,
     raport_dkv: `Extrage din acest raport DKV:
 {
+  "document_number": "număr factură/raport",
   "document_date": "YYYY-MM-DD",
+  "supplier_name": "DKV Euro Service GmbH + Co. KG" sau numele firmei DKV din document,
+  "supplier_cui": "CUI/VAT ID al DKV din document",
   "period_start": "YYYY-MM-DD",
   "period_end": "YYYY-MM-DD",
   "total_amount": număr,
@@ -348,7 +363,10 @@ Returnează DOAR JSON valid.`;
 }`,
     raport_eurowag: `Extrage din acest raport Eurowag:
 {
+  "document_number": "număr factură/raport",
   "document_date": "YYYY-MM-DD",
+  "supplier_name": "EUROWAG sau W.A.G. payment solutions" sau numele firmei din document,
+  "supplier_cui": "CUI/VAT ID din document",
   "period_start": "YYYY-MM-DD",
   "period_end": "YYYY-MM-DD",
   "total_amount": număr,
@@ -361,6 +379,69 @@ Returnează DOAR JSON valid.`;
       "fuel_liters": număr sau null,
       "amount": număr,
       "type": "diesel|taxa_drum|parcare|altele"
+    }
+  ]
+}`,
+    raport_verag: `Extrage din acest raport Verag:
+{
+  "document_number": "număr factură/raport",
+  "document_date": "YYYY-MM-DD",
+  "supplier_name": "numele firmei Verag din document",
+  "supplier_cui": "CUI/VAT ID din document",
+  "period_start": "YYYY-MM-DD",
+  "period_end": "YYYY-MM-DD",
+  "total_amount": număr,
+  "currency": "EUR",
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "truck_registration": "nr înmatriculare",
+      "location": "locație",
+      "fuel_liters": număr sau null,
+      "amount": număr,
+      "type": "diesel|adblue|taxa|altele"
+    }
+  ]
+}`,
+    raport_shell: `Extrage din acest raport Shell:
+{
+  "document_number": "număr factură/raport",
+  "document_date": "YYYY-MM-DD",
+  "supplier_name": "Shell sau numele complet din document",
+  "supplier_cui": "CUI/VAT ID din document",
+  "period_start": "YYYY-MM-DD",
+  "period_end": "YYYY-MM-DD",
+  "total_amount": număr,
+  "currency": "EUR",
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "truck_registration": "nr înmatriculare",
+      "location": "locație",
+      "fuel_liters": număr sau null,
+      "amount": număr,
+      "type": "diesel|adblue|altele"
+    }
+  ]
+}`,
+    raport_omv: `Extrage din acest raport OMV:
+{
+  "document_number": "număr factură/raport",
+  "document_date": "YYYY-MM-DD",
+  "supplier_name": "OMV sau numele complet din document",
+  "supplier_cui": "CUI/VAT ID din document",
+  "period_start": "YYYY-MM-DD",
+  "period_end": "YYYY-MM-DD",
+  "total_amount": număr,
+  "currency": "EUR",
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "truck_registration": "nr înmatriculare",
+      "location": "locație",
+      "fuel_liters": număr sau null,
+      "amount": număr,
+      "type": "diesel|adblue|altele"
     }
   ]
 }`,
@@ -384,6 +465,8 @@ Returnează DOAR JSON valid.`;
 {
   "document_number": "număr document dacă există",
   "document_date": "YYYY-MM-DD",
+  "supplier_name": "nume firmă emitentă/furnizor dacă apare",
+  "supplier_cui": "CUI/CIF firmă emitentă dacă apare",
   "amount": număr sau null,
   "currency": "RON|EUR" sau null,
   "description": "descriere conținut",
