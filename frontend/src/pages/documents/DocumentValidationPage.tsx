@@ -63,13 +63,19 @@ interface ExtractedData {
   document_date?: string
   amount?: number
   total_amount?: number
+  amount_with_vat?: number
   currency?: string
   supplier_name?: string
   supplier_cui?: string
   client_name?: string
   client_cui?: string
+  client_address?: string
   truck_registration?: string
+  vehicle_number?: string
   driver_name?: string
+  route?: string
+  cmr_numbers?: string[]
+  transport_date?: string
   items?: string[]
   description?: string
   // Fuel transactions
@@ -276,15 +282,24 @@ export default function DocumentValidationPage() {
   useEffect(() => {
     if (document) {
       const structured = document.extracted_data?.structured || {}
+      const isOutgoingInvoice = document.document_type === 'factura_iesire'
+
       setFormData({
         document_number: document.document_number || structured.document_number,
         document_date: document.document_date || structured.document_date,
         amount: document.amount || structured.amount || structured.total_amount,
         currency: document.currency || structured.currency || 'EUR',
-        supplier_name: document.supplier_name || structured.supplier_name,
-        supplier_cui: document.supplier_cui || structured.supplier_cui,
-        truck_registration: structured.truck_registration,
+        // For outgoing invoices, use client_name/client_cui; for incoming, use supplier
+        supplier_name: isOutgoingInvoice
+          ? (structured.client_name || document.supplier_name)
+          : (document.supplier_name || structured.supplier_name),
+        supplier_cui: isOutgoingInvoice
+          ? (structured.client_cui || document.supplier_cui)
+          : (document.supplier_cui || structured.supplier_cui),
+        // Vehicle from either vehicle_number (factura_iesire) or truck_registration
+        truck_registration: structured.vehicle_number || structured.truck_registration,
         driver_name: structured.driver_name,
+        route: structured.route,
       })
       setExpenseCategory(getDefaultExpenseCategory(document.document_type))
       if (document.trip_id) {
@@ -411,6 +426,8 @@ export default function DocumentValidationPage() {
     if (formData.supplier_cui) requestData.supplier_cui = formData.supplier_cui
     if (expenseCategory) requestData.expense_category = expenseCategory
     if (selectedTripId) requestData.trip_id = selectedTripId
+    // Send truck registration for vehicle linking (especially for factura_iesire)
+    if (formData.truck_registration) requestData.truck_registration = formData.truck_registration
 
     confirmMutation.mutate(requestData)
   }
@@ -698,16 +715,17 @@ export default function DocumentValidationPage() {
               </div>
             </div>
 
-            {/* Supplier */}
+            {/* Supplier/Client - dynamic based on document type */}
             <div>
               <label className="text-sm font-medium flex items-center gap-2">
-                <Building className="h-4 w-4" /> Furnizor
+                <Building className="h-4 w-4" />
+                {document.document_type === 'factura_iesire' ? 'Client' : 'Furnizor'}
               </label>
               {editMode ? (
                 <Input
                   value={formData.supplier_name || ''}
                   onChange={(e) => handleInputChange('supplier_name', e.target.value)}
-                  placeholder="Nume furnizor"
+                  placeholder={document.document_type === 'factura_iesire' ? 'Nume client' : 'Nume furnizor'}
                   className="mt-1"
                 />
               ) : (
@@ -715,9 +733,11 @@ export default function DocumentValidationPage() {
               )}
             </div>
 
-            {/* Supplier CUI */}
+            {/* CUI - dynamic label */}
             <div>
-              <label className="text-sm font-medium">CUI Furnizor</label>
+              <label className="text-sm font-medium">
+                {document.document_type === 'factura_iesire' ? 'CUI Client' : 'CUI Furnizor'}
+              </label>
               {editMode ? (
                 <Input
                   value={formData.supplier_cui || ''}
@@ -730,23 +750,52 @@ export default function DocumentValidationPage() {
               )}
             </div>
 
-            {/* Truck Association */}
-            {(extractedData.truck_registration || document.truck) && (
+            {/* Vehicle/Truck - show for factura_iesire even if no auto-match */}
+            {(formData.truck_registration || extractedData.vehicle_number || extractedData.truck_registration || document.truck) && (
               <div>
                 <label className="text-sm font-medium flex items-center gap-2">
-                  <Truck className="h-4 w-4" /> Camion Asociat
+                  <Truck className="h-4 w-4" />
+                  {document.document_type === 'factura_iesire' ? 'Vehicul Facturat' : 'Camion Asociat'}
                 </label>
-                <div className="mt-1 p-2 bg-blue-50 rounded flex items-center gap-2">
-                  <Truck className="h-4 w-4 text-blue-600" />
-                  <span>
-                    {document.truck?.registration_number || extractedData.truck_registration}
-                  </span>
-                  {document.truck && (
-                    <Badge variant="outline" className="ml-auto">
-                      Asociat automat
-                    </Badge>
-                  )}
-                </div>
+                {editMode ? (
+                  <Input
+                    value={formData.truck_registration || ''}
+                    onChange={(e) => handleInputChange('truck_registration', e.target.value)}
+                    placeholder="Nr. înmatriculare (ex: MS 10 TFL)"
+                    className="mt-1"
+                  />
+                ) : (
+                  <div className="mt-1 p-2 bg-blue-50 rounded flex items-center gap-2">
+                    <Truck className="h-4 w-4 text-blue-600" />
+                    <span>
+                      {document.truck?.registration_number || formData.truck_registration || extractedData.vehicle_number || extractedData.truck_registration || '-'}
+                    </span>
+                    {document.truck && (
+                      <Badge variant="outline" className="ml-auto">
+                        Asociat automat
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Route - for outgoing invoices */}
+            {(document.document_type === 'factura_iesire' && (formData.route || extractedData.route)) && (
+              <div>
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <MapPin className="h-4 w-4" /> Rută Transport
+                </label>
+                {editMode ? (
+                  <Input
+                    value={(formData.route as string) || ''}
+                    onChange={(e) => handleInputChange('route', e.target.value)}
+                    placeholder="Ex: București - Berlin"
+                    className="mt-1"
+                  />
+                ) : (
+                  <p className="mt-1 p-2 bg-muted/50 rounded">{(formData.route as string) || extractedData.route || '-'}</p>
+                )}
               </div>
             )}
 

@@ -302,18 +302,25 @@ Returnează DOAR JSON valid.`;
   "truck_registration": "nr înmatriculare dacă apare" sau null,
   "driver_name": "nume șofer dacă apare" sau null
 }`,
-    factura_iesire: `Extrage din această factură de ieșire:
+    factura_iesire: `Extrage din această factură de ieșire (factură emisă către client pentru servicii de transport):
 {
   "document_number": "număr factură",
   "document_date": "YYYY-MM-DD",
-  "client_name": "nume client",
-  "client_cui": "CUI client",
-  "amount": număr,
+  "client_name": "nume client (destinatarul facturii)",
+  "client_cui": "CUI/CIF client",
+  "client_address": "adresa client" sau null,
+  "amount": număr (valoare totală fără TVA),
+  "amount_with_vat": număr (valoare totală cu TVA) sau null,
   "currency": "RON|EUR",
   "vat_amount": număr sau null,
-  "items": ["descriere articole/servicii"],
-  "route": "rută transport dacă apare" sau null
-}`,
+  "vehicle_number": "număr înmatriculare camion menționat în factură" sau null,
+  "driver_name": "nume șofer dacă apare" sau null,
+  "items": ["descriere articole/servicii facturate"],
+  "route": "rută transport (ex: București - Berlin)" sau null,
+  "cmr_numbers": ["numere CMR referite în factură"] sau null,
+  "transport_date": "YYYY-MM-DD data transportului" sau null
+}
+IMPORTANT: Caută numărul de înmatriculare al vehiculului - poate apărea în descrierea serviciilor, în detalii transport, sau în referințe.`,
     extras_bancar: `Extrage din acest extras bancar toate tranzacțiile individuale.
 FOARTE IMPORTANT: Acest extras poate avea MULTE PAGINI (1-50+). Trebuie să extragi TOATE tranzacțiile din TOATE paginile!
 

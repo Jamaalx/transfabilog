@@ -685,6 +685,7 @@ router.post(
     body('expense_category').optional().isString(),
     body('trip_id').optional().isUUID(),
     body('create_expense').optional().isBoolean(),
+    body('truck_registration').optional().isString(), // For linking vehicle to document
   ],
   async (req, res, next) => {
     try {
@@ -704,6 +705,7 @@ router.post(
         expense_category,
         trip_id,
         create_expense = true,
+        truck_registration, // Vehicle number from invoice
       } = req.body;
 
       // Get document
@@ -718,6 +720,30 @@ router.post(
         return res.status(404).json({ error: 'Document not found' });
       }
 
+      // Look up truck by registration number if provided and no truck_id exists
+      let truckIdFromRegistration = doc.truck_id;
+      if (truck_registration && !doc.truck_id) {
+        // Normalize registration: remove spaces and convert to uppercase
+        const normalizedReg = truck_registration.replace(/\s+/g, '').toUpperCase();
+
+        // Search for truck with matching registration (also normalized)
+        const { data: trucks } = await supabase
+          .from('trucks')
+          .select('id, registration_number')
+          .eq('company_id', req.companyId);
+
+        if (trucks) {
+          const matchedTruck = trucks.find(t => {
+            const truckReg = t.registration_number.replace(/\s+/g, '').toUpperCase();
+            return truckReg === normalizedReg;
+          });
+          if (matchedTruck) {
+            truckIdFromRegistration = matchedTruck.id;
+            console.log(`Matched vehicle ${truck_registration} to truck ${matchedTruck.id}`);
+          }
+        }
+      }
+
       // Auto-find matching trip if not manually selected
       let finalTripId = trip_id;
       let autoMatchedTrip = false;
@@ -725,7 +751,7 @@ router.post(
       if (!finalTripId && create_expense) {
         // Use document date from request or existing document
         const docDate = document_date || doc.document_date;
-        const truckId = doc.truck_id;
+        const truckId = truckIdFromRegistration; // Use found truck from registration
         const driverId = doc.driver_id;
 
         if (docDate && (truckId || driverId)) {
@@ -751,6 +777,8 @@ router.post(
       if (supplier_name) updateData.supplier_name = supplier_name;
       if (supplier_cui) updateData.supplier_cui = supplier_cui;
       if (finalTripId) updateData.trip_id = finalTripId;
+      // Save truck_id if found from registration number
+      if (truckIdFromRegistration && !doc.truck_id) updateData.truck_id = truckIdFromRegistration;
 
       const { data: updatedDoc, error: updateError } = await supabase
         .from('uploaded_documents')
@@ -807,7 +835,7 @@ router.post(
             date: finalDate,
             description: `${doc.document_type} - ${document_number || doc.document_number || doc.file_name}`,
             invoice_number: document_number || doc.document_number,
-            truck_id: doc.truck_id,
+            truck_id: truckIdFromRegistration, // Use found truck from registration
             driver_id: doc.driver_id,
             external_ref: id,
             created_by: req.user.id,
