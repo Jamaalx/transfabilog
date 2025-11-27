@@ -8,8 +8,8 @@
 -- Solution: Check both user_profiles AND auth.users.raw_user_meta_data
 -- ============================================================
 
--- Drop old helper function
-DROP FUNCTION IF EXISTS get_user_company_id();
+-- NOTE: We use CREATE OR REPLACE instead of DROP to avoid breaking
+-- existing policies that depend on this function
 
 -- ============================================================
 -- NEW HELPER FUNCTION - More robust company_id lookup
