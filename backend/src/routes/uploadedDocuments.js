@@ -11,9 +11,19 @@ const {
   findMatchingTrip,
 } = require('../services/documentProcessingService');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4, validate: uuidValidate } = require('uuid');
 
 const router = express.Router();
+
+// Custom UUID validator that accepts any valid UUID format
+const isValidUUID = (value) => {
+  if (!value) return true; // Optional field
+  // Use uuid library's validate function which is more permissive
+  if (uuidValidate(value)) return true;
+  // Fallback: check with regex for standard UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(value);
+};
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -112,7 +122,10 @@ router.post(
     body('period_start').optional().isISO8601(),
     body('period_end').optional().isISO8601(),
     body('notes').optional().isString(),
-    body('truck_id').optional().isUUID('all'), // Accept any UUID version
+    body('truck_id').optional().custom((value) => {
+      if (!isValidUUID(value)) throw new Error('Invalid UUID format');
+      return true;
+    }),
     body('bank_statement_type').optional().isIn(['per_camion', 'administrativ']),
   ],
   async (req, res, next) => {
@@ -366,8 +379,14 @@ router.get(
     query('document_category').optional().isString(),
     query('date_from').optional().isISO8601(),
     query('date_to').optional().isISO8601(),
-    query('truck_id').optional().isUUID(),
-    query('driver_id').optional().isUUID(),
+    query('truck_id').optional().custom((value) => {
+      if (!isValidUUID(value)) throw new Error('Invalid UUID format');
+      return true;
+    }),
+    query('driver_id').optional().custom((value) => {
+      if (!isValidUUID(value)) throw new Error('Invalid UUID format');
+      return true;
+    }),
     query('search').optional().isString(),
   ],
   async (req, res, next) => {
@@ -525,9 +544,18 @@ router.put(
     body('document_number').optional().isString(),
     body('amount').optional().isNumeric(),
     body('currency').optional().isString(),
-    body('truck_id').optional().isUUID('all'), // Accept any UUID version
-    body('driver_id').optional().isUUID(),
-    body('trip_id').optional().isUUID(),
+    body('truck_id').optional().custom((value) => {
+      if (!isValidUUID(value)) throw new Error('Invalid UUID format');
+      return true;
+    }),
+    body('driver_id').optional().custom((value) => {
+      if (!isValidUUID(value)) throw new Error('Invalid UUID format');
+      return true;
+    }),
+    body('trip_id').optional().custom((value) => {
+      if (!isValidUUID(value)) throw new Error('Invalid UUID format');
+      return true;
+    }),
     body('status').optional().isIn(['uploaded', 'processing', 'processed', 'failed', 'needs_review', 'archived']),
     body('notes').optional().isString(),
     body('tags').optional().isArray(),
