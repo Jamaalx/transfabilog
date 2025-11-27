@@ -1,5 +1,6 @@
 const xlsx = require('xlsx');
 const { supabaseAdmin: supabase } = require('../config/supabase');
+const bnrService = require('./bnrExchangeService');
 
 /**
  * DKV Excel Column Mappings
@@ -23,6 +24,8 @@ const DKV_COLUMNS = {
   NET_BASE_VALUE: 'Valoare de bază Netă',
   NET_SERVICE_FEE: 'Taxă de serviciu netă',
   NET_PURCHASE_VALUE: 'Valoarea netă a achiziției',
+  GROSS_VALUE: 'Valoare brută',  // Brutto value
+  VAT_AMOUNT: 'TVA',  // VAT amount
   PAYMENT_VALUE: 'Valoarea în moneda de plată',
   VEHICLE_REGISTRATION: 'Număr de înmatriculare vehicul',
   CARD_NUMBER: 'Nr. card/cutie',
@@ -34,7 +37,7 @@ const DKV_COLUMNS = {
  * @param {string} mimeType - MIME type of the file (optional)
  * @returns {Object} Parsed data with transactions and metadata
  */
-function parseDKVExcel(fileBuffer, mimeType) {
+async function parseDKVExcel(fileBuffer, mimeType) {
   let workbook;
 
   // Check if this is a CSV file (might use semicolons as delimiter)
@@ -134,7 +137,65 @@ function parseDKVExcel(fileBuffer, mimeType) {
     const netBaseValue = parseNumber(row[columnMap.NET_BASE_VALUE]);
     const netServiceFee = parseNumber(row[columnMap.NET_SERVICE_FEE]);
     const netPurchaseValue = parseNumber(row[columnMap.NET_PURCHASE_VALUE]);
+    const grossValue = parseNumber(row[columnMap.GROSS_VALUE]);
+    const vatAmountFromFile = parseNumber(row[columnMap.VAT_AMOUNT]);
     const paymentValue = parseNumber(row[columnMap.PAYMENT_VALUE]);
+
+    // Get actual currency from file
+    const paymentCurrency = (getString(row[columnMap.PAYMENT_CURRENCY]) || 'EUR').toUpperCase().trim();
+
+    // Get country info for VAT
+    const countryRaw = getString(row[columnMap.COUNTRY]);
+    const countryCode = bnrService.getCountryCode(countryRaw);
+    const vatInfo = bnrService.getVatRate(countryRaw);
+
+    // Calculate VAT amount (Brutto - Netto)
+    let calculatedVatAmount = 0;
+    let vatRate = 0;
+
+    if (grossValue && netPurchaseValue && grossValue > netPurchaseValue) {
+      // Calculate from Brutto - Netto
+      calculatedVatAmount = Math.round((grossValue - netPurchaseValue) * 100) / 100;
+      vatRate = netPurchaseValue > 0
+        ? Math.round((calculatedVatAmount / netPurchaseValue) * 10000) / 100
+        : 0;
+    } else if (vatAmountFromFile && vatAmountFromFile > 0) {
+      // Use VAT from file if available
+      calculatedVatAmount = vatAmountFromFile;
+      vatRate = netPurchaseValue > 0
+        ? Math.round((calculatedVatAmount / netPurchaseValue) * 10000) / 100
+        : 0;
+    }
+
+    // Convert to EUR if needed
+    let netPurchaseValueEur = netPurchaseValue;
+    let grossValueEur = grossValue;
+    let vatAmountEur = calculatedVatAmount;
+    let paymentValueEur = paymentValue;
+    let exchangeRate = 1;
+    let rateDate = null;
+
+    if (paymentCurrency !== 'EUR' && paymentCurrency === 'RON') {
+      // Convert RON to EUR using BNR rates based on transaction date
+      const conversionResult = await bnrService.convertToEur(netPurchaseValue, paymentCurrency, transactionTime);
+      netPurchaseValueEur = conversionResult.amountEur;
+      exchangeRate = conversionResult.rate;
+      rateDate = conversionResult.rateDate;
+
+      // Convert other amounts with the same rate
+      if (grossValue) {
+        const grossConv = await bnrService.convertToEur(grossValue, paymentCurrency, transactionTime);
+        grossValueEur = grossConv.amountEur;
+      }
+      if (calculatedVatAmount) {
+        const vatConv = await bnrService.convertToEur(calculatedVatAmount, paymentCurrency, transactionTime);
+        vatAmountEur = vatConv.amountEur;
+      }
+      if (paymentValue) {
+        const payConv = await bnrService.convertToEur(paymentValue, paymentCurrency, transactionTime);
+        paymentValueEur = payConv.amountEur;
+      }
+    }
 
     const transaction = {
       transaction_time: transactionTime.toISOString(),
@@ -142,30 +203,45 @@ function parseDKVExcel(fileBuffer, mimeType) {
       station_name: getString(row[columnMap.STATION_NAME]),
       station_city: getString(row[columnMap.STATION_CITY]),
       station_number: getString(row[columnMap.STATION_NUMBER]),
-      country: getString(row[columnMap.COUNTRY]),
+      country: countryRaw,
+      country_code: countryCode,
       cost_group: getString(row[columnMap.COST_GROUP]),
       product_group: getString(row[columnMap.PRODUCT_GROUP]),
       goods_type: getString(row[columnMap.GOODS_TYPE]),
       goods_code: getString(row[columnMap.GOODS_CODE]),
-      payment_currency: getString(row[columnMap.PAYMENT_CURRENCY]) || 'EUR',
+      payment_currency: paymentCurrency,
       unit: getString(row[columnMap.UNIT]) || 'L',
       quantity: quantity,
       price_per_unit: pricePerUnit,
-      currency: 'EUR', // DKV reports are typically in EUR
+      currency: 'EUR', // Amounts converted to EUR
+      original_currency: paymentCurrency, // Original currency from file
+      exchange_rate: exchangeRate,
+      exchange_rate_date: rateDate,
       net_base_value: netBaseValue,
       net_service_fee: netServiceFee || 0,
-      net_purchase_value: netPurchaseValue,
-      payment_value: paymentValue,
+      net_purchase_value: netPurchaseValue, // Original amount
+      net_purchase_value_eur: netPurchaseValueEur, // Converted to EUR
+      gross_value: grossValue, // Original amount
+      gross_value_eur: grossValueEur, // Converted to EUR
+      payment_value: paymentValue, // Original amount
+      payment_value_eur: paymentValueEur, // Converted to EUR (use this for totals)
+      vat_amount: vatAmountEur, // VAT in EUR
+      vat_amount_original: calculatedVatAmount, // VAT in original currency
+      vat_rate: vatRate, // Calculated VAT percentage
+      vat_country: countryCode,
+      vat_country_rate: vatInfo.rate, // Standard VAT rate for country
+      vat_refundable: vatInfo.refundable && calculatedVatAmount > 0,
       vehicle_registration: normalizeRegistration(getString(row[columnMap.VEHICLE_REGISTRATION])),
       card_number: getString(row[columnMap.CARD_NUMBER]),
     };
 
     transactions.push(transaction);
 
-    // Track totals and date range
-    // Use payment_value (EUR) for totals, not net_purchase_value (local currency)
-    if (paymentValue) {
-      totalAmount += paymentValue;
+    // Track totals and date range - use EUR values
+    if (paymentValueEur) {
+      totalAmount += paymentValueEur;
+    } else if (netPurchaseValueEur) {
+      totalAmount += netPurchaseValueEur;
     }
 
     if (!minDate || transactionTime < minDate) {
@@ -302,8 +378,8 @@ function createMatchKey(registration) {
  * @returns {Object} Import result
  */
 async function importDKVTransactions(fileBuffer, companyId, userId, documentId, fileName, mimeType) {
-  // Parse Excel/CSV file
-  const parsed = parseDKVExcel(fileBuffer, mimeType);
+  // Parse Excel/CSV file (async for BNR currency conversion)
+  const parsed = await parseDKVExcel(fileBuffer, mimeType);
 
   if (parsed.transactions.length === 0) {
     throw new Error('No transactions found in DKV file');
@@ -506,20 +582,23 @@ async function createExpenseFromDKV(transactionId, companyId, userId, tripId = n
     category = 'taxa_drum';
   }
 
-  // Create expense transaction
+  // Create expense transaction - use EUR converted values
+  const amountEur = tx.payment_value_eur || tx.gross_value_eur || tx.net_purchase_value_eur || tx.payment_value || tx.net_purchase_value;
+
   const expenseData = {
     company_id: companyId,
     type: 'expense',
     category: category,
-    amount: tx.payment_value || tx.net_purchase_value, // payment_value is in EUR
-    currency: tx.currency || 'EUR',
+    amount: amountEur,
+    currency: 'EUR', // Always store in EUR
     date: tx.transaction_time ? tx.transaction_time.split('T')[0] : new Date().toISOString().split('T')[0],
-    description: `DKV - ${tx.goods_type || 'Fuel'} - ${tx.station_name || ''} (${tx.country || ''}) - ${tx.quantity || ''}${tx.unit || 'L'}`,
+    description: `${tx.provider?.toUpperCase() || 'DKV'} - ${tx.goods_type || 'Fuel'} - ${tx.station_name || ''} (${tx.country || ''}) - ${tx.quantity || ''}${tx.unit || 'L'}${tx.original_currency && tx.original_currency !== 'EUR' ? ` (${tx.original_currency} @${tx.exchange_rate?.toFixed(4)})` : ''}`,
     truck_id: tx.truck_id,
     trip_id: tripId,
-    payment_method: 'dkv',
+    payment_method: tx.provider || 'dkv',
     external_ref: tx.card_number,
     created_by: userId,
+    vat_amount: tx.vat_amount || 0,
   };
 
   const { data: expense, error: expenseError } = await supabase

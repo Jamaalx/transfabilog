@@ -28,7 +28,8 @@
     "pdfjs-dist": "^4.0.379",
     "uuid": "^9.0.0",
     "winston": "^3.11.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "eslint": "^8.56.0",
