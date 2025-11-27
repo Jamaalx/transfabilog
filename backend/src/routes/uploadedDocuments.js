@@ -8,6 +8,7 @@ const {
   DOCUMENT_TYPES,
   DOCUMENT_CATEGORIES,
   createTransactionFromDocument,
+  findMatchingTrip,
 } = require('../services/documentProcessingService');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
@@ -677,6 +678,25 @@ router.post(
         return res.status(404).json({ error: 'Document not found' });
       }
 
+      // Auto-find matching trip if not manually selected
+      let finalTripId = trip_id;
+      let autoMatchedTrip = false;
+
+      if (!finalTripId && create_expense) {
+        // Use document date from request or existing document
+        const docDate = document_date || doc.document_date;
+        const truckId = doc.truck_id;
+        const driverId = doc.driver_id;
+
+        if (docDate && (truckId || driverId)) {
+          finalTripId = await findMatchingTrip(req.companyId, docDate, truckId, driverId);
+          if (finalTripId) {
+            autoMatchedTrip = true;
+            console.log(`Auto-matched document ${id} to trip ${finalTripId} based on date ${docDate}`);
+          }
+        }
+      }
+
       // Update document with validated data
       const updateData = {
         status: 'processed',
@@ -690,7 +710,7 @@ router.post(
       if (currency) updateData.currency = currency;
       if (supplier_name) updateData.supplier_name = supplier_name;
       if (supplier_cui) updateData.supplier_cui = supplier_cui;
-      if (trip_id) updateData.trip_id = trip_id;
+      if (finalTripId) updateData.trip_id = finalTripId;
 
       const { data: updatedDoc, error: updateError } = await supabase
         .from('uploaded_documents')

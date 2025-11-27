@@ -497,13 +497,96 @@ Returnează DOAR JSON valid.`;
 }
 
 /**
+ * Find a trip that was active on a specific date for a truck or driver
+ * @param {string} companyId - Company ID
+ * @param {string} documentDate - Date in YYYY-MM-DD format
+ * @param {string|null} truckId - Truck ID (optional)
+ * @param {string|null} driverId - Driver ID (optional)
+ * @returns {Promise<string|null>} Trip ID if found
+ */
+async function findMatchingTrip(companyId, documentDate, truckId, driverId) {
+  if (!documentDate || (!truckId && !driverId)) {
+    return null;
+  }
+
+  try {
+    // Build query to find trips that were active on the document date
+    let query = supabase
+      .from('trips')
+      .select('id, departure_date, actual_arrival, estimated_arrival, status')
+      .eq('company_id', companyId)
+      .in('status', ['in_progress', 'finalizat']) // Only active or completed trips
+      .lte('departure_date', documentDate); // Trip started before or on document date
+
+    // Match by truck OR driver
+    if (truckId && driverId) {
+      query = query.or(`truck_id.eq.${truckId},driver_id.eq.${driverId}`);
+    } else if (truckId) {
+      query = query.eq('truck_id', truckId);
+    } else if (driverId) {
+      query = query.eq('driver_id', driverId);
+    }
+
+    const { data: trips, error } = await query;
+
+    if (error || !trips || trips.length === 0) {
+      return null;
+    }
+
+    // Filter trips where document date is within trip period
+    const docDate = new Date(documentDate);
+
+    const matchingTrip = trips.find(trip => {
+      const departureDate = new Date(trip.departure_date);
+
+      // Document date must be after or on departure
+      if (docDate < departureDate) return false;
+
+      // If trip has actual_arrival, check against that
+      if (trip.actual_arrival) {
+        const arrivalDate = new Date(trip.actual_arrival);
+        // Give 1 day buffer after arrival for expenses that come in late
+        arrivalDate.setDate(arrivalDate.getDate() + 1);
+        return docDate <= arrivalDate;
+      }
+
+      // If trip has estimated_arrival but no actual, use estimated + buffer
+      if (trip.estimated_arrival) {
+        const estimatedDate = new Date(trip.estimated_arrival);
+        // Give 3 days buffer for estimated arrivals
+        estimatedDate.setDate(estimatedDate.getDate() + 3);
+        return docDate <= estimatedDate;
+      }
+
+      // If trip is in_progress with no arrival date, assume it's still active
+      if (trip.status === 'in_progress') {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (matchingTrip) {
+      console.log(`Auto-matched document to trip ${matchingTrip.id} based on date ${documentDate}`);
+      return matchingTrip.id;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error finding matching trip:', error);
+    return null;
+  }
+}
+
+/**
  * Match extracted data to company entities
+ * NOTE: driver_id is NOT saved to document - driver comes from the trip relationship
  */
 async function matchToEntities(extractedData, companyId) {
   const matches = {
     truck_id: null,
     trailer_id: null,
-    driver_id: null,
+    // driver_id removed - driver association comes from trip, not document
     trip_id: null,
   };
 
@@ -535,7 +618,8 @@ async function matchToEntities(extractedData, companyId) {
     if (trailer) matches.trailer_id = trailer.id;
   }
 
-  // Match driver by name
+  // Match driver by name - only used for finding trip, NOT saved to document
+  let tempDriverId = null;
   if (extractedData.driver_name) {
     const nameParts = extractedData.driver_name.split(' ');
     const { data: drivers } = await supabase
@@ -548,8 +632,15 @@ async function matchToEntities(extractedData, companyId) {
         const fullName = `${d.first_name} ${d.last_name}`.toLowerCase();
         return nameParts.some(part => fullName.includes(part.toLowerCase()));
       });
-      if (matchedDriver) matches.driver_id = matchedDriver.id;
+      if (matchedDriver) tempDriverId = matchedDriver.id;
     }
+  }
+
+  // Auto-match trip based on document date and truck/driver
+  // Driver is used to find trip but NOT saved directly to document
+  const documentDate = extractedData.document_date || extractedData.date;
+  if (documentDate && (matches.truck_id || tempDriverId)) {
+    matches.trip_id = await findMatchingTrip(companyId, documentDate, matches.truck_id, tempDriverId);
   }
 
   return matches;
@@ -749,5 +840,6 @@ module.exports = {
   classifyDocument,
   extractStructuredData,
   matchToEntities,
+  findMatchingTrip,
   createTransactionFromDocument,
 };
