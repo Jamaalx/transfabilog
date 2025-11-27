@@ -314,7 +314,7 @@ Returnează DOAR JSON valid.`;
   "items": ["descriere articole/servicii"],
   "route": "rută transport dacă apare" sau null
 }`,
-    extras_bancar: `Extrage din acest extras bancar:
+    extras_bancar: `Extrage din acest extras bancar toate tranzacțiile individuale:
 {
   "document_date": "YYYY-MM-DD",
   "bank_name": "nume bancă",
@@ -323,11 +323,28 @@ Returnează DOAR JSON valid.`;
   "period_end": "YYYY-MM-DD",
   "opening_balance": număr,
   "closing_balance": număr,
-  "total_income": număr,
-  "total_expenses": număr,
+  "total_income": număr total intrări,
+  "total_expenses": număr total ieșiri/plăți,
   "currency": "RON|EUR",
-  "transactions_count": număr
-}`,
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "type": "credit" sau "debit",
+      "amount": număr pozitiv,
+      "description": "descrierea tranzacției",
+      "reference": "referință/număr document dacă există",
+      "counterparty": "nume plătitor sau beneficiar",
+      "counterparty_iban": "IBAN contrapartidă dacă apare"
+    }
+  ]
+}
+
+IMPORTANT:
+- "credit" = intrări/încasări în cont (bani primiți)
+- "debit" = ieșiri/plăți din cont (bani plătiți)
+- Extrage TOATE tranzacțiile individuale pe care le găsești
+- amount trebuie să fie întotdeauna pozitiv
+- counterparty = cine a plătit (pentru credit) sau cui s-a plătit (pentru debit)`,
     bon_fiscal: `Extrage din acest bon fiscal:
 {
   "document_number": "număr bon",

@@ -1,11 +1,19 @@
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { uploadedDocumentsApi } from '@/lib/api'
+import { uploadedDocumentsApi, vehiclesApi } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import {
   Upload,
   FileText,
@@ -30,6 +38,7 @@ import {
   Award,
   File,
   X,
+  Briefcase,
 } from 'lucide-react'
 
 interface DocumentType {
@@ -85,6 +94,13 @@ const categoryLabels: Record<string, string> = {
   other: 'Altele',
 }
 
+interface TruckData {
+  id: string
+  registration_number: string
+  brand?: string
+  model?: string
+}
+
 export default function DocumentUploadPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [selectedType, setSelectedType] = useState<DocumentType | null>(null)
@@ -94,6 +110,10 @@ export default function DocumentUploadPage() {
   const [notes, setNotes] = useState('')
   const [dragActive, setDragActive] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+
+  // Bank statement specific state
+  const [bankStatementType, setBankStatementType] = useState<'per_camion' | 'administrativ'>('administrativ')
+  const [selectedTruckId, setSelectedTruckId] = useState<string>('')
 
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -107,6 +127,16 @@ export default function DocumentUploadPage() {
     },
   })
 
+  // Fetch trucks for bank statement selection
+  const { data: trucksData } = useQuery({
+    queryKey: ['trucks-for-select'],
+    queryFn: async () => {
+      const response = await vehiclesApi.getTrucks({ limit: 100 })
+      return response.data
+    },
+  })
+
+  const trucks = (trucksData?.data || []) as TruckData[]
   const documentTypes = typesData?.types || []
   const categories = typesData?.categories || []
 
@@ -121,6 +151,14 @@ export default function DocumentUploadPage() {
       if (periodStart) formData.append('period_start', periodStart)
       if (periodEnd) formData.append('period_end', periodEnd)
       if (notes) formData.append('notes', notes)
+
+      // Bank statement specific fields
+      if (selectedType.value === 'extras_bancar') {
+        formData.append('bank_statement_type', bankStatementType)
+        if (bankStatementType === 'per_camion' && selectedTruckId) {
+          formData.append('truck_id', selectedTruckId)
+        }
+      }
 
       files.forEach((f) => {
         formData.append('files', f.file)
@@ -247,7 +285,12 @@ export default function DocumentUploadPage() {
     setPeriodStart('')
     setPeriodEnd('')
     setNotes('')
+    setBankStatementType('administrativ')
+    setSelectedTruckId('')
   }
+
+  // Check if this is a bank statement upload
+  const isBankStatement = selectedType?.value === 'extras_bancar'
 
   // Group types by category
   const typesByCategory = documentTypes.reduce((acc: Record<string, DocumentType[]>, type: DocumentType) => {
@@ -356,6 +399,80 @@ export default function DocumentUploadPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Bank Statement Type Selection */}
+              {isBankStatement && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <Building className="h-4 w-4" />
+                    Tip Extras Bancar
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBankStatementType('per_camion')
+                      }}
+                      className={`p-4 rounded-lg border-2 text-left transition-all ${
+                        bankStatementType === 'per_camion'
+                          ? 'border-blue-500 bg-blue-100'
+                          : 'border-gray-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <Truck className="h-6 w-6 mb-2 text-blue-600" />
+                      <div className="font-medium">Per Camion</div>
+                      <p className="text-sm text-muted-foreground">
+                        Extras bancar asociat unui camion specific
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBankStatementType('administrativ')
+                        setSelectedTruckId('')
+                      }}
+                      className={`p-4 rounded-lg border-2 text-left transition-all ${
+                        bankStatementType === 'administrativ'
+                          ? 'border-blue-500 bg-blue-100'
+                          : 'border-gray-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <Briefcase className="h-6 w-6 mb-2 text-purple-600" />
+                      <div className="font-medium">Administrativ</div>
+                      <p className="text-sm text-muted-foreground">
+                        Cheltuieli generale de firmă
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Truck Selection for per_camion */}
+                  {bankStatementType === 'per_camion' && (
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Truck className="h-4 w-4" />
+                        Selectează Camionul
+                      </Label>
+                      <Select value={selectedTruckId} onValueChange={setSelectedTruckId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selectează camionul pentru acest extras" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {trucks.map((truck) => (
+                            <SelectItem key={truck.id} value={truck.id}>
+                              {truck.registration_number} {truck.brand && `- ${truck.brand}`} {truck.model && truck.model}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!selectedTruckId && (
+                        <p className="text-sm text-orange-600">
+                          Selectează un camion pentru a asocia plățile/încasările automat
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Period Selection */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>

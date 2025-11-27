@@ -104,4 +104,7 @@ export const uploadedDocumentsApi = {
   createTransaction: (id: string) => api.post(`/uploaded-documents/${id}/create-transaction`),
   confirm: (id: string, data: Record<string, unknown>) => api.post(`/uploaded-documents/${id}/confirm`, data),
   createTripExpenses: (id: string, tripId: string) => api.post(`/uploaded-documents/${id}/create-trip-expenses`, { trip_id: tripId }),
+  // Bank statement specific
+  confirmBankStatement: (id: string, data: Record<string, unknown>) => api.post(`/uploaded-documents/${id}/confirm-bank-statement`, data),
+  getUnpaidInvoices: () => api.get('/uploaded-documents/unpaid-invoices'),
 }

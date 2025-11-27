@@ -112,6 +112,8 @@ router.post(
     body('period_start').optional().isISO8601(),
     body('period_end').optional().isISO8601(),
     body('notes').optional().isString(),
+    body('truck_id').optional().isUUID(),
+    body('bank_statement_type').optional().isIn(['per_camion', 'administrativ']),
   ],
   async (req, res, next) => {
     try {
@@ -124,7 +126,7 @@ router.post(
         return res.status(400).json({ error: 'Nu au fost încărcate fișiere' });
       }
 
-      const { document_type, document_category, period_start, period_end, notes } = req.body;
+      const { document_type, document_category, period_start, period_end, notes, truck_id, bank_statement_type } = req.body;
       const uploadedDocs = [];
       const uploadErrors = [];
 
@@ -174,6 +176,14 @@ router.post(
             notes,
             uploaded_by: req.user.id,
           };
+
+          // For bank statements, store additional metadata
+          if (document_type === 'extras_bancar') {
+            documentData.truck_id = truck_id || null;
+            documentData.extracted_data = {
+              bank_statement_type: bank_statement_type || 'administrativ',
+            };
+          }
 
           const { data: docRecord, error: dbError } = await supabase
             .from('uploaded_documents')
@@ -965,5 +975,276 @@ function mapFuelTypeToCategory(fuelType) {
   };
   return typeMap[fuelType] || 'combustibil';
 }
+
+// Map payment description to expense category
+function mapPaymentDescriptionToCategory(description, counterparty) {
+  const text = `${description || ''} ${counterparty || ''}`.toLowerCase();
+
+  if (text.includes('parcare') || text.includes('parking')) return 'parcare';
+  if (text.includes('taxa') || text.includes('toll') || text.includes('vigneta') || text.includes('rovinieta')) return 'taxa_drum';
+  if (text.includes('combustibil') || text.includes('fuel') || text.includes('diesel') || text.includes('benzina')) return 'combustibil';
+  if (text.includes('amenda') || text.includes('fine')) return 'amenzi';
+  if (text.includes('reparatie') || text.includes('service') || text.includes('piese')) return 'reparatii';
+  if (text.includes('asigurare') || text.includes('insurance')) return 'asigurare';
+
+  return 'altele';
+}
+
+/**
+ * POST /api/v1/uploaded-documents/:id/confirm-bank-statement
+ * Confirm bank statement and process all transactions
+ * - Credit transactions: match with factura_iesire and mark as paid
+ * - Debit transactions: create expenses (trip expenses or general transactions)
+ */
+router.post(
+  '/:id/confirm-bank-statement',
+  authorize('admin', 'manager', 'operator'),
+  [
+    param('id').isUUID(),
+    body('trip_id').optional().isUUID(),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { id } = req.params;
+      const { trip_id } = req.body;
+
+      // Get the bank statement document
+      const { data: doc, error: fetchError } = await supabase
+        .from('uploaded_documents')
+        .select('*')
+        .eq('id', id)
+        .eq('company_id', req.companyId)
+        .eq('document_type', 'extras_bancar')
+        .single();
+
+      if (fetchError || !doc) {
+        return res.status(404).json({ error: 'Bank statement not found' });
+      }
+
+      const extractedData = doc.extracted_data?.structured || {};
+      const transactions = extractedData.transactions || [];
+      const bankStatementType = doc.extracted_data?.bank_statement_type || 'administrativ';
+      const truckId = doc.truck_id;
+
+      const results = {
+        credits: { processed: 0, matched_invoices: [], unmatched: [] },
+        debits: { processed: 0, expenses_created: [] },
+        errors: [],
+      };
+
+      // Process each transaction
+      for (const tx of transactions) {
+        try {
+          const txType = tx.type; // 'credit' or 'debit'
+          const txAmount = parseFloat(tx.amount) || 0;
+          const txDate = tx.date || doc.document_date || new Date().toISOString().split('T')[0];
+          const txCurrency = doc.currency || extractedData.currency || 'EUR';
+
+          // Save transaction to bank_statement_payments table
+          const paymentData = {
+            company_id: req.companyId,
+            bank_statement_id: id,
+            transaction_type: txType,
+            transaction_date: txDate,
+            amount: txAmount,
+            currency: txCurrency,
+            description: tx.description,
+            reference: tx.reference,
+            counterparty: tx.counterparty,
+            counterparty_iban: tx.counterparty_iban,
+            truck_id: truckId,
+            trip_id: trip_id || null,
+            status: 'pending',
+          };
+
+          if (txType === 'credit') {
+            // CREDIT = money received = try to match with unpaid factura_iesire
+            // Search for matching invoice by amount and/or reference
+            let matchQuery = supabase
+              .from('uploaded_documents')
+              .select('id, document_number, amount, client_name, document_date')
+              .eq('company_id', req.companyId)
+              .eq('document_type', 'factura_iesire')
+              .eq('is_paid', false);
+
+            // Match by amount (with small tolerance for rounding)
+            if (txAmount > 0) {
+              matchQuery = matchQuery
+                .gte('amount', txAmount - 0.5)
+                .lte('amount', txAmount + 0.5);
+            }
+
+            const { data: matchingInvoices } = await matchQuery;
+
+            if (matchingInvoices && matchingInvoices.length > 0) {
+              // Take the best match (first one, or could add more logic)
+              const matchedInvoice = matchingInvoices[0];
+
+              // Mark the invoice as paid
+              await supabase
+                .from('uploaded_documents')
+                .update({
+                  is_paid: true,
+                  paid_at: new Date().toISOString(),
+                  paid_from_document_id: id,
+                })
+                .eq('id', matchedInvoice.id);
+
+              paymentData.matched_invoice_id = matchedInvoice.id;
+              paymentData.status = 'processed';
+
+              results.credits.matched_invoices.push({
+                invoice_id: matchedInvoice.id,
+                invoice_number: matchedInvoice.document_number,
+                amount: txAmount,
+                counterparty: tx.counterparty,
+              });
+            } else {
+              // No matching invoice found
+              results.credits.unmatched.push({
+                amount: txAmount,
+                counterparty: tx.counterparty,
+                description: tx.description,
+                date: txDate,
+              });
+            }
+
+            results.credits.processed++;
+
+          } else if (txType === 'debit') {
+            // DEBIT = money paid = create expense
+            const expenseCategory = mapPaymentDescriptionToCategory(tx.description, tx.counterparty);
+            paymentData.expense_category = expenseCategory;
+
+            // If trip_id is provided, create trip expense
+            if (trip_id) {
+              const tripExpenseData = {
+                trip_id,
+                category: mapToTripExpenseCategory(expenseCategory),
+                amount: txAmount,
+                currency: txCurrency,
+                description: tx.description || tx.counterparty || 'Bank payment',
+                receipt_number: tx.reference,
+                date: txDate,
+                created_by: req.user.id,
+              };
+
+              const { data: tripExpense, error: expenseError } = await supabase
+                .from('trip_expenses')
+                .insert(tripExpenseData)
+                .select()
+                .single();
+
+              if (!expenseError && tripExpense) {
+                results.debits.expenses_created.push({
+                  type: 'trip_expense',
+                  id: tripExpense.id,
+                  amount: txAmount,
+                  category: expenseCategory,
+                  description: tx.description,
+                });
+              }
+            } else {
+              // Create general transaction
+              const transactionData = {
+                company_id: req.companyId,
+                type: 'expense',
+                category: expenseCategory,
+                amount: txAmount,
+                currency: txCurrency,
+                date: txDate,
+                description: tx.description || tx.counterparty || 'Bank payment',
+                invoice_number: tx.reference,
+                truck_id: truckId,
+                external_ref: id,
+                created_by: req.user.id,
+              };
+
+              const { data: transaction, error: txError } = await supabase
+                .from('transactions')
+                .insert(transactionData)
+                .select()
+                .single();
+
+              if (!txError && transaction) {
+                results.debits.expenses_created.push({
+                  type: 'transaction',
+                  id: transaction.id,
+                  amount: txAmount,
+                  category: expenseCategory,
+                  description: tx.description,
+                });
+              }
+            }
+
+            paymentData.status = 'processed';
+            results.debits.processed++;
+          }
+
+          // Save the payment record
+          await supabase
+            .from('bank_statement_payments')
+            .insert(paymentData);
+
+        } catch (txError) {
+          results.errors.push({
+            transaction: tx,
+            error: txError.message,
+          });
+        }
+      }
+
+      // Update the bank statement document as processed
+      await supabase
+        .from('uploaded_documents')
+        .update({
+          status: 'processed',
+          reviewed_by: req.user.id,
+          reviewed_at: new Date().toISOString(),
+          trip_id: trip_id || doc.trip_id,
+        })
+        .eq('id', id);
+
+      res.json({
+        success: true,
+        message: `Extras bancar procesat: ${results.credits.processed} intrări, ${results.debits.processed} plăți`,
+        results,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/uploaded-documents/unpaid-invoices
+ * Get list of unpaid invoices (factura_iesire) for matching with bank statement credits
+ */
+router.get(
+  '/unpaid-invoices',
+  async (req, res, next) => {
+    try {
+      const { data: invoices, error } = await supabase
+        .from('uploaded_documents')
+        .select('id, document_number, document_date, amount, currency, client_name, supplier_name')
+        .eq('company_id', req.companyId)
+        .eq('document_type', 'factura_iesire')
+        .eq('is_paid', false)
+        .eq('status', 'processed')
+        .order('document_date', { ascending: false });
+
+      if (error) throw error;
+
+      res.json({ data: invoices || [] });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 module.exports = router;
