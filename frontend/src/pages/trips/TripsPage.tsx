@@ -23,6 +23,15 @@ type TripData = {
   price?: number
   currency?: string
   client_name?: string
+  // New expense fields
+  diurna?: number
+  diurna_currency?: string
+  cash_expenses?: number
+  cash_expenses_currency?: string
+  expense_report_number?: string
+  km_start?: number
+  km_end?: number
+  total_km?: number
   driver?: { id: string; first_name: string; last_name: string }
   truck?: { id: string; registration_number: string }
 }
@@ -102,6 +111,12 @@ export default function TripsPage() {
       client_name: formData.get('client_name') || undefined,
       price: formData.get('price') ? Number(formData.get('price')) : undefined,
       currency: formData.get('currency') || 'EUR',
+      // New expense fields
+      diurna: formData.get('diurna') ? Number(formData.get('diurna')) : undefined,
+      diurna_currency: formData.get('diurna_currency') || 'EUR',
+      cash_expenses: formData.get('cash_expenses') ? Number(formData.get('cash_expenses')) : undefined,
+      cash_expenses_currency: formData.get('cash_expenses_currency') || 'EUR',
+      expense_report_number: formData.get('expense_report_number') || undefined,
     }
 
     createMutation.mutate(data)
@@ -274,7 +289,7 @@ export default function TripsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="price">Pret</Label>
+                  <Label htmlFor="price">Preț Cursă</Label>
                   <Input
                     id="price"
                     name="price"
@@ -284,7 +299,7 @@ export default function TripsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="currency">Moneda</Label>
+                  <Label htmlFor="currency">Monedă</Label>
                   <select
                     id="currency"
                     name="currency"
@@ -295,6 +310,63 @@ export default function TripsPage() {
                     <option value="RON">RON</option>
                     <option value="USD">USD</option>
                   </select>
+                </div>
+              </div>
+
+              {/* New expense fields section */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">Cheltuieli Șofer</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="diurna">Diurnă</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="diurna"
+                        name="diurna"
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        className="flex-1"
+                      />
+                      <select
+                        name="diurna_currency"
+                        className="w-20 border rounded-md px-2 py-2 text-sm"
+                        defaultValue="EUR"
+                      >
+                        <option value="EUR">EUR</option>
+                        <option value="RON">RON</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cash_expenses">Cheltuieli Cash</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="cash_expenses"
+                        name="cash_expenses"
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        className="flex-1"
+                      />
+                      <select
+                        name="cash_expenses_currency"
+                        className="w-20 border rounded-md px-2 py-2 text-sm"
+                        defaultValue="EUR"
+                      >
+                        <option value="EUR">EUR</option>
+                        <option value="RON">RON</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expense_report_number">Nr. Decont</Label>
+                    <Input
+                      id="expense_report_number"
+                      name="expense_report_number"
+                      placeholder="Ex: D-2025-001"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -381,11 +453,41 @@ export default function TripsPage() {
                   )}
                   {trip.price && (
                     <div>
-                      <span className="text-muted-foreground">Pret: </span>
+                      <span className="text-muted-foreground">Preț: </span>
                       {formatCurrency(trip.price, trip.currency)}
                     </div>
                   )}
                 </div>
+
+                {/* Expense info row */}
+                {(trip.diurna || trip.cash_expenses || trip.expense_report_number) && (
+                  <div className="mt-2 pt-2 border-t grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    {trip.diurna && trip.diurna > 0 && (
+                      <div>
+                        <span className="text-muted-foreground">Diurnă: </span>
+                        <span className="font-medium">{formatCurrency(trip.diurna, trip.diurna_currency)}</span>
+                      </div>
+                    )}
+                    {trip.cash_expenses && trip.cash_expenses > 0 && (
+                      <div>
+                        <span className="text-muted-foreground">Cash: </span>
+                        <span className="font-medium">{formatCurrency(trip.cash_expenses, trip.cash_expenses_currency)}</span>
+                      </div>
+                    )}
+                    {trip.expense_report_number && (
+                      <div>
+                        <span className="text-muted-foreground">Nr. Decont: </span>
+                        <span className="font-medium">{trip.expense_report_number}</span>
+                      </div>
+                    )}
+                    {trip.total_km && trip.total_km > 0 && (
+                      <div>
+                        <span className="text-muted-foreground">KM: </span>
+                        <span className="font-medium">{trip.total_km.toLocaleString()} km</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Quick actions */}
                 <div className="mt-4 flex gap-2">

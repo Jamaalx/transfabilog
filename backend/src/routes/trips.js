@@ -152,6 +152,12 @@ router.post(
     body('currency').optional().isIn(['EUR', 'RON', 'USD']).default('EUR'),
     body('notes').optional().isString().trim(),
     body('status').optional().isIn(['planificat', 'in_progress', 'finalizat', 'anulat']).default('planificat'),
+    // New fields for driver expenses
+    body('diurna').optional().isFloat({ min: 0 }),
+    body('diurna_currency').optional().isIn(['EUR', 'RON', 'USD']).default('EUR'),
+    body('cash_expenses').optional().isFloat({ min: 0 }),
+    body('cash_expenses_currency').optional().isIn(['EUR', 'RON', 'USD']).default('EUR'),
+    body('expense_report_number').optional().isString().trim(),
   ],
   async (req, res, next) => {
     try {
@@ -208,6 +214,12 @@ router.post(
         currency: req.body.currency || 'EUR',
         notes: req.body.notes,
         status: req.body.status || 'planificat',
+        // New expense fields
+        diurna: req.body.diurna,
+        diurna_currency: req.body.diurna_currency || 'EUR',
+        cash_expenses: req.body.cash_expenses,
+        cash_expenses_currency: req.body.cash_expenses_currency || 'EUR',
+        expense_report_number: req.body.expense_report_number,
         created_by: req.user.id,
       };
 
@@ -258,6 +270,12 @@ router.put(
     body('status').optional().isIn(['planificat', 'in_progress', 'finalizat', 'anulat']),
     body('km_start').optional().isInt({ min: 0 }),
     body('km_end').optional().isInt({ min: 0 }),
+    // New expense fields
+    body('diurna').optional().isFloat({ min: 0 }),
+    body('diurna_currency').optional().isIn(['EUR', 'RON', 'USD']),
+    body('cash_expenses').optional().isFloat({ min: 0 }),
+    body('cash_expenses_currency').optional().isIn(['EUR', 'RON', 'USD']),
+    body('expense_report_number').optional().isString().trim(),
   ],
   async (req, res, next) => {
     try {
@@ -266,12 +284,16 @@ router.put(
         return res.status(400).json({ errors: errors.array() });
       }
 
+      // Calculate total_km if both km_start and km_end are provided
+      const updateData = { ...req.body };
+      if (updateData.km_start !== undefined && updateData.km_end !== undefined) {
+        updateData.total_km = updateData.km_end - updateData.km_start;
+      }
+      updateData.updated_at = new Date().toISOString();
+
       const { data, error } = await supabase
         .from('trips')
-        .update({
-          ...req.body,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', req.params.id)
         .eq('company_id', req.companyId)
         .select(`
