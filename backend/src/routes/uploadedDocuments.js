@@ -117,8 +117,13 @@ router.post(
   ],
   async (req, res, next) => {
     try {
+      // Debug logging
+      console.log('Upload request body:', req.body);
+      console.log('Upload files:', req.files?.length || 0);
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array());
         return res.status(400).json({ errors: errors.array() });
       }
 
