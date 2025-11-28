@@ -122,16 +122,40 @@ export const dkvApi = {
     const params = provider ? { provider } : {}
     return api.get('/dkv/batches', { params })
   },
-  getBatch: (id: string) => api.get(`/dkv/batches/${id}`),
-  deleteBatch: (id: string) => api.delete(`/dkv/batches/${id}`),
+  getBatch: (id: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.get(`/dkv/batches/${id}`, { params })
+  },
+  deleteBatch: (id: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.delete(`/dkv/batches/${id}`, { params })
+  },
   // Transactions - supports status and provider filtering
   getTransactions: (params?: Record<string, unknown>) => api.get('/dkv/transactions', { params }),
-  getTransaction: (id: string) => api.get(`/dkv/transactions/${id}`),
-  matchTransaction: (id: string, truckId: string) => api.patch(`/dkv/transactions/${id}/match`, { truck_id: truckId }),
-  ignoreTransaction: (id: string, notes?: string) => api.patch(`/dkv/transactions/${id}/ignore`, { notes }),
-  createExpense: (id: string, tripId?: string) => api.post(`/dkv/transactions/${id}/create-expense`, { trip_id: tripId }),
-  bulkCreateExpenses: (transactionIds: string[]) => api.post('/dkv/transactions/bulk-create-expenses', { transaction_ids: transactionIds }),
-  bulkIgnoreTransactions: (transactionIds: string[]) => api.post('/dkv/transactions/bulk-ignore', { transaction_ids: transactionIds }),
+  getTransaction: (id: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.get(`/dkv/transactions/${id}`, { params })
+  },
+  matchTransaction: (id: string, truckId: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.patch(`/dkv/transactions/${id}/match`, { truck_id: truckId }, { params })
+  },
+  ignoreTransaction: (id: string, notes?: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.patch(`/dkv/transactions/${id}/ignore`, { notes }, { params })
+  },
+  createExpense: (id: string, tripId?: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.post(`/dkv/transactions/${id}/create-expense`, { trip_id: tripId }, { params })
+  },
+  bulkCreateExpenses: (transactionIds: string[], provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.post('/dkv/transactions/bulk-create-expenses', { transaction_ids: transactionIds }, { params })
+  },
+  bulkIgnoreTransactions: (transactionIds: string[], provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.post('/dkv/transactions/bulk-ignore', { transaction_ids: transactionIds }, { params })
+  },
   // Summary - supports provider filtering and batch filtering
   getSummary: (provider?: string, options?: { batch_id?: string; latest?: boolean }) => {
     const params: Record<string, string | boolean> = {}
