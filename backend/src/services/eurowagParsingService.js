@@ -118,7 +118,10 @@ async function parseEurowagExcel(fileBuffer) {
       .replace(/[\u0300-\u036f]/g, ''); // Remove diacritics for comparison
 
     for (const [key, labels] of Object.entries(EUROWAG_COLUMNS)) {
-      // labels is now an array of possible column names
+      // Skip if this column type is already mapped
+      if (columnMap[key] !== undefined) continue;
+
+      let matched = false;
       for (const label of labels) {
         const normalizedLabel = label.toLowerCase()
           .normalize('NFD')
@@ -130,10 +133,12 @@ async function parseEurowagExcel(fileBuffer) {
             normalizedHeader.includes(normalizedLabel)) {
           columnMap[key] = index;
           console.log(`EUROWAG: Mapped column "${header}" -> ${key} (index ${index})`);
+          matched = true;
           break;
         }
       }
-      if (columnMap[key] !== undefined) break;
+      // Found a match for this header, no need to check other column types
+      if (matched) break;
     }
   });
 
