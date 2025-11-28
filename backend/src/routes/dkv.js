@@ -843,6 +843,30 @@ router.delete(
       const tables = getTableNames(provider);
       const statusFilter = req.query.status || 'ignored'; // Default to deleting only ignored
 
+      console.log(`[BULK-DELETE] Provider: ${provider}, Status: ${statusFilter}, Table: ${tables.transactions}, CompanyId: ${req.companyId}`);
+
+      // First, count how many will be deleted
+      let countQuery = supabase
+        .from(tables.transactions)
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', req.companyId);
+
+      if (statusFilter !== 'all') {
+        countQuery = countQuery.eq('status', statusFilter);
+      }
+
+      const { count: toDeleteCount, error: countError } = await countQuery;
+      console.log(`[BULK-DELETE] Found ${toDeleteCount} transactions to delete, error: ${countError?.message || 'none'}`);
+
+      if (toDeleteCount === 0) {
+        return res.json({
+          success: true,
+          deleted: 0,
+          message: `No ${statusFilter} transactions found to delete`,
+        });
+      }
+
+      // Now perform the delete
       let deleteQuery = supabase
         .from(tables.transactions)
         .delete()
@@ -854,6 +878,8 @@ router.delete(
       }
 
       const { data, error } = await deleteQuery.select('id');
+
+      console.log(`[BULK-DELETE] Deleted ${data?.length || 0} rows, error: ${error?.message || 'none'}`);
 
       if (error) throw error;
 

@@ -276,10 +276,15 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       const res = await dkvApi.bulkDeleteTransactions(status, provider !== 'all' ? provider : undefined)
       return res.data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dkv-batches'] })
       queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      alert(`Sterse ${data?.deleted || 0} tranzactii: ${data?.message || 'OK'}`)
+    },
+    onError: (error: Error) => {
+      console.error('Bulk delete error:', error)
+      alert(`Eroare la stergere: ${error.message}`)
     },
   })
 
