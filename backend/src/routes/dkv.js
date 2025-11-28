@@ -641,9 +641,11 @@ router.get(
       }
 
       // Get transactions, filtered by batch if provider specified
+      // IMPORTANT: Use payment_value_eur (BRUTTO in EUR) for correct totals
+      // net_purchase_value is in original currency (RON, PLN, CZK) and cannot be summed directly!
       let txQuery = supabase
         .from('dkv_transactions')
-        .select('status, net_purchase_value')
+        .select('status, payment_value_eur, net_purchase_value_eur')
         .eq('company_id', req.companyId);
 
       if (batchIds && batchIds.length > 0) {
@@ -682,10 +684,13 @@ router.get(
           if (summary[tx.status] !== undefined) {
             summary[tx.status]++;
           }
-          if (tx.net_purchase_value) {
-            summary.total_value += parseFloat(tx.net_purchase_value);
+          // Use payment_value_eur (BRUTTO in EUR) for totals
+          // This is the actual amount to be paid, already converted to EUR
+          const valueEur = tx.payment_value_eur || tx.net_purchase_value_eur || 0;
+          if (valueEur) {
+            summary.total_value += parseFloat(valueEur);
             if (tx.status !== 'created_expense' && tx.status !== 'ignored') {
-              summary.pending_value += parseFloat(tx.net_purchase_value);
+              summary.pending_value += parseFloat(valueEur);
             }
           }
         });
