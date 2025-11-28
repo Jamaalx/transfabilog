@@ -17,6 +17,28 @@ const bnrService = require('../services/bnrExchangeService');
 
 const router = express.Router();
 
+// Helper function to get table names based on provider
+function getTableNames(provider) {
+  switch (provider) {
+    case 'eurowag':
+      return {
+        transactions: 'eurowag_transactions',
+        batches: 'eurowag_import_batches',
+      };
+    case 'verag':
+      return {
+        transactions: 'verag_transactions',
+        batches: 'verag_import_batches',
+      };
+    case 'dkv':
+    default:
+      return {
+        transactions: 'dkv_transactions',
+        batches: 'dkv_import_batches',
+      };
+  }
+}
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -129,8 +151,8 @@ router.post(
 
 /**
  * GET /api/v1/dkv/batches
- * List all DKV import batches
- * Query param: provider=dkv|eurowag|verag (optional filter)
+ * List all import batches for a provider
+ * Query param: provider=dkv|eurowag|verag (required for separate tables)
  */
 router.get(
   '/batches',
@@ -148,10 +170,30 @@ router.get(
 
       const page = req.query.page || 1;
       const limit = req.query.limit || 20;
-      const provider = req.query.provider;
+      const provider = req.query.provider || 'dkv';
+      const offset = (page - 1) * limit;
 
-      const result = await getDKVBatches(req.companyId, page, limit, provider);
-      res.json(result);
+      const tables = getTableNames(provider);
+
+      // Query from provider-specific table
+      const { data, error, count } = await supabase
+        .from(tables.batches)
+        .select('*', { count: 'exact' })
+        .eq('company_id', req.companyId)
+        .order('import_date', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) throw error;
+
+      res.json({
+        data: data || [],
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          pages: Math.ceil((count || 0) / limit),
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -161,10 +203,14 @@ router.get(
 /**
  * GET /api/v1/dkv/batches/:id
  * Get a single batch with summary
+ * Query param: provider=dkv|eurowag|verag
  */
 router.get(
   '/batches/:id',
-  param('id').isUUID(),
+  [
+    param('id').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -172,8 +218,11 @@ router.get(
         return res.status(400).json({ errors: errors.array() });
       }
 
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
+
       const { data, error } = await supabase
-        .from('dkv_import_batches')
+        .from(tables.batches)
         .select('*')
         .eq('id', req.params.id)
         .eq('company_id', req.companyId)
@@ -188,7 +237,7 @@ router.get(
 
       // Get transaction summary by status
       const { data: statusCounts } = await supabase
-        .from('dkv_transactions')
+        .from(tables.transactions)
         .select('status')
         .eq('batch_id', req.params.id);
 
@@ -221,11 +270,15 @@ router.get(
 /**
  * DELETE /api/v1/dkv/batches/:id
  * Delete a batch and all its transactions
+ * Query param: provider=dkv|eurowag|verag
  */
 router.delete(
   '/batches/:id',
   authorize('admin', 'manager'),
-  param('id').isUUID(),
+  [
+    param('id').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -233,9 +286,12 @@ router.delete(
         return res.status(400).json({ errors: errors.array() });
       }
 
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
+
       // Verify batch belongs to company
       const { data: batch, error: fetchError } = await supabase
-        .from('dkv_import_batches')
+        .from(tables.batches)
         .select('id')
         .eq('id', req.params.id)
         .eq('company_id', req.companyId)
@@ -250,7 +306,7 @@ router.delete(
 
       // Delete batch (transactions will cascade delete)
       const { error: deleteError } = await supabase
-        .from('dkv_import_batches')
+        .from(tables.batches)
         .delete()
         .eq('id', req.params.id);
 
@@ -265,9 +321,9 @@ router.delete(
 
 /**
  * GET /api/v1/dkv/transactions
- * List DKV transactions with filters
+ * List transactions with filters
  * Query params:
- *   - provider: dkv|eurowag|verag - filter by provider
+ *   - provider: dkv|eurowag|verag - select table (required)
  *   - hide_processed: true|false - hide ignored/created_expense (default: true)
  *   - status: filter by specific status (overrides hide_processed)
  */
@@ -289,20 +345,57 @@ router.get(
         return res.status(400).json({ errors: errors.array() });
       }
 
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
+      const page = req.query.page || 1;
+      const limit = req.query.limit || 50;
+      const offset = (page - 1) * limit;
+
       // Default hide_processed to true unless explicitly set to false
       const hideProcessed = req.query.hide_processed !== false;
 
-      const result = await getDKVTransactions(req.companyId, {
-        batch_id: req.query.batch_id,
-        truck_id: req.query.truck_id,
-        status: req.query.status,
-        provider: req.query.provider,
-        hide_processed: hideProcessed,
-        page: req.query.page || 1,
-        limit: req.query.limit || 50,
-      });
+      // Build query based on provider table
+      let txQuery = supabase
+        .from(tables.transactions)
+        .select(`
+          *,
+          truck:truck_heads(id, registration_number, brand, model)
+        `, { count: 'exact' })
+        .eq('company_id', req.companyId);
 
-      res.json(result);
+      // Apply filters
+      if (req.query.batch_id) {
+        txQuery = txQuery.eq('batch_id', req.query.batch_id);
+      }
+      if (req.query.truck_id) {
+        txQuery = txQuery.eq('truck_id', req.query.truck_id);
+      }
+      if (req.query.status) {
+        txQuery = txQuery.eq('status', req.query.status);
+      } else if (hideProcessed) {
+        txQuery = txQuery.not('status', 'in', '("created_expense","ignored")');
+      }
+
+      // Order and paginate
+      // Use transaction_time for eurowag, transaction_date for verag
+      const timeColumn = provider === 'verag' ? 'transaction_date' : 'transaction_time';
+      txQuery = txQuery
+        .order(timeColumn, { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      const { data, error, count } = await txQuery;
+
+      if (error) throw error;
+
+      res.json({
+        data: data || [],
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          pages: Math.ceil((count || 0) / limit),
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -311,11 +404,15 @@ router.get(
 
 /**
  * GET /api/v1/dkv/transactions/:id
- * Get a single DKV transaction
+ * Get a single transaction
+ * Query param: provider=dkv|eurowag|verag
  */
 router.get(
   '/transactions/:id',
-  param('id').isUUID(),
+  [
+    param('id').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -323,13 +420,14 @@ router.get(
         return res.status(400).json({ errors: errors.array() });
       }
 
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
+
       const { data, error } = await supabase
-        .from('dkv_transactions')
+        .from(tables.transactions)
         .select(`
           *,
-          truck:truck_heads(id, registration_number, brand, model),
-          batch:dkv_import_batches(id, file_name, import_date),
-          expense:transactions(id, amount, currency, category)
+          truck:truck_heads(id, registration_number, brand, model)
         `)
         .eq('id', req.params.id)
         .eq('company_id', req.companyId)
@@ -351,7 +449,8 @@ router.get(
 
 /**
  * PATCH /api/v1/dkv/transactions/:id/match
- * Match a DKV transaction to a truck
+ * Match a transaction to a truck
+ * Query param: provider=dkv|eurowag|verag
  */
 router.patch(
   '/transactions/:id/match',
@@ -359,6 +458,7 @@ router.patch(
   [
     param('id').isUUID(),
     body('truck_id').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
   ],
   async (req, res, next) => {
     try {
@@ -367,9 +467,12 @@ router.patch(
         return res.status(400).json({ errors: errors.array() });
       }
 
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
+
       // Verify transaction belongs to company
       const { data: tx, error: fetchError } = await supabase
-        .from('dkv_transactions')
+        .from(tables.transactions)
         .select('id')
         .eq('id', req.params.id)
         .eq('company_id', req.companyId)
@@ -397,8 +500,20 @@ router.patch(
         });
       }
 
-      const result = await matchDKVTransaction(req.params.id, req.body.truck_id);
-      res.json(result);
+      // Update transaction with truck
+      const { data, error } = await supabase
+        .from(tables.transactions)
+        .update({
+          truck_id: req.body.truck_id,
+          status: 'matched',
+        })
+        .eq('id', req.params.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      res.json(data);
     } catch (error) {
       next(error);
     }
@@ -536,12 +651,16 @@ router.post(
 
 /**
  * PATCH /api/v1/dkv/transactions/:id/ignore
- * Mark a DKV transaction as ignored
+ * Mark a transaction as ignored
+ * Query param: provider=dkv|eurowag|verag
  */
 router.patch(
   '/transactions/:id/ignore',
   authorize('admin', 'manager', 'operator'),
-  param('id').isUUID(),
+  [
+    param('id').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -549,8 +668,11 @@ router.patch(
         return res.status(400).json({ errors: errors.array() });
       }
 
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
+
       const { data, error } = await supabase
-        .from('dkv_transactions')
+        .from(tables.transactions)
         .update({ status: 'ignored', notes: req.body.notes })
         .eq('id', req.params.id)
         .eq('company_id', req.companyId)
@@ -576,8 +698,8 @@ router.patch(
 
 /**
  * GET /api/v1/dkv/summary
- * Get DKV summary statistics
- * Query param: provider=dkv|eurowag|verag (optional filter)
+ * Get summary statistics for a provider
+ * Query param: provider=dkv|eurowag|verag
  */
 router.get(
   '/summary',
@@ -593,75 +715,32 @@ router.get(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const provider = req.query.provider;
+      const provider = req.query.provider || 'dkv';
       const batchIdParam = req.query.batch_id;
       const latestOnly = req.query.latest === 'true';
+      const tables = getTableNames(provider);
 
-      // First, get batch IDs for the provider filter if needed
-      let batchIds = null;
-
-      // If specific batch_id is provided, use only that
-      if (batchIdParam) {
-        batchIds = [batchIdParam];
-      } else if (latestOnly || provider) {
-        // Build batch query for provider filtering
-        let batchQuery = supabase
-          .from('dkv_import_batches')
-          .select('id, import_date')
-          .eq('company_id', req.companyId);
-
-        if (provider === 'eurowag') {
-          batchQuery = batchQuery.or('provider.eq.eurowag,file_name.ilike.%ew_export%,file_name.ilike.%eurowag%')
-            .not('provider', 'eq', 'verag')
-            .not('provider', 'eq', 'dkv');
-        } else if (provider === 'verag') {
-          batchQuery = batchQuery.or('provider.eq.verag,file_name.ilike.%maut%')
-            .not('provider', 'eq', 'eurowag')
-            .not('provider', 'eq', 'dkv');
-        } else if (provider === 'dkv') {
-          batchQuery = batchQuery.or('provider.eq.dkv,provider.is.null')
-            .not('provider', 'eq', 'eurowag')
-            .not('provider', 'eq', 'verag')
-            .not('file_name', 'ilike', '%eurowag%')
-            .not('file_name', 'ilike', '%maut%')
-            .not('file_name', 'ilike', '%ew_export%');
-        }
-
-        // Order by import_date to get the latest first
-        batchQuery = batchQuery.order('import_date', { ascending: false });
-
-        const { data: batches } = await batchQuery;
-
-        if (latestOnly && batches && batches.length > 0) {
-          // Only use the most recent batch
-          batchIds = [batches[0].id];
-        } else {
-          batchIds = batches?.map((b) => b.id) || [];
-        }
-      }
-
-      // Get transactions, filtered by batch if provider specified
-      // IMPORTANT: Use payment_value_eur (BRUTTO in EUR) for correct totals
-      // net_purchase_value is in original currency (RON, PLN, CZK) and cannot be summed directly!
+      // Build transactions query
       let txQuery = supabase
-        .from('dkv_transactions')
-        .select('status, payment_value_eur, net_purchase_value_eur')
+        .from(tables.transactions)
+        .select('status, gross_amount_eur, net_amount_eur')
         .eq('company_id', req.companyId);
 
-      if (batchIds && batchIds.length > 0) {
-        txQuery = txQuery.in('batch_id', batchIds);
-      } else if (batchIds && batchIds.length === 0) {
-        // No batches match the provider filter
-        return res.json({
-          total_transactions: 0,
-          pending: 0,
-          matched: 0,
-          unmatched: 0,
-          created_expense: 0,
-          ignored: 0,
-          total_value: 0,
-          pending_value: 0,
-        });
+      // Filter by batch if specified
+      if (batchIdParam) {
+        txQuery = txQuery.eq('batch_id', batchIdParam);
+      } else if (latestOnly) {
+        // Get the most recent batch ID
+        const { data: batches } = await supabase
+          .from(tables.batches)
+          .select('id')
+          .eq('company_id', req.companyId)
+          .order('import_date', { ascending: false })
+          .limit(1);
+
+        if (batches && batches.length > 0) {
+          txQuery = txQuery.eq('batch_id', batches[0].id);
+        }
       }
 
       const { data: transactions, error: txError } = await txQuery;
@@ -684,9 +763,8 @@ router.get(
           if (summary[tx.status] !== undefined) {
             summary[tx.status]++;
           }
-          // Use payment_value_eur (BRUTTO in EUR) for totals
-          // This is the actual amount to be paid, already converted to EUR
-          const valueEur = tx.payment_value_eur || tx.net_purchase_value_eur || 0;
+          // Use gross_amount_eur (BRUTTO) for totals
+          const valueEur = tx.gross_amount_eur || tx.net_amount_eur || 0;
           if (valueEur) {
             summary.total_value += parseFloat(valueEur);
             if (tx.status !== 'created_expense' && tx.status !== 'ignored') {
