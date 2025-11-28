@@ -4,22 +4,23 @@ const bnrService = require('./bnrExchangeService');
 
 /**
  * EUROWAG Excel Column Mappings
- * Based on EW_Export_TR format
+ * Supports multiple variants (Romanian, English, alternative spellings)
+ * Each key maps to an array of possible column names
  */
 const EUROWAG_COLUMNS = {
-  SERVICE: 'Serviciu',
-  DATETIME: 'Data si ora',
-  REGISTRATION: 'Înmatriculare',
-  CARD: 'Cartelă',
-  PRODUCT: 'Articol',
-  NET_AMOUNT: 'Sumă netă',
-  CURRENCY: 'Valută',
-  GROSS_AMOUNT: 'Valoarea brută',
-  QUANTITY: 'Cantitate',
-  UNIT: 'Unităte de cantitate',
-  COUNTRY: 'Țară',
-  LOCATION: 'Locație',
-  OBU_ID: 'ID OBU',
+  SERVICE: ['Serviciu', 'Service', 'Tip serviciu', 'Service Type'],
+  DATETIME: ['Data si ora', 'Data și ora', 'Date and time', 'DateTime', 'Date', 'Datum', 'Data'],
+  REGISTRATION: ['Înmatriculare', 'Inmatriculare', 'Registration', 'Reg. Number', 'Vehicle', 'Nr. înmatriculare', 'Numar inmatriculare'],
+  CARD: ['Cartelă', 'Cartela', 'Card', 'Card Number', 'Nr. Card'],
+  PRODUCT: ['Articol', 'Product', 'Produs', 'Article', 'Item'],
+  NET_AMOUNT: ['Sumă netă', 'Suma neta', 'Net Amount', 'Net', 'Valoare netă', 'Valoare neta', 'Net Value', 'Amount Net'],
+  CURRENCY: ['Valută', 'Valuta', 'Currency', 'Moneda'],
+  GROSS_AMOUNT: ['Valoarea brută', 'Valoarea bruta', 'Gross Amount', 'Gross', 'Valoare brută', 'Brutto', 'Amount Gross', 'Total'],
+  QUANTITY: ['Cantitate', 'Quantity', 'Qty', 'Volum', 'Volume'],
+  UNIT: ['Unităte de cantitate', 'Unitate de cantitate', 'Unit', 'Unitate', 'UOM'],
+  COUNTRY: ['Țară', 'Tara', 'Country', 'Land'],
+  LOCATION: ['Locație', 'Locatie', 'Location', 'Station', 'Stație', 'Statie'],
+  OBU_ID: ['ID OBU', 'OBU ID', 'OBU', 'Toll Box'],
 };
 
 /**
@@ -105,23 +106,46 @@ async function parseEurowagExcel(fileBuffer) {
 
   const headers = rawData[0];
 
-  // Map column indices
+  console.log('EUROWAG: Found headers:', headers);
+
+  // Map column indices - now supports arrays of possible names
   const columnMap = {};
   headers.forEach((header, index) => {
-    const trimmedHeader = String(header).trim();
-    for (const [key, label] of Object.entries(EUROWAG_COLUMNS)) {
-      if (trimmedHeader === label || trimmedHeader.includes(label)) {
-        columnMap[key] = index;
-        break;
+    if (!header) return;
+    const trimmedHeader = String(header).trim().toLowerCase();
+    const normalizedHeader = trimmedHeader
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, ''); // Remove diacritics for comparison
+
+    for (const [key, labels] of Object.entries(EUROWAG_COLUMNS)) {
+      // labels is now an array of possible column names
+      for (const label of labels) {
+        const normalizedLabel = label.toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+
+        if (trimmedHeader === label.toLowerCase() ||
+            normalizedHeader === normalizedLabel ||
+            trimmedHeader.includes(label.toLowerCase()) ||
+            normalizedHeader.includes(normalizedLabel)) {
+          columnMap[key] = index;
+          console.log(`EUROWAG: Mapped column "${header}" -> ${key} (index ${index})`);
+          break;
+        }
       }
+      if (columnMap[key] !== undefined) break;
     }
   });
+
+  console.log('EUROWAG: Column mapping result:', columnMap);
 
   // Validate required columns
   const requiredColumns = ['DATETIME', 'REGISTRATION', 'NET_AMOUNT'];
   const missingColumns = requiredColumns.filter(col => columnMap[col] === undefined);
   if (missingColumns.length > 0) {
-    throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
+    console.error('EUROWAG: Missing columns. Headers found:', headers);
+    console.error('EUROWAG: Column map:', columnMap);
+    throw new Error(`Missing required columns: ${missingColumns.join(', ')}. Found headers: ${headers.filter(h => h).join(', ')}`);
   }
 
   const transactions = [];
