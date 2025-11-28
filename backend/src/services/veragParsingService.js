@@ -118,7 +118,10 @@ function extractInlineVehicle(line) {
 }
 
 /**
- * Parse number from European format (1.234,56 or 1 234,56)
+ * Parse number from various formats:
+ * - European: 1.234,56 (dot as thousands, comma as decimal)
+ * - US: 1,234.56 (comma as thousands, dot as decimal)
+ * - Space separated: 1 234,56 or 1 234.56
  */
 function parseNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -126,13 +129,35 @@ function parseNumber(value) {
 
   let str = String(value).trim();
 
-  // Handle space as thousand separator (e.g., "1 234,56")
+  // Handle space as thousand separator (e.g., "1 234,56" or "1 234.56")
   str = str.replace(/\s/g, '');
 
-  // Handle European format: 1.234,56
-  if (str.includes(',')) {
-    str = str.replace(/\./g, '').replace(',', '.');
+  // Determine format based on position of comma and dot
+  const lastComma = str.lastIndexOf(',');
+  const lastDot = str.lastIndexOf('.');
+
+  if (lastComma !== -1 && lastDot !== -1) {
+    // Both comma and dot present - the one appearing LAST is the decimal separator
+    if (lastDot > lastComma) {
+      // US format: 1,000.58 (comma is thousands, dot is decimal)
+      str = str.replace(/,/g, '');
+    } else {
+      // European format: 1.000,58 (dot is thousands, comma is decimal)
+      str = str.replace(/\./g, '').replace(',', '.');
+    }
+  } else if (lastComma !== -1) {
+    // Only comma present - assume European decimal separator
+    // But check if it looks like thousands separator (e.g., "1,000" with no decimals)
+    const afterComma = str.substring(lastComma + 1);
+    if (afterComma.length === 3 && /^\d{3}$/.test(afterComma)) {
+      // Likely a thousands separator (e.g., "1,000")
+      str = str.replace(/,/g, '');
+    } else {
+      // Likely a decimal separator (e.g., "1,50" or "1000,58")
+      str = str.replace(',', '.');
+    }
   }
+  // If only dot or neither, parseFloat handles it correctly
 
   const num = parseFloat(str);
   return isNaN(num) ? null : num;
