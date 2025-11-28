@@ -581,7 +581,11 @@ router.patch(
  */
 router.get(
   '/summary',
-  [query('provider').optional().isIn(['dkv', 'eurowag', 'verag'])],
+  [
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+    query('batch_id').optional().isUUID(),
+    query('latest').optional().isBoolean(),
+  ],
   async (req, res, next) => {
     try {
       const errors = validationResult(req);
@@ -590,13 +594,20 @@ router.get(
       }
 
       const provider = req.query.provider;
+      const batchIdParam = req.query.batch_id;
+      const latestOnly = req.query.latest === 'true';
 
       // First, get batch IDs for the provider filter if needed
       let batchIds = null;
-      if (provider) {
+
+      // If specific batch_id is provided, use only that
+      if (batchIdParam) {
+        batchIds = [batchIdParam];
+      } else if (latestOnly || provider) {
+        // Build batch query for provider filtering
         let batchQuery = supabase
           .from('dkv_import_batches')
-          .select('id')
+          .select('id, import_date')
           .eq('company_id', req.companyId);
 
         if (provider === 'eurowag') {
@@ -616,8 +627,17 @@ router.get(
             .not('file_name', 'ilike', '%ew_export%');
         }
 
+        // Order by import_date to get the latest first
+        batchQuery = batchQuery.order('import_date', { ascending: false });
+
         const { data: batches } = await batchQuery;
-        batchIds = batches?.map((b) => b.id) || [];
+
+        if (latestOnly && batches && batches.length > 0) {
+          // Only use the most recent batch
+          batchIds = [batches[0].id];
+        } else {
+          batchIds = batches?.map((b) => b.id) || [];
+        }
       }
 
       // Get transactions, filtered by batch if provider specified

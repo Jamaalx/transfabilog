@@ -121,6 +121,7 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
   const [statusFilter, setStatusFilter] = useState('')
   const [selectedTx, setSelectedTx] = useState<string[]>([])
   const [matchingTxId, setMatchingTxId] = useState<string | null>(null)
+  const [summaryFilter, setSummaryFilter] = useState<'latest' | 'all'>('all')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const queryClient = useQueryClient()
@@ -128,9 +129,12 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
 
   // Fetch summary
   const { data: summary } = useQuery<DKVSummary>({
-    queryKey: ['dkv-summary', provider],
+    queryKey: ['dkv-summary', provider, summaryFilter],
     queryFn: async () => {
-      const res = await dkvApi.getSummary(provider !== 'all' ? provider : undefined)
+      const res = await dkvApi.getSummary(
+        provider !== 'all' ? provider : undefined,
+        summaryFilter === 'latest' ? { latest: true } : undefined
+      )
       return res.data
     },
   })
@@ -188,6 +192,8 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dkv-batches'] })
       queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      // Auto-switch to show only the latest import after successful import
+      setSummaryFilter('latest')
     },
   })
 
@@ -405,6 +411,19 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
           </p>
         </div>
       )}
+
+      {/* Summary Filter & Cards */}
+      <div className="flex items-center gap-4 mb-4">
+        <span className="text-sm text-muted-foreground">Statistici pentru:</span>
+        <select
+          value={summaryFilter}
+          onChange={(e) => setSummaryFilter(e.target.value as 'latest' | 'all')}
+          className="border rounded-md px-3 py-1.5 text-sm bg-white"
+        >
+          <option value="all">Toate importurile</option>
+          <option value="latest">Ultimul import</option>
+        </select>
+      </div>
 
       {/* Summary Cards - Different layout for toll vs fuel */}
       <div className={`grid gap-4 mb-6 ${isTollProvider ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6'}`}>
