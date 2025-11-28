@@ -51,6 +51,27 @@ function createMatchKey(registration) {
 }
 
 /**
+ * Try to extract vehicle registration from a transaction line
+ * Common formats: B16TFL, B 16 TFL, B-16-TFL, AG12ABC
+ */
+function extractInlineVehicle(line) {
+  // Look for European plate patterns in the line
+  const patterns = [
+    /([A-Z]{1,3}\s*\d{2,3}\s*[A-Z]{2,3})/i,  // B16TFL or B 16 TFL
+    /([A-Z]{2,3}-\d{2,4}-[A-Z]{2,3})/i,       // XX-123-XX
+    /([A-Z]{1,2}\d{3,4}[A-Z]{2,3})/i,         // B1234ABC
+  ];
+
+  for (const pattern of patterns) {
+    const match = line.match(pattern);
+    if (match) {
+      return match[1].replace(/[\s\-]/g, '').toUpperCase();
+    }
+  }
+  return null;
+}
+
+/**
  * Parse number from European format (1.234,56 or 1 234,56)
  */
 function parseNumber(value) {
@@ -118,8 +139,18 @@ async function parseVeragPdf(fileBuffer) {
   const pdfData = await pdfParse(fileBuffer);
   const text = pdfData.text;
 
+  // Debug: Log first 2000 characters to understand PDF structure
+  console.log('=== VERAG PDF DEBUG ===');
+  console.log('PDF Text (first 2000 chars):', text.substring(0, 2000));
+  console.log('=== END PDF DEBUG ===');
+
   // Split into lines and clean up
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+
+  // Debug: Log first 50 lines
+  console.log('=== VERAG PDF LINES ===');
+  lines.slice(0, 50).forEach((line, i) => console.log(`Line ${i}: ${line}`));
+  console.log('=== END PDF LINES ===');
 
   // Extract report date from header
   let reportDate = null;
@@ -157,11 +188,23 @@ async function parseVeragPdf(fileBuffer) {
       continue;
     }
 
+    // Alternative truck patterns for invoice format
+    // Pattern: "Kennzeichen: XX-XXXX" or just registration number like "B 16 TFL" or "B16TFL"
+    const altTruckMatch = line.match(/Kennzeichen[:\s]+([A-Z]{1,3}[\s\-]?\d{2,3}[\s\-]?[A-Z]{2,3})/i) ||
+                          line.match(/^([A-Z]{1,3}[\s\-]?\d{2,3}[\s\-]?[A-Z]{2,3})$/i);
+    if (altTruckMatch && !currentTruck) {
+      currentTruck = altTruckMatch[1].replace(/[\s\-]/g, '');
+      vehicles.add(currentTruck);
+      continue;
+    }
+
     // Skip summary sections
     if (line.includes('Gesamtsumme') || line.includes('Länder Gesamt') ||
         line.includes('Sachbearbeiter') || line.includes('VERAG 360 GMBH') ||
         line.includes('Seite') || line.includes('MAUT REPORT') ||
-        line.includes('Anlage zur Sammelrechnung')) {
+        line.includes('Anlage zur Sammelrechnung') ||
+        line.includes('Bankverbindung') || line.includes('IBAN') ||
+        line.includes('USt-IdNr') || line.includes('Steuernummer')) {
       continue;
     }
 
@@ -170,21 +213,30 @@ async function parseVeragPdf(fileBuffer) {
     // Example: AT 29.03.2025 000490984032037 96,63 19,33 115,96
     // Example: HU 21.03.2025 ÚTDÍJAK 000490984032037 42U61K275M M0U26K100M 77,75 20,99 98,74
 
-    if (!currentTruck) continue;
-
     // Check if line starts with a country code
     const countryCode = line.substring(0, 3).trim();
-    if (!VERAG_COUNTRIES.includes(countryCode)) {
+    let hasCountryCode = VERAG_COUNTRIES.includes(countryCode);
+    if (!hasCountryCode) {
       // Check for 2-letter codes at start
       const twoLetterCode = line.substring(0, 2);
-      if (!VERAG_COUNTRIES.includes(twoLetterCode)) {
-        continue;
-      }
+      hasCountryCode = VERAG_COUNTRIES.includes(twoLetterCode);
     }
 
-    // Parse the transaction line
-    const transaction = parseTransactionLine(line, currentTruck);
+    if (!hasCountryCode) continue;
+
+    // Parse the transaction line - try with currentTruck or extract from line
+    const transaction = parseTransactionLine(line, currentTruck || 'UNKNOWN');
     if (transaction) {
+      // If no currentTruck yet, try to extract vehicle registration from line or use UNKNOWN
+      if (!currentTruck && transaction.vehicle_registration === 'UNKNOWN') {
+        // Try to find vehicle in the line itself (for invoice formats with inline vehicle)
+        const inlineVehicle = extractInlineVehicle(line);
+        if (inlineVehicle) {
+          transaction.vehicle_registration = inlineVehicle;
+          vehicles.add(inlineVehicle);
+        }
+      }
+
       transactions.push(transaction);
 
       if (transaction.country) {
@@ -209,6 +261,31 @@ async function parseVeragPdf(fileBuffer) {
     }
   }
 
+  // If no transactions found with standard format, try invoice format
+  if (transactions.length === 0) {
+    console.log('No transactions found with standard format, trying invoice format...');
+    const invoiceResult = parseInvoiceFormat(lines, text);
+    if (invoiceResult.transactions.length > 0) {
+      return {
+        transactions: invoiceResult.transactions,
+        metadata: {
+          provider: 'verag',
+          report_date: invoiceResult.reportDate || reportDate?.toISOString().split('T')[0],
+          company_code: invoiceResult.companyCode || companyCode,
+          total_transactions: invoiceResult.transactions.length,
+          total_net_eur: invoiceResult.totalNetEUR,
+          total_vat_eur: invoiceResult.totalVatEUR,
+          total_gross_eur: invoiceResult.totalGrossEUR,
+          currency: 'EUR',
+          period_start: invoiceResult.periodStart,
+          period_end: invoiceResult.periodEnd,
+          vehicles: invoiceResult.vehicles,
+          countries: invoiceResult.countries,
+        },
+      };
+    }
+  }
+
   return {
     transactions,
     metadata: {
@@ -225,6 +302,161 @@ async function parseVeragPdf(fileBuffer) {
       vehicles: [...vehicles],
       countries: [...countries],
     },
+  };
+}
+
+/**
+ * Parse invoice-style VERAG PDFs
+ * These have a different format than MAUT REPORT files
+ */
+function parseInvoiceFormat(lines, fullText) {
+  const transactions = [];
+  const vehicles = new Set();
+  const countries = new Set();
+  let totalNetEUR = 0;
+  let totalVatEUR = 0;
+  let totalGrossEUR = 0;
+  let minDate = null;
+  let maxDate = null;
+  let reportDate = null;
+  let companyCode = null;
+
+  // Try to extract invoice date
+  const invoiceDateMatch = fullText.match(/Rechnungsdatum[:\s]+(\d{2}\.\d{2}\.\d{4})/i) ||
+                            fullText.match(/Invoice Date[:\s]+(\d{2}\.\d{2}\.\d{4})/i) ||
+                            fullText.match(/Datum[:\s]+(\d{2}\.\d{2}\.\d{4})/i);
+  if (invoiceDateMatch) {
+    reportDate = parseDate(invoiceDateMatch[1])?.toISOString().split('T')[0];
+  }
+
+  // Try to extract invoice/company number
+  const invoiceMatch = fullText.match(/Rechnungsnummer[:\s]+(\d+)/i) ||
+                        fullText.match(/Invoice[:\s]+(\d+)/i);
+  if (invoiceMatch) {
+    companyCode = invoiceMatch[1];
+  }
+
+  // Look for patterns with vehicle + date + amount
+  // Common invoice format: Vehicle | Date | Description | Net | VAT | Gross
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Skip header/footer lines
+    if (line.includes('VERAG') || line.includes('Seite') || line.includes('Page') ||
+        line.includes('IBAN') || line.includes('BIC') || line.includes('USt')) {
+      continue;
+    }
+
+    // Look for lines with dates and amounts
+    const dateMatch = line.match(/(\d{2}\.\d{2}\.\d{4})/);
+    if (!dateMatch) continue;
+
+    // Look for amount patterns at the end (with potential comma as decimal separator)
+    const amountMatches = line.match(/(\d+[,\.]\d{2})\s*(\d+[,\.]\d{2})?\s*(\d+[,\.]\d{2})?$/);
+    if (!amountMatches) continue;
+
+    const transactionDate = parseDate(dateMatch[1]);
+    if (!transactionDate) continue;
+
+    // Parse amounts - at least one, up to three (net, vat, gross)
+    let netAmount = null;
+    let vatAmount = null;
+    let grossAmount = null;
+
+    const amounts = [amountMatches[1], amountMatches[2], amountMatches[3]]
+      .filter(Boolean)
+      .map(a => parseNumber(a));
+
+    if (amounts.length === 3) {
+      [netAmount, vatAmount, grossAmount] = amounts;
+    } else if (amounts.length === 2) {
+      [netAmount, grossAmount] = amounts;
+      vatAmount = grossAmount - netAmount;
+    } else if (amounts.length === 1) {
+      grossAmount = amounts[0];
+      netAmount = grossAmount;
+      vatAmount = 0;
+    }
+
+    if (grossAmount === null || grossAmount <= 0) continue;
+
+    // Try to find vehicle registration in the line
+    const vehicleReg = extractInlineVehicle(line) || 'UNKNOWN';
+    if (vehicleReg !== 'UNKNOWN') vehicles.add(vehicleReg);
+
+    // Try to find country code in the line
+    let country = null;
+    for (const cc of VERAG_COUNTRIES) {
+      if (line.includes(` ${cc} `) || line.startsWith(`${cc} `)) {
+        country = cc;
+        countries.add(cc);
+        break;
+      }
+    }
+
+    // Determine product type from line content
+    let productType = '';
+    let productCategory = 'toll_generic';
+    for (const [key, cat] of Object.entries(TOLL_PRODUCTS)) {
+      if (line.toLowerCase().includes(key.toLowerCase())) {
+        productType = key;
+        productCategory = cat;
+        break;
+      }
+    }
+
+    // Maut/toll keywords
+    if (!productType && (line.includes('Maut') || line.includes('Toll') || line.includes('maut') || line.includes('toll'))) {
+      productType = 'Maut';
+      productCategory = 'toll_generic';
+    }
+
+    const bnrService = require('./bnrExchangeService');
+    const countryCode = bnrService.getCountryCode(country || 'DE') || country || 'DE';
+    const vatInfo = bnrService.getVatRate(country || 'DE');
+    const vatRate = vatAmount > 0 && netAmount > 0
+      ? Math.round((vatAmount / netAmount) * 10000) / 100
+      : 0;
+
+    transactions.push({
+      vehicle_registration: vehicleReg,
+      transaction_date: transactionDate.toISOString(),
+      country: country || 'DE',
+      country_code: countryCode,
+      product_type: productType || null,
+      product_category: productCategory,
+      card_number: null,
+      route_info: null,
+      net_amount: netAmount,
+      vat_amount: vatAmount,
+      vat_rate: vatRate,
+      vat_country: countryCode,
+      vat_country_rate: vatInfo.rate,
+      vat_refundable: vatInfo.refundable && vatAmount > 0,
+      gross_amount: grossAmount,
+      currency: 'EUR',
+      provider: 'verag',
+    });
+
+    totalNetEUR += netAmount || 0;
+    totalVatEUR += vatAmount || 0;
+    totalGrossEUR += grossAmount || 0;
+
+    if (!minDate || transactionDate < minDate) minDate = transactionDate;
+    if (!maxDate || transactionDate > maxDate) maxDate = transactionDate;
+  }
+
+  return {
+    transactions,
+    vehicles: [...vehicles],
+    countries: [...countries],
+    totalNetEUR: Math.round(totalNetEUR * 100) / 100,
+    totalVatEUR: Math.round(totalVatEUR * 100) / 100,
+    totalGrossEUR: Math.round(totalGrossEUR * 100) / 100,
+    periodStart: minDate ? minDate.toISOString().split('T')[0] : null,
+    periodEnd: maxDate ? maxDate.toISOString().split('T')[0] : null,
+    reportDate,
+    companyCode,
   };
 }
 
@@ -342,7 +574,11 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
   const parsed = await parseVeragPdf(fileBuffer);
 
   if (parsed.transactions.length === 0) {
-    throw new Error('No transactions found in VERAG PDF');
+    console.log('=== VERAG PARSING FAILED ===');
+    console.log('Metadata extracted:', JSON.stringify(parsed.metadata, null, 2));
+    console.log('File name:', fileName);
+    console.log('=== END VERAG PARSING FAILED ===');
+    throw new Error('No transactions found in VERAG PDF. Please check the PDF format. Expected: MAUT REPORT or invoice with toll transactions (date + amounts). Check server logs for debug output.');
   }
 
   // Get company trucks for matching
