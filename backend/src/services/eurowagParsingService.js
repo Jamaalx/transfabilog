@@ -322,22 +322,22 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
     });
   }
 
-  // Create import batch
+  // Create import batch in eurowag_import_batches table
   const { data: batch, error: batchError } = await supabase
-    .from('dkv_import_batches')
+    .from('eurowag_import_batches')
     .insert({
       company_id: companyId,
       uploaded_document_id: documentId,
       file_name: fileName,
       total_transactions: parsed.metadata.total_transactions,
-      total_amount: parsed.metadata.total_net_eur,
-      currency: 'EUR',
+      total_net_eur: parsed.metadata.total_net_eur,
+      total_gross_eur: parsed.metadata.total_gross_eur,
+      total_vat_eur: parsed.metadata.total_vat_eur,
       period_start: parsed.metadata.period_start,
       period_end: parsed.metadata.period_end,
       status: 'processing',
       imported_by: userId,
-      provider: 'eurowag',
-      notes: `Provider: EUROWAG | VAT: ${parsed.metadata.total_vat_eur} EUR`,
+      notes: `Vehicles: ${parsed.metadata.vehicles.length} | Countries: ${parsed.metadata.countries.join(', ')}`,
     })
     .select()
     .single();
@@ -376,59 +376,57 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
       unmatchedCount++;
     }
 
-    // Map EUROWAG fields to DKV table structure
+    // Map EUROWAG fields to eurowag_transactions table
     transactionsToInsert.push({
       company_id: companyId,
       batch_id: batch.id,
       uploaded_document_id: documentId,
       truck_id: truckId,
       status: status,
-      // Map fields
+      // Transaction info
       transaction_time: tx.transaction_time,
-      station_name: tx.location,
-      country: tx.country,
-      country_code: tx.country_code,
-      cost_group: tx.service_type,
-      goods_type: tx.product_type,
+      service_type: tx.service_type, // FUEL, TOLL, etc.
+      // Vehicle and card
+      vehicle_registration: tx.vehicle_registration,
+      card_number: tx.card_number,
+      obu_id: tx.obu_id,
+      // Product info
+      product_type: tx.product_type,
       quantity: tx.quantity,
       unit: tx.unit,
-      currency: 'EUR',
+      // Location
+      country: tx.country,
+      country_code: tx.country_code,
+      location: tx.location,
+      // Original currency amounts
       original_currency: tx.original_currency,
+      net_amount: tx.net_amount,
+      gross_amount: tx.gross_amount,
+      vat_amount: tx.vat_amount,
+      // EUR converted amounts
       exchange_rate: tx.exchange_rate,
       exchange_rate_date: tx.exchange_rate_date,
-      // Original amounts
-      net_base_value: tx.net_amount,
-      gross_value: tx.gross_amount,
-      // EUR converted amounts
-      net_purchase_value: tx.net_amount,
-      net_purchase_value_eur: tx.net_amount_eur,
-      gross_value_eur: tx.gross_amount_eur,
-      payment_value: tx.gross_amount_eur,
-      payment_value_eur: tx.gross_amount_eur,
-      payment_currency: tx.original_currency,
-      // VAT info
-      vat_amount: tx.vat_amount_eur,
-      vat_amount_original: tx.vat_amount,
+      net_amount_eur: tx.net_amount_eur,
+      gross_amount_eur: tx.gross_amount_eur,
+      vat_amount_eur: tx.vat_amount_eur,
+      // VAT details
       vat_rate: tx.vat_rate,
       vat_country: tx.vat_country,
       vat_country_rate: tx.vat_country_rate,
       vat_refundable: tx.vat_refundable,
-      // Other fields
-      vehicle_registration: tx.vehicle_registration,
-      card_number: tx.card_number,
-      provider: 'eurowag',
+      // Notes
       notes: tx.original_currency !== 'EUR'
         ? `Original: ${tx.net_amount?.toFixed(2)} ${tx.original_currency} | VAT: ${tx.vat_amount?.toFixed(2)} ${tx.original_currency} | Rate: ${tx.exchange_rate?.toFixed(4)}`
         : `VAT: ${tx.vat_amount_eur?.toFixed(2)} EUR (${tx.vat_rate?.toFixed(0)}%)`,
     });
   }
 
-  // Batch insert
+  // Batch insert into eurowag_transactions
   const CHUNK_SIZE = 100;
   for (let i = 0; i < transactionsToInsert.length; i += CHUNK_SIZE) {
     const chunk = transactionsToInsert.slice(i, i + CHUNK_SIZE);
     const { error: insertError } = await supabase
-      .from('dkv_transactions')
+      .from('eurowag_transactions')
       .insert(chunk);
 
     if (insertError) {
@@ -438,7 +436,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
 
   // Update batch status
   await supabase
-    .from('dkv_import_batches')
+    .from('eurowag_import_batches')
     .update({
       matched_transactions: matchedCount,
       unmatched_transactions: unmatchedCount,

@@ -366,23 +366,23 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
     });
   }
 
-  // Create import batch
+  // Create import batch in verag_import_batches table
   const { data: batch, error: batchError } = await supabase
-    .from('dkv_import_batches')
+    .from('verag_import_batches')
     .insert({
       company_id: companyId,
       uploaded_document_id: documentId,
       file_name: fileName,
+      report_date: parsed.metadata.report_date,
       total_transactions: parsed.metadata.total_transactions,
-      total_amount: parsed.metadata.total_gross_eur,
-      total_vat: parsed.metadata.total_vat_eur,
-      currency: 'EUR',
+      total_net_eur: parsed.metadata.total_net_eur,
+      total_gross_eur: parsed.metadata.total_gross_eur,
+      total_vat_eur: parsed.metadata.total_vat_eur,
       period_start: parsed.metadata.period_start,
       period_end: parsed.metadata.period_end,
       status: 'processing',
       imported_by: userId,
-      provider: 'verag',
-      notes: `Provider: VERAG | Net: ${parsed.metadata.total_net_eur} EUR | VAT: ${parsed.metadata.total_vat_eur} EUR | Vehicles: ${parsed.metadata.vehicles.length}`,
+      notes: `Vehicles: ${parsed.metadata.vehicles.length} | Countries: ${parsed.metadata.countries.join(', ')}`,
     })
     .select()
     .single();
@@ -421,52 +421,47 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
       unmatchedCount++;
     }
 
-    // Map VERAG fields to DKV table structure
+    // Map VERAG fields to verag_transactions table
     transactionsToInsert.push({
       company_id: companyId,
       batch_id: batch.id,
       uploaded_document_id: documentId,
       truck_id: truckId,
       status: status,
-      // Map fields
-      transaction_time: tx.transaction_date,
-      country: tx.country,
-      country_code: tx.country_code,
-      cost_group: 'TOLL', // VERAG is toll-only
-      goods_type: tx.product_type || tx.product_category,
-      currency: 'EUR',
-      original_currency: 'EUR',
-      // Amounts (all in EUR for VERAG)
-      net_base_value: tx.net_amount,
-      net_purchase_value: tx.net_amount,
-      net_purchase_value_eur: tx.net_amount,
-      gross_value: tx.gross_amount,
-      gross_value_eur: tx.gross_amount,
-      payment_value: tx.gross_amount,
-      payment_value_eur: tx.gross_amount,
-      payment_currency: 'EUR',
+      // Transaction info
+      transaction_date: tx.transaction_date,
+      // Vehicle and card
       vehicle_registration: tx.vehicle_registration,
       card_number: tx.card_number,
-      // VAT tracking
+      // Product info
+      product_type: tx.product_type,
+      product_category: tx.product_category,
+      route_info: tx.route_info,
+      // Location
+      country: tx.country,
+      country_code: tx.country_code,
+      // Amounts (all in EUR for VERAG)
+      currency: 'EUR',
+      net_amount: tx.net_amount,
       vat_amount: tx.vat_amount,
-      vat_amount_original: tx.vat_amount,
+      gross_amount: tx.gross_amount,
+      // VAT details
       vat_rate: tx.vat_rate,
       vat_country: tx.vat_country,
       vat_country_rate: tx.vat_country_rate,
       vat_refundable: tx.vat_refundable,
       vat_refund_status: tx.vat_amount > 0 ? 'pending' : 'not_applicable',
-      // Provider
-      provider: 'verag',
+      // Notes
       notes: `${tx.product_category} | VAT: ${tx.vat_amount?.toFixed(2)} EUR (${tx.vat_rate?.toFixed(0)}%)${tx.route_info ? ' | Route: ' + tx.route_info : ''}`,
     });
   }
 
-  // Batch insert
+  // Batch insert into verag_transactions
   const CHUNK_SIZE = 100;
   for (let i = 0; i < transactionsToInsert.length; i += CHUNK_SIZE) {
     const chunk = transactionsToInsert.slice(i, i + CHUNK_SIZE);
     const { error: insertError } = await supabase
-      .from('dkv_transactions')
+      .from('verag_transactions')
       .insert(chunk);
 
     if (insertError) {
@@ -476,7 +471,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
 
   // Update batch status
   await supabase
-    .from('dkv_import_batches')
+    .from('verag_import_batches')
     .update({
       matched_transactions: matchedCount,
       unmatched_transactions: unmatchedCount,
