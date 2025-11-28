@@ -297,6 +297,50 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
     throw new Error('No transactions found in EUROWAG file');
   }
 
+  // Check for existing transactions to prevent duplicates
+  // Build a list of transaction keys to check
+  const txKeys = parsed.transactions.map(tx => ({
+    time: tx.transaction_time,
+    reg: tx.vehicle_registration,
+    net: tx.net_amount_eur,
+  }));
+
+  // Get existing transactions for this company within the date range
+  const { data: existingTx, error: existingError } = await supabase
+    .from('eurowag_transactions')
+    .select('transaction_time, vehicle_registration, net_amount_eur')
+    .eq('company_id', companyId)
+    .gte('transaction_time', parsed.metadata.period_start)
+    .lte('transaction_time', parsed.metadata.period_end + 'T23:59:59');
+
+  if (existingError) {
+    console.warn('Could not check for existing transactions:', existingError.message);
+  }
+
+  // Create a Set of existing transaction keys for fast lookup
+  const existingKeys = new Set();
+  if (existingTx) {
+    existingTx.forEach(tx => {
+      const key = `${tx.transaction_time}|${tx.vehicle_registration}|${tx.net_amount_eur}`;
+      existingKeys.add(key);
+    });
+  }
+
+  // Filter out duplicates
+  const newTransactions = parsed.transactions.filter(tx => {
+    const key = `${tx.transaction_time}|${tx.vehicle_registration}|${tx.net_amount_eur}`;
+    return !existingKeys.has(key);
+  });
+
+  const duplicatesSkipped = parsed.transactions.length - newTransactions.length;
+  if (duplicatesSkipped > 0) {
+    console.log(`EUROWAG: Skipping ${duplicatesSkipped} duplicate transactions`);
+  }
+
+  if (newTransactions.length === 0) {
+    throw new Error(`All ${parsed.transactions.length} transactions already exist in database. No new data to import.`);
+  }
+
   // Get company trucks for matching
   const { data: trucks, error: trucksError } = await supabase
     .from('truck_heads')
@@ -329,15 +373,17 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
       company_id: companyId,
       uploaded_document_id: documentId,
       file_name: fileName,
-      total_transactions: parsed.metadata.total_transactions,
-      total_net_eur: parsed.metadata.total_net_eur,
-      total_gross_eur: parsed.metadata.total_gross_eur,
-      total_vat_eur: parsed.metadata.total_vat_eur,
+      total_transactions: newTransactions.length,
+      total_net_eur: Math.round(newTransactions.reduce((sum, tx) => sum + (tx.net_amount_eur || 0), 0) * 100) / 100,
+      total_gross_eur: Math.round(newTransactions.reduce((sum, tx) => sum + (tx.gross_amount_eur || 0), 0) * 100) / 100,
+      total_vat_eur: Math.round(newTransactions.reduce((sum, tx) => sum + (tx.vat_amount_eur || 0), 0) * 100) / 100,
       period_start: parsed.metadata.period_start,
       period_end: parsed.metadata.period_end,
       status: 'processing',
       imported_by: userId,
-      notes: `Vehicles: ${parsed.metadata.vehicles.length} | Countries: ${parsed.metadata.countries.join(', ')}`,
+      notes: duplicatesSkipped > 0
+        ? `Vehicles: ${parsed.metadata.vehicles.length} | Countries: ${parsed.metadata.countries.join(', ')} | Skipped ${duplicatesSkipped} duplicates`
+        : `Vehicles: ${parsed.metadata.vehicles.length} | Countries: ${parsed.metadata.countries.join(', ')}`,
     })
     .select()
     .single();
@@ -351,7 +397,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
   let unmatchedCount = 0;
   const transactionsToInsert = [];
 
-  for (const tx of parsed.transactions) {
+  for (const tx of newTransactions) {
     let truckId = null;
     let status = 'pending';
 
@@ -448,11 +494,12 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
     success: true,
     provider: 'eurowag',
     batch_id: batch.id,
-    total_transactions: parsed.metadata.total_transactions,
+    total_transactions: newTransactions.length,
     matched_transactions: matchedCount,
     unmatched_transactions: unmatchedCount,
-    total_net_eur: parsed.metadata.total_net_eur,
-    total_vat_eur: parsed.metadata.total_vat_eur,
+    duplicates_skipped: duplicatesSkipped,
+    total_net_eur: Math.round(newTransactions.reduce((sum, tx) => sum + (tx.net_amount_eur || 0), 0) * 100) / 100,
+    total_vat_eur: Math.round(newTransactions.reduce((sum, tx) => sum + (tx.vat_amount_eur || 0), 0) * 100) / 100,
     period_start: parsed.metadata.period_start,
     period_end: parsed.metadata.period_end,
     vehicles: parsed.metadata.vehicles,

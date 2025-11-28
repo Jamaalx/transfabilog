@@ -399,6 +399,42 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
     throw new Error('No transactions found in DKV file');
   }
 
+  // Check for existing transactions to prevent duplicates
+  const { data: existingTx, error: existingError } = await supabase
+    .from('dkv_transactions')
+    .select('transaction_time, vehicle_registration, net_purchase_value')
+    .eq('company_id', companyId)
+    .gte('transaction_time', parsed.metadata.period_start)
+    .lte('transaction_time', parsed.metadata.period_end + 'T23:59:59');
+
+  if (existingError) {
+    console.warn('Could not check for existing transactions:', existingError.message);
+  }
+
+  // Create a Set of existing transaction keys for fast lookup
+  const existingKeys = new Set();
+  if (existingTx) {
+    existingTx.forEach(tx => {
+      const key = `${tx.transaction_time}|${tx.vehicle_registration}|${tx.net_purchase_value}`;
+      existingKeys.add(key);
+    });
+  }
+
+  // Filter out duplicates
+  const newTransactions = parsed.transactions.filter(tx => {
+    const key = `${tx.transaction_time}|${tx.vehicle_registration}|${tx.net_purchase_value}`;
+    return !existingKeys.has(key);
+  });
+
+  const duplicatesSkipped = parsed.transactions.length - newTransactions.length;
+  if (duplicatesSkipped > 0) {
+    console.log(`DKV: Skipping ${duplicatesSkipped} duplicate transactions`);
+  }
+
+  if (newTransactions.length === 0) {
+    throw new Error(`All ${parsed.transactions.length} transactions already exist in database. No new data to import.`);
+  }
+
   // Get company trucks for matching
   const { data: trucks, error: trucksError } = await supabase
     .from('truck_heads')
@@ -435,14 +471,15 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
       company_id: companyId,
       uploaded_document_id: documentId,
       file_name: fileName,
-      total_transactions: parsed.metadata.total_transactions,
-      total_amount: parsed.metadata.total_amount,
+      total_transactions: newTransactions.length,
+      total_amount: Math.round(newTransactions.reduce((sum, tx) => sum + (tx.payment_value_eur || tx.gross_value_eur || 0), 0) * 100) / 100,
       currency: parsed.metadata.currency,
       period_start: parsed.metadata.period_start,
       period_end: parsed.metadata.period_end,
       status: 'processing',
       imported_by: userId,
       provider: 'dkv',
+      notes: duplicatesSkipped > 0 ? `Skipped ${duplicatesSkipped} duplicates` : null,
     })
     .select()
     .single();
@@ -456,7 +493,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
   let unmatchedCount = 0;
   const transactionsToInsert = [];
 
-  for (const tx of parsed.transactions) {
+  for (const tx of newTransactions) {
     // Try to match truck
     let truckId = null;
     let status = 'pending';
@@ -538,10 +575,11 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
   return {
     success: true,
     batch_id: batch.id,
-    total_transactions: parsed.metadata.total_transactions,
+    total_transactions: newTransactions.length,
     matched_transactions: matchedCount,
     unmatched_transactions: unmatchedCount,
-    total_amount: parsed.metadata.total_amount,
+    duplicates_skipped: duplicatesSkipped,
+    total_amount: Math.round(newTransactions.reduce((sum, tx) => sum + (tx.payment_value_eur || tx.gross_value_eur || 0), 0) * 100) / 100,
     currency: parsed.metadata.currency,
     period_start: parsed.metadata.period_start,
     period_end: parsed.metadata.period_end,
