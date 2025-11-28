@@ -827,7 +827,7 @@ router.patch(
  */
 router.delete(
   '/transactions/bulk-delete',
-  authorize('admin', 'manager'),
+  authorize('admin', 'manager', 'operator'),
   [
     query('status').optional().isIn(['ignored', 'all']),
     query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
