@@ -522,7 +522,8 @@ router.patch(
 
 /**
  * POST /api/v1/dkv/transactions/:id/create-expense
- * Create expense transaction from DKV transaction
+ * Create expense transaction from a fuel transaction
+ * Query param: provider=dkv|eurowag|verag
  */
 router.post(
   '/transactions/:id/create-expense',
@@ -530,6 +531,7 @@ router.post(
   [
     param('id').isUUID(),
     body('trip_id').optional().isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
   ],
   async (req, res, next) => {
     try {
@@ -538,10 +540,13 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      // Verify transaction belongs to company
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
+
+      // Get transaction details from provider-specific table
       const { data: tx, error: fetchError } = await supabase
-        .from('dkv_transactions')
-        .select('id, company_id')
+        .from(tables.transactions)
+        .select('*, truck:truck_heads(id, registration_number)')
         .eq('id', req.params.id)
         .eq('company_id', req.companyId)
         .single();
@@ -553,21 +558,62 @@ router.post(
         });
       }
 
-      const expense = await createExpenseFromDKV(
-        req.params.id,
-        req.companyId,
-        req.user.id,
-        req.body.trip_id
-      );
+      if (tx.status === 'created_expense') {
+        return res.status(409).json({
+          error: 'Conflict',
+          message: 'Expense already created for this transaction',
+        });
+      }
+
+      // Determine category based on service/goods type
+      let category = 'combustibil';
+      const serviceType = (tx.service_type || tx.cost_group || '').toLowerCase();
+      const goodsType = (tx.goods_type || tx.product_type || '').toLowerCase();
+
+      if (goodsType.includes('adblue')) {
+        category = 'adblue';
+      } else if (serviceType.includes('toll') || goodsType.includes('toll')) {
+        category = 'taxe_drum';
+      }
+
+      // Get amount in EUR (use gross for total cost)
+      const amountEur = tx.gross_amount_eur || tx.gross_amount || tx.net_amount_eur || tx.net_amount || 0;
+      const transactionDate = tx.transaction_time || tx.transaction_date;
+
+      // Create expense in transactions table
+      const { data: expense, error: expenseError } = await supabase
+        .from('transactions')
+        .insert({
+          company_id: req.companyId,
+          truck_id: tx.truck_id,
+          trip_id: req.body.trip_id || null,
+          type: 'expense',
+          category: category,
+          amount: amountEur,
+          currency: 'EUR',
+          date: transactionDate,
+          description: `${provider.toUpperCase()} - ${tx.vehicle_registration || ''} - ${goodsType || serviceType || 'Fuel'}`,
+          notes: `Import from ${provider.toUpperCase()} | ${tx.country || ''} | ${tx.location || tx.station_name || ''}`,
+          created_by: req.user.id,
+        })
+        .select()
+        .single();
+
+      if (expenseError) {
+        throw new Error('Failed to create expense: ' + expenseError.message);
+      }
+
+      // Update transaction status
+      await supabase
+        .from(tables.transactions)
+        .update({
+          status: 'created_expense',
+          expense_id: expense.id,
+        })
+        .eq('id', req.params.id);
 
       res.status(201).json(expense);
     } catch (error) {
-      if (error.message.includes('already created')) {
-        return res.status(409).json({
-          error: 'Conflict',
-          message: error.message,
-        });
-      }
       next(error);
     }
   }
@@ -575,7 +621,8 @@ router.post(
 
 /**
  * POST /api/v1/dkv/transactions/bulk-create-expenses
- * Create expenses for multiple DKV transactions
+ * Create expenses for multiple transactions
+ * Query param: provider=dkv|eurowag|verag
  */
 router.post(
   '/transactions/bulk-create-expenses',
@@ -583,6 +630,7 @@ router.post(
   [
     body('transaction_ids').isArray({ min: 1, max: 100 }),
     body('transaction_ids.*').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
   ],
   async (req, res, next) => {
     try {
@@ -591,6 +639,9 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
+
       const results = {
         success: [],
         failed: [],
@@ -598,7 +649,63 @@ router.post(
 
       for (const txId of req.body.transaction_ids) {
         try {
-          const expense = await createExpenseFromDKV(txId, req.companyId, req.user.id);
+          // Get transaction
+          const { data: tx, error: txError } = await supabase
+            .from(tables.transactions)
+            .select('*, truck:truck_heads(id, registration_number)')
+            .eq('id', txId)
+            .eq('company_id', req.companyId)
+            .single();
+
+          if (txError || !tx) {
+            results.failed.push({ transaction_id: txId, error: 'Transaction not found' });
+            continue;
+          }
+
+          if (tx.status === 'created_expense') {
+            results.failed.push({ transaction_id: txId, error: 'Expense already created' });
+            continue;
+          }
+
+          // Determine category
+          let category = 'combustibil';
+          const serviceType = (tx.service_type || tx.cost_group || '').toLowerCase();
+          const goodsType = (tx.goods_type || tx.product_type || '').toLowerCase();
+          if (goodsType.includes('adblue')) category = 'adblue';
+          else if (serviceType.includes('toll') || goodsType.includes('toll')) category = 'taxe_drum';
+
+          const amountEur = tx.gross_amount_eur || tx.gross_amount || tx.net_amount_eur || tx.net_amount || 0;
+          const transactionDate = tx.transaction_time || tx.transaction_date;
+
+          // Create expense
+          const { data: expense, error: expenseError } = await supabase
+            .from('transactions')
+            .insert({
+              company_id: req.companyId,
+              truck_id: tx.truck_id,
+              type: 'expense',
+              category: category,
+              amount: amountEur,
+              currency: 'EUR',
+              date: transactionDate,
+              description: `${provider.toUpperCase()} - ${tx.vehicle_registration || ''} - ${goodsType || serviceType || 'Fuel'}`,
+              notes: `Import from ${provider.toUpperCase()} | ${tx.country || ''}`,
+              created_by: req.user.id,
+            })
+            .select()
+            .single();
+
+          if (expenseError) {
+            results.failed.push({ transaction_id: txId, error: expenseError.message });
+            continue;
+          }
+
+          // Update transaction status
+          await supabase
+            .from(tables.transactions)
+            .update({ status: 'created_expense', expense_id: expense.id })
+            .eq('id', txId);
+
           results.success.push({ transaction_id: txId, expense_id: expense.id });
         } catch (error) {
           results.failed.push({ transaction_id: txId, error: error.message });
@@ -619,7 +726,8 @@ router.post(
 
 /**
  * POST /api/v1/dkv/transactions/bulk-ignore
- * Bulk ignore DKV transactions
+ * Bulk ignore transactions
+ * Query param: provider=dkv|eurowag|verag
  */
 router.post(
   '/transactions/bulk-ignore',
@@ -628,21 +736,35 @@ router.post(
     body('transaction_ids').isArray({ min: 1, max: 500 }),
     body('transaction_ids.*').isUUID(),
     body('notes').optional().isString().trim(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
   ],
   async (req, res, next) => {
     try {
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const result = await bulkIgnoreTransactions(
-        req.body.transaction_ids,
-        req.companyId,
-        req.body.notes
-      );
+      // Update transactions in provider-specific table
+      const { data, error } = await supabase
+        .from(tables.transactions)
+        .update({
+          status: 'ignored',
+          notes: req.body.notes || 'Bulk ignored',
+        })
+        .in('id', req.body.transaction_ids)
+        .eq('company_id', req.companyId)
+        .select('id');
 
-      res.json(result);
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        updated: data?.length || 0,
+        total: req.body.transaction_ids.length,
+      });
     } catch (error) {
       next(error);
     }
