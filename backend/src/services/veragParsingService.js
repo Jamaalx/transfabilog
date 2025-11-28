@@ -756,24 +756,50 @@ function parseFuelSummaryFormat(lines, fullText) {
 
   // Build a map of card codes to vehicle registrations from "KarteZwischensumme" lines
   // Format: KarteZwischensumme0060009723-TRANSFABILOGSRL-10346MS40TFL1,841.60
+  // Also: TOTALFORCARD/0060009723-10346-0MS40TFL1,092.09
+  // Also: OSSZ./KARTYA/0060009723-10395-0MS25TFL19,505.87
+  // Also: Totalpourcarte/0060009723-10403-0MS50TFL740.81
+  // Also: SUMA-KARTA/KARTEZWISCHENSUMME0060009723-10346-0MS40TFL3,199.14
+  // Also: TOTALPT.CARD/KARTEZWISCHENSUMME0060009723-10486-0B46TFL3,018.37
   const cardToVehicle = new Map();
-  const vehicleRegex = /KarteZwischensumme.*?-(\d+)([A-Z]{2}\d{2}[A-Z]{2,3})/gi;
-  let vehicleMatch;
-  while ((vehicleMatch = vehicleRegex.exec(fullText)) !== null) {
-    const internalCode = vehicleMatch[1];
-    const vehicleReg = vehicleMatch[2];
-    cardToVehicle.set(internalCode, vehicleReg);
-    vehicles.add(vehicleReg);
+
+  // Multiple patterns for different card-vehicle associations in the document
+  const vehiclePatterns = [
+    // German/Main format: KarteZwischensumme...-10346MS40TFL1,841.60
+    /KarteZwischensumme[^-]*-[^-]*-(\d+)([A-Z]{1,3}\d{1,3}[A-Z]{2,3})/gi,
+    // English format: TOTALFORCARD/0060009723-10346-0MS40TFL
+    /TOTALFORCARD\/[^-]+-(\d+)-\d([A-Z]{1,3}\d{1,3}[A-Z]{2,3})/gi,
+    // Hungarian format: OSSZ./KARTYA/0060009723-10395-0MS25TFL
+    /OSSZ\.\/KARTYA\/[^-]+-(\d+)-\d([A-Z]{1,3}\d{1,3}[A-Z]{2,3})/gi,
+    // French format: Totalpourcarte/0060009723-10403-0MS50TFL
+    /Totalpourcarte\/[^-]+-(\d+)-\d([A-Z]{1,3}\d{1,3}[A-Z]{2,3})/gi,
+    // Polish/Romanian format: SUMA-KARTA/KARTEZWISCHENSUMME...-10346-0MS40TFL or TOTALPT.CARD/...
+    /(?:SUMA-KARTA|TOTALPT\.CARD)\/KARTEZWISCHENSUMME[^-]*-(\d+)-\d([A-Z]{1,3}\d{1,3}[A-Z]{2,3})/gi,
+  ];
+
+  for (const pattern of vehiclePatterns) {
+    let vehicleMatch;
+    while ((vehicleMatch = pattern.exec(fullText)) !== null) {
+      const internalCode = vehicleMatch[1];
+      const vehicleReg = vehicleMatch[2];
+      if (internalCode && vehicleReg && !cardToVehicle.has(internalCode)) {
+        cardToVehicle.set(internalCode, vehicleReg);
+        vehicles.add(vehicleReg);
+      }
+    }
   }
 
   console.log('=== Vehicle mapping from Zwischensumme ===');
   console.log('Card to Vehicle map:', Object.fromEntries(cardToVehicle));
   console.log('=== END Vehicle mapping ===');
 
-  // Parse detailed transaction lines
-  // Format: DD/MM/YY HHMM CardCode InternalCode 0 Product Station Currency Price Discount NetPrice Rate NetPriceEUR Qty Rate NetAmtEUR TicketNr
+  // Parse detailed transaction lines - multiple formats exist:
+  // Format 1: DD/MM/YY HHMM CardCode InternalCode 0 Product Station Currency Price Discount NetPrice Rate NetPriceEUR Qty Rate NetAmtEUR TicketNr
   // Example: 26/04/25 1423        00156403 10346 0 AdB. L     Szczecin-RPLN     3.5310   0.0000  3.5310    4.2683   0.8273   26.00L 1.0000     21.51 4655510082
-  const detailLineRegex = /^(\d{2})\/(\d{2})\/(\d{2})\s+(\d{4})\s+(\d+)\s+(\d+)\s+\d\s+([A-Za-z\.\s]+?)\s+([A-Za-z\-]+)\s*([A-Z]{3})?\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)L\s+([\d.,]+)\s+([\d.,]+)/;
+  // Format 2: DD/MM/YY HHMM Km CardCode InternalCode 0 Product Station Currency...
+  // Example: 24/04/25 0417 273000 00273000 10502 0 DIESEL     DrahelciceCZK...
+  // Format 3 (simpler): DD/MM/YY HH:MM Product Station Price Qty VAT% Amount
+  const detailLineRegex = /^(\d{2})\/(\d{2})\/(\d{2})\s+(\d{4})\s+(?:\d+\s+)?(\d+)\s+(\d+)\s+\d\s+([A-Za-z\.\s]+?)\s+([A-Za-z0-9_\-]+)\s*([A-Z]{3})?\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)L\s+([\d.,]+)\s+([\d.,]+)/;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -937,6 +963,38 @@ function parseFuelSummaryFormat(lines, fullText) {
           if (!minDate || transactionDate < minDate) minDate = transactionDate;
           if (!maxDate || transactionDate > maxDate) maxDate = transactionDate;
         }
+      }
+    }
+
+    // Country-specific invoice format (simpler, with time HH:MM)
+    // Example: 25/04/25 11:41   AdBlue         Zelzate                 1.2150    0.0000    1.2150      32.00L  21.00      38.88
+    // Pattern: DD/MM/YY HH:MM Product Station Price Rebate NetPrice Qty VAT% Amount
+    const countryInvoiceMatch = line.match(/^(\d{2})\/(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})\s+([A-Za-z\s\.]+?)\s{2,}([A-Za-z0-9_\-\s]+?)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)L\s+([\d.,]+)\s+([\d.,]+)/);
+    if (countryInvoiceMatch && !detailMatch) {
+      const [, day, month, year, hour, minute, product, station, price, rebate, netPrice, quantity, vatRate, amount] = countryInvoiceMatch;
+
+      const fullYear = parseInt(year) + 2000;
+      const transactionDate = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+
+      const productNormalized = product.trim();
+      let productCategory = 'fuel';
+      for (const [key, cat] of Object.entries(FUEL_PRODUCTS)) {
+        if (productNormalized.toLowerCase().includes(key.toLowerCase()) ||
+            key.toLowerCase().includes(productNormalized.toLowerCase())) {
+          productCategory = cat;
+          break;
+        }
+      }
+
+      const netAmount = parseNumber(amount);
+      const qty = parseNumber(quantity);
+      const vat = parseNumber(vatRate);
+
+      if (netAmount !== null && netAmount > 0) {
+        // These transactions are typically already in EUR and already counted in the main section
+        // But we may need them if the main section parsing missed them
+        // For now, log them for debugging
+        console.log(`[COUNTRY_INVOICE] ${transactionDate.toISOString().split('T')[0]} | ${productNormalized} | ${station.trim()} | Net: ${netAmount} | VAT%: ${vat}`);
       }
     }
   }
