@@ -819,6 +819,93 @@ router.patch(
 );
 
 /**
+ * DELETE /api/v1/dkv/transactions/bulk-delete
+ * Permanently delete transactions (ignored or all)
+ * Query param: provider=dkv|eurowag|verag
+ * Body: { status?: 'ignored' | 'all' } - delete only ignored or all transactions
+ */
+router.delete(
+  '/transactions/bulk-delete',
+  authorize('admin', 'manager'),
+  [
+    body('status').optional().isIn(['ignored', 'all']),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const provider = req.query.provider || 'dkv';
+      const tables = getTableNames(provider);
+      const statusFilter = req.body.status || 'ignored'; // Default to deleting only ignored
+
+      let deleteQuery = supabase
+        .from(tables.transactions)
+        .delete()
+        .eq('company_id', req.companyId);
+
+      // Only filter by status if not 'all'
+      if (statusFilter !== 'all') {
+        deleteQuery = deleteQuery.eq('status', statusFilter);
+      }
+
+      const { data, error } = await deleteQuery.select('id');
+
+      if (error) throw error;
+
+      // Update batch statistics after deletion
+      // Get all batches and recalculate their stats
+      const { data: batches } = await supabase
+        .from(tables.batches)
+        .select('id')
+        .eq('company_id', req.companyId);
+
+      if (batches) {
+        for (const batch of batches) {
+          const { data: remaining } = await supabase
+            .from(tables.transactions)
+            .select('status')
+            .eq('batch_id', batch.id);
+
+          if (!remaining || remaining.length === 0) {
+            // No transactions left, delete the batch
+            await supabase
+              .from(tables.batches)
+              .delete()
+              .eq('id', batch.id);
+          } else {
+            // Update batch counts
+            const matched = remaining.filter(t => t.status === 'matched').length;
+            const unmatched = remaining.filter(t => t.status === 'unmatched' || t.status === 'pending').length;
+            await supabase
+              .from(tables.batches)
+              .update({
+                total_transactions: remaining.length,
+                matched_transactions: matched,
+                unmatched_transactions: unmatched,
+              })
+              .eq('id', batch.id);
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        deleted: data?.length || 0,
+        message: statusFilter === 'all'
+          ? `Permanently deleted all transactions`
+          : `Permanently deleted ${data?.length || 0} ${statusFilter} transactions`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/v1/dkv/summary
  * Get summary statistics for a provider
  * Query param: provider=dkv|eurowag|verag

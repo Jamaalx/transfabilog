@@ -270,6 +270,19 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
     },
   })
 
+  // Bulk delete mutation (permanently delete ignored transactions)
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (status: 'ignored' | 'all') => {
+      const res = await dkvApi.bulkDeleteTransactions(status, provider !== 'all' ? provider : undefined)
+      return res.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-batches'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+    },
+  })
+
   // Delete batch mutation
   const deleteBatchMutation = useMutation({
     mutationFn: async (batchId: string) => {
@@ -435,8 +448,8 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
         </select>
       </div>
 
-      {/* Summary Cards - Different layout for toll vs fuel */}
-      <div className={`grid gap-4 mb-6 ${isTollProvider ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4 lg:grid-cols-6'}`}>
+      {/* Summary Cards */}
+      <div className="grid gap-4 mb-6 grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
         <Card className="border-l-4 border-l-gray-400">
           <CardContent className="p-4">
             <div className="text-2xl font-bold">{summary?.total_transactions || 0}</div>
@@ -461,6 +474,12 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
             <div className="text-sm text-muted-foreground">Cheltuieli Create</div>
           </CardContent>
         </Card>
+        <Card className="border-l-4 border-l-red-400">
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-red-500">{summary?.ignored || 0}</div>
+            <div className="text-sm text-muted-foreground">Refuzate</div>
+          </CardContent>
+        </Card>
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-blue-600">
@@ -469,16 +488,14 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
             <div className="text-sm text-muted-foreground">Valoare Totala</div>
           </CardContent>
         </Card>
-        {!isTollProvider && (
-          <Card className="border-l-4 border-l-amber-500">
-            <CardContent className="p-4">
-              <div className="text-2xl font-bold text-amber-600">
-                {summary?.pending_value?.toLocaleString('ro-RO', { minimumFractionDigits: 2 })} EUR
-              </div>
-              <div className="text-sm text-muted-foreground">In Asteptare</div>
-            </CardContent>
-          </Card>
-        )}
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-amber-600">
+              {summary?.pending_value?.toLocaleString('ro-RO', { minimumFractionDigits: 2 })} EUR
+            </div>
+            <div className="text-sm text-muted-foreground">De Procesat</div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs */}
@@ -524,6 +541,28 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
                 </select>
 
                 <div className="flex items-center gap-2 ml-auto">
+                  {/* Delete Ignored Button - only show when there are ignored transactions */}
+                  {(summary?.ignored || 0) > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm(`Sigur doriti sa stergeti PERMANENT ${summary?.ignored} tranzactii refuzate? Aceasta actiune nu poate fi anulata!`)) {
+                          bulkDeleteMutation.mutate('ignored')
+                        }
+                      }}
+                      disabled={bulkDeleteMutation.isPending}
+                      className="text-red-700 hover:text-red-800 hover:bg-red-100 border-red-300"
+                    >
+                      {bulkDeleteMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      Sterge {summary?.ignored} Refuzate
+                    </Button>
+                  )}
+
                   {/* Reject All Button */}
                   <Button
                     variant="outline"
