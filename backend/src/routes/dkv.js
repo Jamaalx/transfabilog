@@ -821,14 +821,15 @@ router.patch(
 /**
  * DELETE /api/v1/dkv/transactions/bulk-delete
  * Permanently delete transactions (ignored or all)
- * Query param: provider=dkv|eurowag|verag
- * Body: { status?: 'ignored' | 'all' } - delete only ignored or all transactions
+ * Query params:
+ *   - provider=dkv|eurowag|verag
+ *   - status=ignored|all (default: ignored)
  */
 router.delete(
   '/transactions/bulk-delete',
   authorize('admin', 'manager'),
   [
-    body('status').optional().isIn(['ignored', 'all']),
+    query('status').optional().isIn(['ignored', 'all']),
     query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
   ],
   async (req, res, next) => {
@@ -840,7 +841,7 @@ router.delete(
 
       const provider = req.query.provider || 'dkv';
       const tables = getTableNames(provider);
-      const statusFilter = req.body.status || 'ignored'; // Default to deleting only ignored
+      const statusFilter = req.query.status || 'ignored'; // Default to deleting only ignored
 
       let deleteQuery = supabase
         .from(tables.transactions)

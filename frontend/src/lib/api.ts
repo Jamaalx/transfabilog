@@ -157,8 +157,9 @@ export const dkvApi = {
     return api.post('/dkv/transactions/bulk-ignore', { transaction_ids: transactionIds }, { params })
   },
   bulkDeleteTransactions: (status: 'ignored' | 'all', provider?: string) => {
-    const params = provider ? { provider } : {}
-    return api.delete('/dkv/transactions/bulk-delete', { params, data: { status } })
+    const params: Record<string, string> = { status }
+    if (provider) params.provider = provider
+    return api.delete('/dkv/transactions/bulk-delete', { params })
   },
   // Summary - supports provider filtering and batch filtering
   getSummary: (provider?: string, options?: { batch_id?: string; latest?: boolean }) => {
