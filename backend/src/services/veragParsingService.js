@@ -40,6 +40,52 @@ const TOLL_PRODUCTS = {
   'Costi ETOLL': 'etoll_fee',
 };
 
+// Fuel product types for fuel summary invoices
+const FUEL_PRODUCTS = {
+  'ADBLUE': 'adblue',
+  'AdBlue': 'adblue',
+  'AdB. L': 'adblue',
+  'DIESEL': 'diesel',
+  'Diesel': 'diesel',
+  'ON L': 'diesel', // Polish diesel
+  'GASOIL': 'diesel',
+  'Gasoil N': 'diesel',
+  'Gasoil': 'diesel',
+};
+
+// Country name to code mapping for fuel summaries
+const COUNTRY_NAMES = {
+  'Germany': 'DE',
+  'Belgium': 'BE',
+  'Netherlands': 'NL',
+  'France': 'FR',
+  'Poland': 'PL',
+  'Bulgaria': 'BG',
+  'Hungary': 'HU',
+  'Austria': 'AT',
+  'Czech Republic': 'CZ',
+  'Czechia': 'CZ',
+  'Italy': 'IT',
+  'Spain': 'ES',
+  'Portugal': 'PT',
+  'Romania': 'RO',
+  'Slovakia': 'SK',
+  'Slovenia': 'SI',
+  'Croatia': 'HR',
+  'Luxembourg': 'LU',
+  'Switzerland': 'CH',
+  'United Kingdom': 'GB',
+  'Denmark': 'DK',
+  'Sweden': 'SE',
+  'Norway': 'NO',
+  'Finland': 'FI',
+  'Greece': 'GR',
+  'Serbia': 'RS',
+  'Lithuania': 'LT',
+  'Latvia': 'LV',
+  'Estonia': 'EE',
+};
+
 /**
  * Create a standardized key for truck matching
  */
@@ -284,6 +330,30 @@ async function parseVeragPdf(fileBuffer) {
         },
       };
     }
+
+    // If invoice format also fails, try fuel summary format (ZUSAMMENFASSUNG)
+    console.log('No transactions found with invoice format, trying fuel summary format...');
+    const fuelSummaryResult = parseFuelSummaryFormat(lines, text);
+    if (fuelSummaryResult.transactions.length > 0) {
+      console.log(`Found ${fuelSummaryResult.transactions.length} fuel transactions in summary format`);
+      return {
+        transactions: fuelSummaryResult.transactions,
+        metadata: {
+          provider: 'verag',
+          report_date: fuelSummaryResult.reportDate || reportDate?.toISOString().split('T')[0],
+          company_code: fuelSummaryResult.companyCode || companyCode,
+          total_transactions: fuelSummaryResult.transactions.length,
+          total_net_eur: fuelSummaryResult.totalNetEUR,
+          total_vat_eur: fuelSummaryResult.totalVatEUR,
+          total_gross_eur: fuelSummaryResult.totalGrossEUR,
+          currency: 'EUR',
+          period_start: fuelSummaryResult.periodStart,
+          period_end: fuelSummaryResult.periodEnd,
+          vehicles: fuelSummaryResult.vehicles,
+          countries: fuelSummaryResult.countries,
+        },
+      };
+    }
   }
 
   return {
@@ -455,6 +525,191 @@ function parseInvoiceFormat(lines, fullText) {
     totalGrossEUR: Math.round(totalGrossEUR * 100) / 100,
     periodStart: minDate ? minDate.toISOString().split('T')[0] : null,
     periodEnd: maxDate ? maxDate.toISOString().split('T')[0] : null,
+    reportDate,
+    companyCode,
+  };
+}
+
+/**
+ * Parse fuel summary invoice format (ZUSAMMENFASSUNG)
+ * Structure: Country -> Products with quantities and amounts -> VAT -> Gross total
+ * Example lines:
+ *   Germany
+ *   AdBlue
+ *   28.00L
+ *   34.02
+ *   DIESEL
+ *   2,140.80L
+ *   3,067.36
+ *   MWST(19.00%)
+ *   589.26
+ *   3,690.64
+ */
+function parseFuelSummaryFormat(lines, fullText) {
+  const transactions = [];
+  const countries = new Set();
+  let totalNetEUR = 0;
+  let totalVatEUR = 0;
+  let totalGrossEUR = 0;
+  let reportDate = null;
+  let companyCode = null;
+
+  // Extract report/invoice date
+  const dateMatch = fullText.match(/Datum[:\s]*(\d{2})\/(\d{2})\/(\d{4})/i) ||
+                    fullText.match(/Datum[:\s]*(\d{2})\.(\d{2})\.(\d{4})/i);
+  if (dateMatch) {
+    const [, day, month, year] = dateMatch;
+    reportDate = `${year}-${month}-${day}`;
+  }
+
+  // Extract company/sub-account code
+  const companyMatch = fullText.match(/Sub-account[:\s]*(\d+)/i) ||
+                       fullText.match(/Kunden Nr\.[:\s]*(\d+)/i);
+  if (companyMatch) {
+    companyCode = companyMatch[1];
+  }
+
+  // State machine to parse the structure
+  let currentCountry = null;
+  let currentCountryCode = null;
+  let currentProducts = []; // Array of {product, quantity, netAmount}
+  let pendingProduct = null;
+  let pendingQuantity = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Skip empty lines and header/footer content
+    if (!line || line.includes('VERAG') || line.includes('IBAN') ||
+        line.includes('BIC') || line.includes('USt') ||
+        line.includes('Seite') || line.includes('Page') ||
+        line.includes('Bankverbindung') || line.includes('Steuernummer') ||
+        line.includes('Zahlungsreferenz') || line.includes('Zusammenfassung') ||
+        line.includes('ZUSAMMENFASSUNG') || line.includes('Gesamtbetrag') ||
+        line.includes('Dieses Dokument') || line.includes('Transaction charges') ||
+        line.includes('betrag wird abgebucht') || line.includes('COPY') ||
+        line.includes('Beschreibung') || line === 'EUR') {
+      continue;
+    }
+
+    // Check if this is a country name
+    if (COUNTRY_NAMES[line]) {
+      // If we have a previous country with products, finalize it
+      if (currentCountry && currentProducts.length > 0) {
+        // Products were collected but no VAT line found yet - wait for it
+      }
+
+      // Start new country
+      currentCountry = line;
+      currentCountryCode = COUNTRY_NAMES[line];
+      countries.add(currentCountryCode);
+      currentProducts = [];
+      pendingProduct = null;
+      pendingQuantity = null;
+      continue;
+    }
+
+    // Check if this is a fuel product type
+    const productMatch = Object.keys(FUEL_PRODUCTS).find(p =>
+      line === p || line.startsWith(p + ' ') || line.toUpperCase() === p.toUpperCase()
+    );
+    if (productMatch && currentCountry) {
+      // Save any pending product first
+      if (pendingProduct && pendingQuantity !== null) {
+        // We have product + quantity but no amount yet - next numeric line will be amount
+      }
+      pendingProduct = productMatch;
+      pendingQuantity = null;
+      continue;
+    }
+
+    // Check if this is a quantity line (ends with L for liters)
+    const quantityMatch = line.match(/^([\d,.\s]+)L$/i);
+    if (quantityMatch && currentCountry && pendingProduct) {
+      pendingQuantity = parseNumber(quantityMatch[1]);
+      continue;
+    }
+
+    // Check if this is a VAT line (MWST, VAT, TVA with percentage)
+    const vatLineMatch = line.match(/^(MWST|VAT|TVA)\s*\((\d+[.,]?\d*)\s*%\)$/i);
+    if (vatLineMatch && currentCountry && currentProducts.length > 0) {
+      const vatRate = parseNumber(vatLineMatch[2]);
+      // Next line should be VAT amount, then gross total
+      const vatAmountLine = lines[i + 1]?.trim();
+      const grossTotalLine = lines[i + 2]?.trim();
+
+      const countryVatAmount = parseNumber(vatAmountLine);
+      const countryGrossTotal = parseNumber(grossTotalLine);
+
+      if (countryVatAmount !== null && countryGrossTotal !== null) {
+        // Calculate total net for this country
+        const countryNetTotal = currentProducts.reduce((sum, p) => sum + (p.netAmount || 0), 0);
+
+        // Create transactions for each product in this country
+        for (const prod of currentProducts) {
+          // Proportionally allocate VAT based on net amount
+          const proportion = countryNetTotal > 0 ? (prod.netAmount / countryNetTotal) : (1 / currentProducts.length);
+          const productVat = Math.round(countryVatAmount * proportion * 100) / 100;
+          const productGross = Math.round((prod.netAmount + productVat) * 100) / 100;
+
+          transactions.push({
+            vehicle_registration: 'SUMMARY', // Fuel summaries don't have individual vehicles
+            transaction_date: reportDate ? new Date(reportDate).toISOString() : new Date().toISOString(),
+            country: currentCountryCode,
+            country_code: currentCountryCode,
+            product_type: prod.product,
+            product_category: FUEL_PRODUCTS[prod.product] || 'fuel',
+            card_number: null,
+            route_info: null,
+            quantity: prod.quantity,
+            quantity_unit: 'L',
+            net_amount: prod.netAmount,
+            vat_amount: productVat,
+            vat_rate: vatRate,
+            vat_country: currentCountryCode,
+            vat_country_rate: vatRate,
+            vat_refundable: productVat > 0,
+            gross_amount: productGross,
+            currency: 'EUR',
+            provider: 'verag',
+          });
+
+          totalNetEUR += prod.netAmount || 0;
+          totalVatEUR += productVat || 0;
+          totalGrossEUR += productGross || 0;
+        }
+
+        // Reset for next country
+        currentProducts = [];
+        i += 2; // Skip VAT amount and gross total lines
+      }
+      continue;
+    }
+
+    // Check if this is a plain amount (after product + quantity)
+    const amountValue = parseNumber(line);
+    if (amountValue !== null && currentCountry && pendingProduct) {
+      // This could be the net amount for the pending product
+      currentProducts.push({
+        product: pendingProduct,
+        quantity: pendingQuantity,
+        netAmount: amountValue,
+      });
+      pendingProduct = null;
+      pendingQuantity = null;
+      continue;
+    }
+  }
+
+  return {
+    transactions,
+    vehicles: ['SUMMARY'],
+    countries: [...countries],
+    totalNetEUR: Math.round(totalNetEUR * 100) / 100,
+    totalVatEUR: Math.round(totalVatEUR * 100) / 100,
+    totalGrossEUR: Math.round(totalGrossEUR * 100) / 100,
+    periodStart: reportDate,
+    periodEnd: reportDate,
     reportDate,
     companyCode,
   };
@@ -657,6 +912,15 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
       unmatchedCount++;
     }
 
+    // Build notes with additional fuel info if available
+    let notes = `${tx.product_category} | VAT: ${tx.vat_amount?.toFixed(2)} EUR (${tx.vat_rate?.toFixed(0)}%)`;
+    if (tx.quantity && tx.quantity_unit) {
+      notes += ` | Qty: ${tx.quantity}${tx.quantity_unit}`;
+    }
+    if (tx.route_info) {
+      notes += ` | Route: ${tx.route_info}`;
+    }
+
     // Map VERAG fields to verag_transactions table
     transactionsToInsert.push({
       company_id: companyId,
@@ -688,7 +952,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
       vat_refundable: tx.vat_refundable,
       vat_refund_status: tx.vat_amount > 0 ? 'pending' : 'not_applicable',
       // Notes
-      notes: `${tx.product_category} | VAT: ${tx.vat_amount?.toFixed(2)} EUR (${tx.vat_rate?.toFixed(0)}%)${tx.route_info ? ' | Route: ' + tx.route_info : ''}`,
+      notes: notes,
     });
   }
 
@@ -737,4 +1001,6 @@ module.exports = {
   importVeragTransactions,
   VERAG_COUNTRIES,
   TOLL_PRODUCTS,
+  FUEL_PRODUCTS,
+  COUNTRY_NAMES,
 };
