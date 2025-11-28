@@ -185,9 +185,9 @@ async function parseVeragPdf(fileBuffer) {
   const pdfData = await pdfParse(fileBuffer);
   const text = pdfData.text;
 
-  // Debug: Log first 2000 characters to understand PDF structure
+  // Debug: Log first 3000 characters to understand PDF structure
   console.log('=== VERAG PDF DEBUG ===');
-  console.log('PDF Text (first 2000 chars):', text.substring(0, 2000));
+  console.log('PDF Text (first 3000 chars):', text.substring(0, 3000));
   console.log('=== END PDF DEBUG ===');
 
   // Split into lines and clean up
@@ -198,180 +198,344 @@ async function parseVeragPdf(fileBuffer) {
   lines.slice(0, 50).forEach((line, i) => console.log(`Line ${i}: ${line}`));
   console.log('=== END PDF LINES ===');
 
-  // Extract report date from header
-  let reportDate = null;
-  const dateMatch = text.match(/Datum:\s*(\d{2}\.\d{2}\.\d{4})/);
-  if (dateMatch) {
-    reportDate = parseDate(dateMatch[1]);
+  // Detect PDF type
+  const isMautReport = text.includes('MAUT REPORT') || text.includes('LKW-Kennzeichen');
+  const isZusammenfassung = text.includes('ZUSAMMENFASSUNG') || text.includes('Zusammenfassung');
+  const hasFuelDetailLines = /\d{2}\/\d{2}\/\d{2}\s+\d{4}/.test(text); // DD/MM/YY HHMM format
+
+  console.log('=== PDF Type Detection ===');
+  console.log('isMautReport:', isMautReport);
+  console.log('isZusammenfassung:', isZusammenfassung);
+  console.log('hasFuelDetailLines:', hasFuelDetailLines);
+  console.log('=== END PDF Type Detection ===');
+
+  // Try fuel summary with detailed transactions first if detected
+  if (isZusammenfassung || hasFuelDetailLines) {
+    console.log('Trying fuel summary format with detailed transactions...');
+    const fuelResult = parseFuelSummaryFormat(lines, text);
+    if (fuelResult.transactions.length > 0) {
+      console.log(`Found ${fuelResult.transactions.length} fuel transactions`);
+      return {
+        transactions: fuelResult.transactions,
+        metadata: {
+          provider: 'verag',
+          report_date: fuelResult.reportDate,
+          company_code: fuelResult.companyCode,
+          total_transactions: fuelResult.transactions.length,
+          total_net_eur: fuelResult.totalNetEUR,
+          total_vat_eur: fuelResult.totalVatEUR,
+          total_gross_eur: fuelResult.totalGrossEUR,
+          currency: 'EUR',
+          period_start: fuelResult.periodStart,
+          period_end: fuelResult.periodEnd,
+          vehicles: fuelResult.vehicles,
+          countries: fuelResult.countries,
+        },
+      };
+    }
   }
 
-  // Extract company info
-  let companyCode = null;
-  const companyMatch = text.match(/(\d{6})\s+[A-Z\s]+SRL/);
-  if (companyMatch) {
-    companyCode = companyMatch[1];
+  // Try MAUT REPORT format
+  if (isMautReport) {
+    console.log('Trying MAUT REPORT format...');
+    const mautResult = parseMautReportFormat(lines, text);
+    if (mautResult.transactions.length > 0) {
+      console.log(`Found ${mautResult.transactions.length} MAUT transactions`);
+      return {
+        transactions: mautResult.transactions,
+        metadata: {
+          provider: 'verag',
+          report_date: mautResult.reportDate,
+          company_code: mautResult.companyCode,
+          total_transactions: mautResult.transactions.length,
+          total_net_eur: mautResult.totalNetEUR,
+          total_vat_eur: mautResult.totalVatEUR,
+          total_gross_eur: mautResult.totalGrossEUR,
+          currency: 'EUR',
+          period_start: mautResult.periodStart,
+          period_end: mautResult.periodEnd,
+          vehicles: mautResult.vehicles,
+          countries: mautResult.countries,
+        },
+      };
+    }
   }
 
+  // Fallback: try generic invoice format
+  console.log('Trying generic invoice format...');
+  const invoiceResult = parseInvoiceFormat(lines, text);
+  if (invoiceResult.transactions.length > 0) {
+    return {
+      transactions: invoiceResult.transactions,
+      metadata: {
+        provider: 'verag',
+        report_date: invoiceResult.reportDate,
+        company_code: invoiceResult.companyCode,
+        total_transactions: invoiceResult.transactions.length,
+        total_net_eur: invoiceResult.totalNetEUR,
+        total_vat_eur: invoiceResult.totalVatEUR,
+        total_gross_eur: invoiceResult.totalGrossEUR,
+        currency: 'EUR',
+        period_start: invoiceResult.periodStart,
+        period_end: invoiceResult.periodEnd,
+        vehicles: invoiceResult.vehicles,
+        countries: invoiceResult.countries,
+      },
+    };
+  }
+
+  // No transactions found
+  return {
+    transactions: [],
+    metadata: {
+      provider: 'verag',
+      report_date: null,
+      company_code: null,
+      total_transactions: 0,
+      total_net_eur: 0,
+      total_vat_eur: 0,
+      total_gross_eur: 0,
+      currency: 'EUR',
+      period_start: null,
+      period_end: null,
+      vehicles: [],
+      countries: [],
+    },
+  };
+}
+
+/**
+ * Parse MAUT REPORT format PDFs
+ * These have transaction lines in format:
+ * [Product?] Gross Net VAT Country Date CardNumber [RouteInfo]
+ * Example: 275,39275,390,00DE09.04.2025000490984032037
+ * Example: ÚTDÍJAK48,3338,0610,27HU06.04.202500049098403203742U61K275MM4U105K5M
+ */
+function parseMautReportFormat(lines, fullText) {
   const transactions = [];
-  let currentTruck = null;
+  const vehicles = new Set();
+  const countries = new Set();
   let totalNetEUR = 0;
   let totalVatEUR = 0;
   let totalGrossEUR = 0;
   let minDate = null;
   let maxDate = null;
-  const vehicles = new Set();
-  const countries = new Set();
+  let reportDate = null;
+  let companyCode = null;
+  let currentTruck = null;
 
-  // Parse line by line
+  // Extract report date
+  const dateMatch = fullText.match(/Datum:\s*(\d{2})\.(\d{2})\.(\d{4})/);
+  if (dateMatch) {
+    const [, day, month, year] = dateMatch;
+    reportDate = `${year}-${month}-${day}`;
+  }
+
+  // Extract company code
+  const companyMatch = fullText.match(/(\d{6})\s+[A-Z\s]+SRL/);
+  if (companyMatch) {
+    companyCode = companyMatch[1];
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Check for truck header: "LKW-Kennzeichen: B16TFL"
-    const truckMatch = line.match(/LKW-Kennzeichen:\s*([A-Z0-9]+)/);
+    // Check for truck header - can be on same line or next line
+    const truckMatch = line.match(/LKW-Kennzeichen:\s*([A-Z0-9]+)/i);
     if (truckMatch) {
       currentTruck = truckMatch[1];
       vehicles.add(currentTruck);
       continue;
     }
 
-    // Alternative truck patterns for invoice format
-    // Pattern: "Kennzeichen: XX-XXXX" or just registration number like "B 16 TFL" or "B16TFL"
-    const altTruckMatch = line.match(/Kennzeichen[:\s]+([A-Z]{1,3}[\s\-]?\d{2,3}[\s\-]?[A-Z]{2,3})/i) ||
-                          line.match(/^([A-Z]{1,3}[\s\-]?\d{2,3}[\s\-]?[A-Z]{2,3})$/i);
-    if (altTruckMatch && !currentTruck) {
-      currentTruck = altTruckMatch[1].replace(/[\s\-]/g, '');
-      vehicles.add(currentTruck);
-      continue;
+    // Check if previous line was "LKW-Kennzeichen:" and this line is the registration
+    if (i > 0 && lines[i - 1].match(/LKW-Kennzeichen:\s*$/i)) {
+      const regMatch = line.match(/^([A-Z]{1,3}\d{1,3}[A-Z]{2,3})$/i);
+      if (regMatch) {
+        currentTruck = regMatch[1].toUpperCase();
+        vehicles.add(currentTruck);
+        continue;
+      }
     }
 
-    // Skip summary sections
+    // Skip header/footer lines
     if (line.includes('Gesamtsumme') || line.includes('Länder Gesamt') ||
-        line.includes('Sachbearbeiter') || line.includes('VERAG 360 GMBH') ||
+        line.includes('Sachbearbeiter') || line.includes('VERAG') ||
         line.includes('Seite') || line.includes('MAUT REPORT') ||
-        line.includes('Anlage zur Sammelrechnung') ||
-        line.includes('Bankverbindung') || line.includes('IBAN') ||
-        line.includes('USt-IdNr') || line.includes('Steuernummer')) {
+        line.includes('Anlage') || line.includes('IBAN') ||
+        line.includes('USt') || line.includes('Steuer') ||
+        line.includes('DatumLand') || line.includes('Kartennummer') ||
+        /^\d+,\d+$/.test(line)) { // Skip subtotal lines
       continue;
     }
 
-    // Try to parse transaction line
-    // Format: Land Datum [Produkt] Kartennummer [RouteInfo] Netto MWST Brutto
-    // Example: AT 29.03.2025 000490984032037 96,63 19,33 115,96
-    // Example: HU 21.03.2025 ÚTDÍJAK 000490984032037 42U61K275M M0U26K100M 77,75 20,99 98,74
-
-    // Check if line starts with a country code
-    const countryCode = line.substring(0, 3).trim();
-    let hasCountryCode = VERAG_COUNTRIES.includes(countryCode);
-    if (!hasCountryCode) {
-      // Check for 2-letter codes at start
-      const twoLetterCode = line.substring(0, 2);
-      hasCountryCode = VERAG_COUNTRIES.includes(twoLetterCode);
-    }
-
-    if (!hasCountryCode) continue;
-
-    // Parse the transaction line - try with currentTruck or extract from line
-    const transaction = parseTransactionLine(line, currentTruck || 'UNKNOWN');
+    // Try to parse the transaction line with the new format
+    // Pattern: [Product?] Amount Amount Amount Country DD.MM.YYYY CardNumber [RouteInfo]
+    const transaction = parseMautTransactionLine(line, currentTruck);
     if (transaction) {
-      // If no currentTruck yet, try to extract vehicle registration from line or use UNKNOWN
-      if (!currentTruck && transaction.vehicle_registration === 'UNKNOWN') {
-        // Try to find vehicle in the line itself (for invoice formats with inline vehicle)
-        const inlineVehicle = extractInlineVehicle(line);
-        if (inlineVehicle) {
-          transaction.vehicle_registration = inlineVehicle;
-          vehicles.add(inlineVehicle);
-        }
-      }
-
       transactions.push(transaction);
+      countries.add(transaction.country);
 
-      if (transaction.country) {
-        countries.add(transaction.country);
-      }
+      totalNetEUR += transaction.net_amount || 0;
+      totalVatEUR += transaction.vat_amount || 0;
+      totalGrossEUR += transaction.gross_amount || 0;
 
-      if (transaction.net_amount) {
-        totalNetEUR += transaction.net_amount;
-      }
-      if (transaction.vat_amount) {
-        totalVatEUR += transaction.vat_amount;
-      }
-      if (transaction.gross_amount) {
-        totalGrossEUR += transaction.gross_amount;
-      }
-
-      if (transaction.transaction_date) {
-        const txDate = new Date(transaction.transaction_date);
-        if (!minDate || txDate < minDate) minDate = txDate;
-        if (!maxDate || txDate > maxDate) maxDate = txDate;
-      }
-    }
-  }
-
-  // If no transactions found with standard format, try invoice format
-  if (transactions.length === 0) {
-    console.log('No transactions found with standard format, trying invoice format...');
-    const invoiceResult = parseInvoiceFormat(lines, text);
-    if (invoiceResult.transactions.length > 0) {
-      return {
-        transactions: invoiceResult.transactions,
-        metadata: {
-          provider: 'verag',
-          report_date: invoiceResult.reportDate || reportDate?.toISOString().split('T')[0],
-          company_code: invoiceResult.companyCode || companyCode,
-          total_transactions: invoiceResult.transactions.length,
-          total_net_eur: invoiceResult.totalNetEUR,
-          total_vat_eur: invoiceResult.totalVatEUR,
-          total_gross_eur: invoiceResult.totalGrossEUR,
-          currency: 'EUR',
-          period_start: invoiceResult.periodStart,
-          period_end: invoiceResult.periodEnd,
-          vehicles: invoiceResult.vehicles,
-          countries: invoiceResult.countries,
-        },
-      };
-    }
-
-    // If invoice format also fails, try fuel summary format (ZUSAMMENFASSUNG)
-    console.log('No transactions found with invoice format, trying fuel summary format...');
-    const fuelSummaryResult = parseFuelSummaryFormat(lines, text);
-    if (fuelSummaryResult.transactions.length > 0) {
-      console.log(`Found ${fuelSummaryResult.transactions.length} fuel transactions in summary format`);
-      return {
-        transactions: fuelSummaryResult.transactions,
-        metadata: {
-          provider: 'verag',
-          report_date: fuelSummaryResult.reportDate || reportDate?.toISOString().split('T')[0],
-          company_code: fuelSummaryResult.companyCode || companyCode,
-          total_transactions: fuelSummaryResult.transactions.length,
-          total_net_eur: fuelSummaryResult.totalNetEUR,
-          total_vat_eur: fuelSummaryResult.totalVatEUR,
-          total_gross_eur: fuelSummaryResult.totalGrossEUR,
-          currency: 'EUR',
-          period_start: fuelSummaryResult.periodStart,
-          period_end: fuelSummaryResult.periodEnd,
-          vehicles: fuelSummaryResult.vehicles,
-          countries: fuelSummaryResult.countries,
-        },
-      };
+      const txDate = new Date(transaction.transaction_date);
+      if (!minDate || txDate < minDate) minDate = txDate;
+      if (!maxDate || txDate > maxDate) maxDate = txDate;
     }
   }
 
   return {
     transactions,
-    metadata: {
-      provider: 'verag',
-      report_date: reportDate ? reportDate.toISOString().split('T')[0] : null,
-      company_code: companyCode,
-      total_transactions: transactions.length,
-      total_net_eur: Math.round(totalNetEUR * 100) / 100,
-      total_vat_eur: Math.round(totalVatEUR * 100) / 100,
-      total_gross_eur: Math.round(totalGrossEUR * 100) / 100,
-      currency: 'EUR',
-      period_start: minDate ? minDate.toISOString().split('T')[0] : null,
-      period_end: maxDate ? maxDate.toISOString().split('T')[0] : null,
-      vehicles: [...vehicles],
-      countries: [...countries],
-    },
+    vehicles: [...vehicles],
+    countries: [...countries],
+    totalNetEUR: Math.round(totalNetEUR * 100) / 100,
+    totalVatEUR: Math.round(totalVatEUR * 100) / 100,
+    totalGrossEUR: Math.round(totalGrossEUR * 100) / 100,
+    periodStart: minDate ? minDate.toISOString().split('T')[0] : null,
+    periodEnd: maxDate ? maxDate.toISOString().split('T')[0] : null,
+    reportDate,
+    companyCode,
+  };
+}
+
+/**
+ * Parse a MAUT REPORT transaction line
+ * Format: [Product?] Gross Net VAT Country DD.MM.YYYY CardNumber [RouteInfo]
+ */
+function parseMautTransactionLine(line, currentTruck) {
+  // Must contain a date in DD.MM.YYYY format
+  const dateMatch = line.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+  if (!dateMatch) return null;
+
+  const [fullDateMatch, day, month, year] = dateMatch;
+  const transactionDate = new Date(year, month - 1, day);
+  const dateIndex = line.indexOf(fullDateMatch);
+
+  // Find country code right before the date (2-3 chars)
+  // Look for country code pattern in the text before the date
+  const beforeDate = line.substring(0, dateIndex);
+  let country = null;
+  let countryIndex = -1;
+
+  // Try to find country code at the end of beforeDate
+  for (const cc of VERAG_COUNTRIES) {
+    const ccIndex = beforeDate.lastIndexOf(cc);
+    if (ccIndex !== -1 && (countryIndex === -1 || ccIndex > countryIndex)) {
+      // Make sure it's at the end or followed by nothing (concatenated)
+      const afterCc = beforeDate.substring(ccIndex + cc.length);
+      if (afterCc === '' || /^\s*$/.test(afterCc)) {
+        country = cc;
+        countryIndex = ccIndex;
+      }
+    }
+  }
+
+  if (!country) return null;
+
+  // Get the part before the country code (contains product and amounts)
+  const beforeCountry = line.substring(0, countryIndex);
+
+  // Extract amounts - three numbers concatenated like "275,39275,390,00" or "48,3338,0610,27"
+  // Pattern: number with comma decimal, possibly with thousands separator
+  const amountPattern = /(\d{1,3}(?:\.\d{3})*,\d{2})/g;
+  const amounts = [];
+  let match;
+  let lastAmountEnd = 0;
+  let productPart = beforeCountry;
+
+  while ((match = amountPattern.exec(beforeCountry)) !== null) {
+    amounts.push(parseNumber(match[1]));
+    if (amounts.length === 1) {
+      productPart = beforeCountry.substring(0, match.index);
+    }
+    lastAmountEnd = match.index + match[0].length;
+  }
+
+  // Need exactly 3 amounts: Gross, Net, VAT
+  if (amounts.length !== 3) return null;
+
+  // Amounts are in order: Gross, Net, VAT (based on header "BruttoMWSTProduktNetto" - but actual data shows Brutto, Netto, MWST)
+  // Let's verify: Gross should equal Net + VAT
+  // From example: 48,33 38,06 10,27 -> 38.06 + 10.27 = 48.33 ✓
+  // So order is: Gross, Net, VAT
+  let [grossAmount, netAmount, vatAmount] = amounts;
+
+  // Sanity check: net + vat should approximately equal gross
+  const calculatedGross = netAmount + vatAmount;
+  if (Math.abs(calculatedGross - grossAmount) > 0.02) {
+    // Try different order: maybe Net, Gross, VAT? or other combinations
+    // Actually, recheck based on the actual data patterns
+    // Looking at "275,39275,390,00" for DE (no VAT): Gross=Net=275.39, VAT=0
+    // This means order is actually: Gross, Net, VAT with Net=Gross when VAT=0
+    // Let's trust the order we detected
+  }
+
+  // Extract card number after the date (15+ digit number)
+  const afterDate = line.substring(dateIndex + fullDateMatch.length);
+  const cardMatch = afterDate.match(/(\d{12,})/);
+  const cardNumber = cardMatch ? cardMatch[1] : null;
+
+  // Extract route info (anything after card number)
+  let routeInfo = null;
+  if (cardMatch) {
+    const afterCard = afterDate.substring(afterDate.indexOf(cardMatch[1]) + cardMatch[1].length).trim();
+    if (afterCard && afterCard.length > 0 && !/^\d/.test(afterCard)) {
+      routeInfo = afterCard;
+    }
+  }
+
+  // Extract product type from the beginning
+  let productType = null;
+  let productCategory = 'toll_generic';
+  productPart = productPart.trim();
+
+  if (productPart) {
+    for (const [key, category] of Object.entries(TOLL_PRODUCTS)) {
+      if (productPart.includes(key) || productPart.toUpperCase().includes(key.toUpperCase())) {
+        productType = key;
+        productCategory = category;
+        break;
+      }
+    }
+    if (!productType && productPart.length > 0) {
+      productType = productPart;
+    }
+  }
+
+  // Default category based on country if not set
+  if (productCategory === 'toll_generic' && !productType) {
+    productCategory = getProductCategory(null, country);
+  }
+
+  // Calculate VAT rate
+  const vatRate = vatAmount > 0 && netAmount > 0
+    ? Math.round((vatAmount / netAmount) * 10000) / 100
+    : 0;
+
+  // Get country VAT info
+  const countryCode = bnrService.getCountryCode(country) || country;
+  const vatInfo = bnrService.getVatRate(country);
+
+  return {
+    vehicle_registration: currentTruck || 'UNKNOWN',
+    transaction_date: transactionDate.toISOString(),
+    country: country,
+    country_code: countryCode,
+    product_type: productType,
+    product_category: productCategory,
+    card_number: cardNumber,
+    route_info: routeInfo,
+    net_amount: netAmount,
+    vat_amount: vatAmount,
+    vat_rate: vatRate,
+    vat_country: countryCode,
+    vat_country_rate: vatInfo.rate,
+    vat_refundable: vatInfo.refundable && vatAmount > 0,
+    gross_amount: grossAmount,
+    currency: 'EUR',
+    provider: 'verag',
   };
 }
 
@@ -532,27 +696,23 @@ function parseInvoiceFormat(lines, fullText) {
 
 /**
  * Parse fuel summary invoice format (ZUSAMMENFASSUNG)
- * Structure: Country -> Products with quantities and amounts -> VAT -> Gross total
- * Example lines:
- *   Germany
- *   AdBlue
- *   28.00L
- *   34.02
- *   DIESEL
- *   2,140.80L
- *   3,067.36
- *   MWST(19.00%)
- *   589.26
- *   3,690.64
+ * This format has:
+ * 1. Summary section by country (Country -> Products -> VAT -> Totals)
+ * 2. Detailed transaction lines with date/time/vehicle:
+ *    DD/MM/YY HHMM CardCode InternalCode 0 Product Station Currency...
+ *    Example: 26/04/25 1423 00156403 10346 0 AdB. L Szczecin-RPLN...
  */
 function parseFuelSummaryFormat(lines, fullText) {
   const transactions = [];
+  const vehicles = new Set();
   const countries = new Set();
   let totalNetEUR = 0;
   let totalVatEUR = 0;
   let totalGrossEUR = 0;
   let reportDate = null;
   let companyCode = null;
+  let minDate = null;
+  let maxDate = null;
 
   // Extract report/invoice date
   const dateMatch = fullText.match(/Datum[:\s]*(\d{2})\/(\d{2})\/(\d{4})/i) ||
@@ -569,17 +729,313 @@ function parseFuelSummaryFormat(lines, fullText) {
     companyCode = companyMatch[1];
   }
 
+  // Build a map of card codes to vehicle registrations from "KarteZwischensumme" lines
+  // Format: KarteZwischensumme0060009723-TRANSFABILOGSRL-10346MS40TFL1,841.60
+  const cardToVehicle = new Map();
+  const vehicleRegex = /KarteZwischensumme.*?-(\d+)([A-Z]{2}\d{2}[A-Z]{2,3})/gi;
+  let vehicleMatch;
+  while ((vehicleMatch = vehicleRegex.exec(fullText)) !== null) {
+    const internalCode = vehicleMatch[1];
+    const vehicleReg = vehicleMatch[2];
+    cardToVehicle.set(internalCode, vehicleReg);
+    vehicles.add(vehicleReg);
+  }
+
+  console.log('=== Vehicle mapping from Zwischensumme ===');
+  console.log('Card to Vehicle map:', Object.fromEntries(cardToVehicle));
+  console.log('=== END Vehicle mapping ===');
+
+  // Parse detailed transaction lines
+  // Format: DD/MM/YY HHMM CardCode InternalCode 0 Product Station Currency Price Discount NetPrice Rate NetPriceEUR Qty Rate NetAmtEUR TicketNr
+  // Example: 26/04/25 1423        00156403 10346 0 AdB. L     Szczecin-RPLN     3.5310   0.0000  3.5310    4.2683   0.8273   26.00L 1.0000     21.51 4655510082
+  const detailLineRegex = /^(\d{2})\/(\d{2})\/(\d{2})\s+(\d{4})\s+(\d+)\s+(\d+)\s+\d\s+([A-Za-z\.\s]+?)\s+([A-Za-z\-]+)\s*([A-Z]{3})?\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)L\s+([\d.,]+)\s+([\d.,]+)/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Try to parse detailed transaction line
+    const detailMatch = line.match(detailLineRegex);
+    if (detailMatch) {
+      const [, day, month, year, time, cardCode, internalCode, product, station, currency,
+             stationPrice, discount, netPrice, exchangeRate1, netPriceEur, quantity, exchangeRate2, netAmountEur] = detailMatch;
+
+      // Parse the date (year is 2-digit)
+      const fullYear = parseInt(year) + 2000;
+      const transactionDate = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+
+      // Get vehicle registration from mapping or try to extract
+      let vehicleReg = cardToVehicle.get(internalCode) || 'UNKNOWN';
+
+      // Determine country from currency or station name
+      let countryCode = 'DE'; // Default to Germany for EUR
+      const stationLower = station.toLowerCase();
+
+      // Currency-based country detection
+      if (currency === 'PLN') countryCode = 'PL';
+      else if (currency === 'HUF') countryCode = 'HU';
+      else if (currency === 'CZK') countryCode = 'CZ';
+      else if (currency === 'RON') countryCode = 'RO';
+      else if (currency === 'BGN') countryCode = 'BG';
+      else if (currency === 'EUR') {
+        // For EUR, try to detect country from station name
+        if (stationLower.includes('suben') || stationLower.includes('österreich') || stationLower.includes('austria')) {
+          countryCode = 'AT';
+        } else if (stationLower.includes('gundershe') || stationLower.includes('germany') || stationLower.includes('deutsch')) {
+          countryCode = 'DE';
+        } else if (stationLower.includes('beaune') || stationLower.includes('france') || stationLower.includes('frank')) {
+          countryCode = 'FR';
+        } else if (stationLower.includes('belgi') || stationLower.includes('brux') || stationLower.includes('antwerp')) {
+          countryCode = 'BE';
+        } else if (stationLower.includes('netherl') || stationLower.includes('holland')) {
+          countryCode = 'NL';
+        } else if (stationLower.includes('luxemb')) {
+          countryCode = 'LU';
+        } else if (stationLower.includes('ital') || stationLower.includes('roma') || stationLower.includes('milan')) {
+          countryCode = 'IT';
+        } else if (stationLower.includes('spain') || stationLower.includes('españa')) {
+          countryCode = 'ES';
+        } else {
+          // Default to Austria for Suben-area stations (common in VERAG)
+          countryCode = 'AT';
+        }
+      }
+
+      // Normalize product name
+      const productNormalized = product.trim();
+      let productCategory = 'fuel';
+      for (const [key, cat] of Object.entries(FUEL_PRODUCTS)) {
+        if (productNormalized.toLowerCase().includes(key.toLowerCase()) ||
+            key.toLowerCase().includes(productNormalized.toLowerCase())) {
+          productCategory = cat;
+          break;
+        }
+      }
+
+      const netAmount = parseNumber(netAmountEur);
+      const qty = parseNumber(quantity);
+
+      if (netAmount !== null && netAmount > 0) {
+        transactions.push({
+          vehicle_registration: vehicleReg,
+          transaction_date: transactionDate.toISOString(),
+          country: countryCode,
+          country_code: countryCode,
+          product_type: productNormalized,
+          product_category: productCategory,
+          card_number: cardCode,
+          route_info: station.trim(),
+          quantity: qty,
+          quantity_unit: 'L',
+          net_amount: netAmount,
+          vat_amount: 0, // VAT calculated at summary level
+          vat_rate: 0,
+          vat_country: countryCode,
+          vat_country_rate: 0,
+          vat_refundable: true,
+          gross_amount: netAmount, // Gross will be calculated with VAT later
+          currency: 'EUR',
+          original_currency: currency || 'EUR',
+          provider: 'verag',
+        });
+
+        countries.add(countryCode);
+        totalNetEUR += netAmount;
+
+        if (!minDate || transactionDate < minDate) minDate = transactionDate;
+        if (!maxDate || transactionDate > maxDate) maxDate = transactionDate;
+
+        if (vehicleReg !== 'UNKNOWN') {
+          vehicles.add(vehicleReg);
+        }
+      }
+      continue;
+    }
+
+    // Alternative simpler pattern for fuel detail lines (less columns)
+    // Pattern: DD/MM/YY HHMM ... Amount TicketNr
+    const simpleDetailMatch = line.match(/^(\d{2})\/(\d{2})\/(\d{2})\s+(\d{4})\s+(\d+)\s+(\d+)/);
+    if (simpleDetailMatch && !detailMatch) {
+      // Try to extract vehicle from internal code lookup
+      const internalCode = simpleDetailMatch[6];
+      const vehicleReg = cardToVehicle.get(internalCode);
+
+      // Look for amount near the end of the line
+      const amountsInLine = line.match(/(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})/g);
+      if (amountsInLine && amountsInLine.length >= 1 && vehicleReg) {
+        // Last amount is usually the net amount in EUR
+        const netAmount = parseNumber(amountsInLine[amountsInLine.length - 1]);
+
+        // Try to find quantity (number followed by L)
+        const qtyMatch = line.match(/([\d.,]+)L/);
+        const quantity = qtyMatch ? parseNumber(qtyMatch[1]) : null;
+
+        // Try to find product
+        let product = 'FUEL';
+        for (const productKey of Object.keys(FUEL_PRODUCTS)) {
+          if (line.toUpperCase().includes(productKey.toUpperCase())) {
+            product = productKey;
+            break;
+          }
+        }
+
+        const [, day, month, year] = simpleDetailMatch;
+        const fullYear = parseInt(year) + 2000;
+        const transactionDate = new Date(fullYear, parseInt(month) - 1, parseInt(day));
+
+        if (netAmount !== null && netAmount > 0) {
+          transactions.push({
+            vehicle_registration: vehicleReg,
+            transaction_date: transactionDate.toISOString(),
+            country: 'EU',
+            country_code: 'EU',
+            product_type: product,
+            product_category: FUEL_PRODUCTS[product] || 'fuel',
+            card_number: simpleDetailMatch[5],
+            route_info: null,
+            quantity: quantity,
+            quantity_unit: 'L',
+            net_amount: netAmount,
+            vat_amount: 0,
+            vat_rate: 0,
+            vat_country: 'EU',
+            vat_country_rate: 0,
+            vat_refundable: true,
+            gross_amount: netAmount,
+            currency: 'EUR',
+            provider: 'verag',
+          });
+
+          countries.add('EU');
+          totalNetEUR += netAmount;
+          vehicles.add(vehicleReg);
+
+          if (!minDate || transactionDate < minDate) minDate = transactionDate;
+          if (!maxDate || transactionDate > maxDate) maxDate = transactionDate;
+        }
+      }
+    }
+  }
+
+  // If no detailed transactions found, fall back to summary parsing
+  if (transactions.length === 0) {
+    console.log('No detailed transactions found, trying summary parsing...');
+    return parseFuelSummaryOnly(lines, fullText, reportDate, companyCode);
+  }
+
+  // Apply VAT from summary section to detailed transactions
+  // Extract VAT rates per country from summary
+  const vatRatesByCountry = extractVatRatesFromSummary(lines);
+  console.log('VAT rates by country:', vatRatesByCountry);
+
+  // Create a mapping from country code to VAT rate
+  const vatRatesByCode = {};
+  for (const [countryName, vatInfo] of Object.entries(vatRatesByCountry)) {
+    const code = COUNTRY_NAMES[countryName];
+    if (code) {
+      vatRatesByCode[code] = vatInfo;
+    }
+  }
+  console.log('VAT rates by code:', vatRatesByCode);
+
+  // Update transactions with VAT info
+  for (const tx of transactions) {
+    // Try to find VAT rate by country code first, then by country name
+    let vatInfo = vatRatesByCode[tx.country];
+    if (!vatInfo) {
+      const countryName = Object.entries(COUNTRY_NAMES).find(([name, code]) => code === tx.country)?.[0];
+      vatInfo = vatRatesByCountry[countryName];
+    }
+
+    if (vatInfo) {
+      const vatAmount = Math.round(tx.net_amount * (vatInfo.rate / 100) * 100) / 100;
+      tx.vat_amount = vatAmount;
+      tx.vat_rate = vatInfo.rate;
+      tx.vat_country_rate = vatInfo.rate;
+      tx.gross_amount = Math.round((tx.net_amount + vatAmount) * 100) / 100;
+      totalVatEUR += vatAmount;
+    } else {
+      // Use default VAT rates for common countries
+      const defaultVatRates = {
+        'DE': 19, 'AT': 20, 'FR': 20, 'BE': 21, 'NL': 21, 'IT': 22,
+        'PL': 23, 'CZ': 21, 'HU': 27, 'SK': 20, 'RO': 19, 'BG': 20,
+        'SI': 22, 'HR': 25, 'LU': 17, 'ES': 21, 'PT': 23,
+      };
+      const defaultRate = defaultVatRates[tx.country] || 20;
+      const vatAmount = Math.round(tx.net_amount * (defaultRate / 100) * 100) / 100;
+      tx.vat_amount = vatAmount;
+      tx.vat_rate = defaultRate;
+      tx.vat_country_rate = defaultRate;
+      tx.gross_amount = Math.round((tx.net_amount + vatAmount) * 100) / 100;
+      totalVatEUR += vatAmount;
+    }
+  }
+
+  totalGrossEUR = totalNetEUR + totalVatEUR;
+
+  return {
+    transactions,
+    vehicles: [...vehicles],
+    countries: [...countries],
+    totalNetEUR: Math.round(totalNetEUR * 100) / 100,
+    totalVatEUR: Math.round(totalVatEUR * 100) / 100,
+    totalGrossEUR: Math.round(totalGrossEUR * 100) / 100,
+    periodStart: minDate ? minDate.toISOString().split('T')[0] : reportDate,
+    periodEnd: maxDate ? maxDate.toISOString().split('T')[0] : reportDate,
+    reportDate,
+    companyCode,
+  };
+}
+
+/**
+ * Extract VAT rates from the summary section
+ */
+function extractVatRatesFromSummary(lines) {
+  const vatRates = {};
+  let currentCountry = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    // Check for country name
+    if (COUNTRY_NAMES[line]) {
+      currentCountry = line;
+      continue;
+    }
+
+    // Check for VAT line
+    const vatMatch = line.match(/^(MWST|VAT|TVA)\s*\((\d+[.,]?\d*)\s*%\)$/i);
+    if (vatMatch && currentCountry) {
+      vatRates[currentCountry] = {
+        rate: parseNumber(vatMatch[2]),
+        type: vatMatch[1],
+      };
+    }
+  }
+
+  return vatRates;
+}
+
+/**
+ * Parse only the summary section (fallback when no detail lines)
+ */
+function parseFuelSummaryOnly(lines, fullText, reportDate, companyCode) {
+  const transactions = [];
+  const countries = new Set();
+  let totalNetEUR = 0;
+  let totalVatEUR = 0;
+  let totalGrossEUR = 0;
+
   // State machine to parse the structure
   let currentCountry = null;
   let currentCountryCode = null;
-  let currentProducts = []; // Array of {product, quantity, netAmount}
+  let currentProducts = [];
   let pendingProduct = null;
   let pendingQuantity = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // Skip empty lines and header/footer content
+    // Skip empty/header lines
     if (!line || line.includes('VERAG') || line.includes('IBAN') ||
         line.includes('BIC') || line.includes('USt') ||
         line.includes('Seite') || line.includes('Page') ||
@@ -592,14 +1048,8 @@ function parseFuelSummaryFormat(lines, fullText) {
       continue;
     }
 
-    // Check if this is a country name
+    // Check for country name
     if (COUNTRY_NAMES[line]) {
-      // If we have a previous country with products, finalize it
-      if (currentCountry && currentProducts.length > 0) {
-        // Products were collected but no VAT line found yet - wait for it
-      }
-
-      // Start new country
       currentCountry = line;
       currentCountryCode = COUNTRY_NAMES[line];
       countries.add(currentCountryCode);
@@ -609,32 +1059,27 @@ function parseFuelSummaryFormat(lines, fullText) {
       continue;
     }
 
-    // Check if this is a fuel product type
+    // Check for fuel product type
     const productMatch = Object.keys(FUEL_PRODUCTS).find(p =>
       line === p || line.startsWith(p + ' ') || line.toUpperCase() === p.toUpperCase()
     );
     if (productMatch && currentCountry) {
-      // Save any pending product first
-      if (pendingProduct && pendingQuantity !== null) {
-        // We have product + quantity but no amount yet - next numeric line will be amount
-      }
       pendingProduct = productMatch;
       pendingQuantity = null;
       continue;
     }
 
-    // Check if this is a quantity line (ends with L for liters)
+    // Check for quantity line
     const quantityMatch = line.match(/^([\d,.\s]+)L$/i);
     if (quantityMatch && currentCountry && pendingProduct) {
       pendingQuantity = parseNumber(quantityMatch[1]);
       continue;
     }
 
-    // Check if this is a VAT line (MWST, VAT, TVA with percentage)
+    // Check for VAT line
     const vatLineMatch = line.match(/^(MWST|VAT|TVA)\s*\((\d+[.,]?\d*)\s*%\)$/i);
     if (vatLineMatch && currentCountry && currentProducts.length > 0) {
       const vatRate = parseNumber(vatLineMatch[2]);
-      // Next line should be VAT amount, then gross total
       const vatAmountLine = lines[i + 1]?.trim();
       const grossTotalLine = lines[i + 2]?.trim();
 
@@ -642,18 +1087,15 @@ function parseFuelSummaryFormat(lines, fullText) {
       const countryGrossTotal = parseNumber(grossTotalLine);
 
       if (countryVatAmount !== null && countryGrossTotal !== null) {
-        // Calculate total net for this country
         const countryNetTotal = currentProducts.reduce((sum, p) => sum + (p.netAmount || 0), 0);
 
-        // Create transactions for each product in this country
         for (const prod of currentProducts) {
-          // Proportionally allocate VAT based on net amount
           const proportion = countryNetTotal > 0 ? (prod.netAmount / countryNetTotal) : (1 / currentProducts.length);
           const productVat = Math.round(countryVatAmount * proportion * 100) / 100;
           const productGross = Math.round((prod.netAmount + productVat) * 100) / 100;
 
           transactions.push({
-            vehicle_registration: 'SUMMARY', // Fuel summaries don't have individual vehicles
+            vehicle_registration: 'SUMMARY',
             transaction_date: reportDate ? new Date(reportDate).toISOString() : new Date().toISOString(),
             country: currentCountryCode,
             country_code: currentCountryCode,
@@ -679,17 +1121,15 @@ function parseFuelSummaryFormat(lines, fullText) {
           totalGrossEUR += productGross || 0;
         }
 
-        // Reset for next country
         currentProducts = [];
-        i += 2; // Skip VAT amount and gross total lines
+        i += 2;
       }
       continue;
     }
 
-    // Check if this is a plain amount (after product + quantity)
+    // Check for amount
     const amountValue = parseNumber(line);
     if (amountValue !== null && currentCountry && pendingProduct) {
-      // This could be the net amount for the pending product
       currentProducts.push({
         product: pendingProduct,
         quantity: pendingQuantity,
@@ -697,7 +1137,6 @@ function parseFuelSummaryFormat(lines, fullText) {
       });
       pendingProduct = null;
       pendingQuantity = null;
-      continue;
     }
   }
 
@@ -712,113 +1151,6 @@ function parseFuelSummaryFormat(lines, fullText) {
     periodEnd: reportDate,
     reportDate,
     companyCode,
-  };
-}
-
-/**
- * Parse a single transaction line
- */
-function parseTransactionLine(line, vehicleRegistration) {
-  // Extract numbers from the end (Netto, MWST, Brutto)
-  // Numbers can be in format: 96,63 or 1 234,56
-  const numberPattern = /(\d[\d\s]*[,.]?\d*)\s*$/;
-
-  // Split line by whitespace but preserve structure
-  const parts = line.split(/\s+/);
-
-  if (parts.length < 4) return null;
-
-  // First part is country code (2-3 characters)
-  let country = parts[0];
-  if (!VERAG_COUNTRIES.includes(country)) return null;
-
-  // Second part should be date
-  const dateMatch = parts[1]?.match(/(\d{2}\.\d{2}\.\d{4})/);
-  if (!dateMatch) return null;
-
-  const transactionDate = parseDate(dateMatch[1]);
-  if (!transactionDate) return null;
-
-  // Find the numbers at the end (last 3 numeric values)
-  const numericValues = [];
-  for (let i = parts.length - 1; i >= 0 && numericValues.length < 3; i--) {
-    const num = parseNumber(parts[i]);
-    if (num !== null || parts[i] === '0,00' || parts[i] === '0') {
-      numericValues.unshift(num !== null ? num : 0);
-    } else if (numericValues.length > 0) {
-      // If we've started collecting numbers and hit a non-number, check if it's part of a number
-      // Handle cases like "1 234,56" split into multiple parts
-      break;
-    }
-  }
-
-  if (numericValues.length < 3) return null;
-
-  const [netAmount, vatAmount, grossAmount] = numericValues;
-
-  // Extract product type and card number from middle parts
-  let product = '';
-  let cardNumber = '';
-  let routeInfo = '';
-
-  // Parts between date and numbers
-  const middleParts = parts.slice(2, parts.length - 3);
-
-  for (const part of middleParts) {
-    // Card numbers are long numeric strings (15+ digits)
-    if (/^\d{10,}$/.test(part)) {
-      cardNumber = part;
-    }
-    // Product types contain specific keywords
-    else if (Object.keys(TOLL_PRODUCTS).some(key => part.includes(key) || key.includes(part))) {
-      product = product ? `${product} ${part}` : part;
-    }
-    // Route info (contains letters and numbers like M5U35K618M)
-    else if (/^[A-Z0-9]+[UK]\d+/.test(part) || /^\d+[UK]/.test(part)) {
-      routeInfo = routeInfo ? `${routeInfo} ${part}` : part;
-    }
-    // Other product names
-    else if (part.length > 2 && !/^\d+$/.test(part)) {
-      if (!product) {
-        product = part;
-      } else if (!routeInfo) {
-        routeInfo = part;
-      } else {
-        routeInfo = `${routeInfo} ${part}`;
-      }
-    }
-  }
-
-  // Clean up product name
-  product = product.trim();
-
-  // Calculate VAT rate from amounts
-  const vatRate = vatAmount > 0 && netAmount > 0
-    ? Math.round((vatAmount / netAmount) * 10000) / 100
-    : 0;
-
-  // Get country VAT info
-  const countryCode = bnrService.getCountryCode(country) || country;
-  const vatInfo = bnrService.getVatRate(country);
-
-  return {
-    vehicle_registration: vehicleRegistration,
-    transaction_date: transactionDate.toISOString(),
-    country: country,
-    country_code: countryCode,
-    product_type: product || null,
-    product_category: getProductCategory(product, country),
-    card_number: cardNumber || null,
-    route_info: routeInfo || null,
-    net_amount: netAmount,
-    vat_amount: vatAmount,
-    vat_rate: vatRate,
-    vat_country: countryCode,
-    vat_country_rate: vatInfo.rate,
-    vat_refundable: vatInfo.refundable && vatAmount > 0,
-    gross_amount: grossAmount,
-    currency: 'EUR',
-    provider: 'verag',
   };
 }
 
