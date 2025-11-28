@@ -958,10 +958,16 @@ router.get(
 
       // Select correct columns based on provider
       // DKV uses: payment_value_eur, gross_value_eur
-      // Eurowag/Verag use: gross_amount_eur, net_amount_eur
-      const valueColumns = provider === 'dkv'
-        ? 'status, payment_value_eur, gross_value_eur'
-        : 'status, gross_amount_eur, net_amount_eur';
+      // Eurowag uses: gross_amount_eur, net_amount_eur
+      // Verag uses: gross_amount, net_amount (already in EUR, no _eur suffix)
+      let valueColumns;
+      if (provider === 'dkv') {
+        valueColumns = 'status, payment_value_eur, gross_value_eur';
+      } else if (provider === 'verag') {
+        valueColumns = 'status, gross_amount, net_amount';
+      } else {
+        valueColumns = 'status, gross_amount_eur, net_amount_eur';
+      }
 
       // Build transactions query
       let txQuery = supabase
@@ -1008,8 +1014,9 @@ router.get(
           }
           // Use BRUTTO value for totals - different column names per provider
           // DKV: payment_value_eur or gross_value_eur
-          // Eurowag/Verag: gross_amount_eur or net_amount_eur
-          const valueEur = tx.payment_value_eur || tx.gross_value_eur || tx.gross_amount_eur || tx.net_amount_eur || 0;
+          // Eurowag: gross_amount_eur or net_amount_eur
+          // Verag: gross_amount or net_amount (no _eur suffix)
+          const valueEur = tx.payment_value_eur || tx.gross_value_eur || tx.gross_amount_eur || tx.gross_amount || tx.net_amount_eur || tx.net_amount || 0;
           if (valueEur) {
             summary.total_value += parseFloat(valueEur);
             if (tx.status !== 'created_expense' && tx.status !== 'ignored') {
