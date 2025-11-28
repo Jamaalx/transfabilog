@@ -956,10 +956,17 @@ router.get(
       const latestOnly = req.query.latest === 'true';
       const tables = getTableNames(provider);
 
+      // Select correct columns based on provider
+      // DKV uses: payment_value_eur, gross_value_eur
+      // Eurowag/Verag use: gross_amount_eur, net_amount_eur
+      const valueColumns = provider === 'dkv'
+        ? 'status, payment_value_eur, gross_value_eur'
+        : 'status, gross_amount_eur, net_amount_eur';
+
       // Build transactions query
       let txQuery = supabase
         .from(tables.transactions)
-        .select('status, gross_amount_eur, net_amount_eur')
+        .select(valueColumns)
         .eq('company_id', req.companyId);
 
       // Filter by batch if specified
@@ -999,8 +1006,10 @@ router.get(
           if (summary[tx.status] !== undefined) {
             summary[tx.status]++;
           }
-          // Use gross_amount_eur (BRUTTO) for totals
-          const valueEur = tx.gross_amount_eur || tx.net_amount_eur || 0;
+          // Use BRUTTO value for totals - different column names per provider
+          // DKV: payment_value_eur or gross_value_eur
+          // Eurowag/Verag: gross_amount_eur or net_amount_eur
+          const valueEur = tx.payment_value_eur || tx.gross_value_eur || tx.gross_amount_eur || tx.net_amount_eur || 0;
           if (valueEur) {
             summary.total_value += parseFloat(valueEur);
             if (tx.status !== 'created_expense' && tx.status !== 'ignored') {
