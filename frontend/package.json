@@ -1,8 +1,9 @@
 {
-  "name": "transport-saas-frontend",
+  "name": "floteris-frontend",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "description": "Floteris - Fleet Management Platform Frontend",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

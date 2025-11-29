@@ -25,13 +25,13 @@ export default function AuthLayout() {
           <div className="flex items-center justify-center mb-8">
             <Truck className="h-16 w-16" />
           </div>
-          <h1 className="text-4xl font-bold mb-4">Transport SaaS</h1>
+          <h1 className="text-4xl font-bold mb-4">Floteris</h1>
           <p className="text-xl opacity-90">
-            Fleet management platform for transport companies
+            Platformă inteligentă pentru managementul flotei
           </p>
           <div className="mt-8 text-sm opacity-75">
-            <p>Manage your fleet, drivers, trips and finances</p>
-            <p>all in one place</p>
+            <p>Vehicule, șoferi, curse și finanțe</p>
+            <p>totul într-un singur loc</p>
           </div>
         </div>
       </div>
@@ -41,7 +41,7 @@ export default function AuthLayout() {
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center justify-center mb-8">
             <Truck className="h-10 w-10 text-primary mr-2" />
-            <span className="text-2xl font-bold">Transport SaaS</span>
+            <span className="text-2xl font-bold">Floteris</span>
           </div>
           <Outlet />
         </div>

@@ -1,7 +1,7 @@
 {
-  "name": "transport-saas-backend",
+  "name": "floteris-backend",
   "version": "1.0.0",
-  "description": "Backend API for Transport SaaS fleet management",
+  "description": "Floteris - Fleet Management Platform Backend API",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
