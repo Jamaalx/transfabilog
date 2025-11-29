@@ -14,9 +14,10 @@ const ratesCache = new Map();
 const CACHE_TTL = 3600000; // 1 hour in milliseconds
 
 // VAT rates per country (EU standard rates for fuel/services)
+// Note: Romania increased VAT from 19% to 21% from July 1, 2025
 const VAT_RATES = {
   // EU Countries
-  'RO': { rate: 19, name: 'Romania' },
+  'RO': { rate: 21, name: 'Romania' },
   'BG': { rate: 20, name: 'Bulgaria' },
   'HU': { rate: 27, name: 'Hungary' },
   'AT': { rate: 20, name: 'Austria' },

@@ -87,6 +87,81 @@ const upload = multer({
 router.use(authenticate);
 
 /**
+ * GET /api/v1/dkv/debug/schema
+ * Debug endpoint to check table schemas
+ */
+router.get(
+  '/debug/schema',
+  authorize('admin'),
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tempTables = getTempTableNames(provider);
+      const finalTables = getTableNames(provider);
+
+      // Query information_schema to get column info
+      const { data: tempColumns, error: tempError } = await supabase
+        .rpc('get_table_columns', { table_name: tempTables.transactions })
+        .catch(() => ({ data: null, error: 'RPC not available' }));
+
+      const { data: finalColumns, error: finalError } = await supabase
+        .rpc('get_table_columns', { table_name: finalTables.transactions })
+        .catch(() => ({ data: null, error: 'RPC not available' }));
+
+      // Alternative: fetch a single row to see structure
+      const { data: tempSample, error: tempSampleErr } = await supabase
+        .from(tempTables.transactions)
+        .select('*')
+        .limit(1)
+        .single();
+
+      const { data: finalSample, error: finalSampleErr } = await supabase
+        .from(finalTables.transactions)
+        .select('*')
+        .limit(1)
+        .single();
+
+      const tempCols = tempSample ? Object.keys(tempSample) : [];
+      const finalCols = finalSample ? Object.keys(finalSample) : [];
+
+      // Find missing columns
+      const missingInFinal = tempCols.filter(col => !finalCols.includes(col) && col !== 'id' && col !== 'batch_id');
+      const missingInTemp = finalCols.filter(col => !tempCols.includes(col) && col !== 'id' && col !== 'batch_id' && col !== 'transaction_id');
+
+      console.log(`[DEBUG-SCHEMA] Provider: ${provider}`);
+      console.log(`[DEBUG-SCHEMA] Temp table: ${tempTables.transactions}, columns:`, tempCols.length);
+      console.log(`[DEBUG-SCHEMA] Final table: ${finalTables.transactions}, columns:`, finalCols.length);
+      console.log(`[DEBUG-SCHEMA] Missing in final:`, missingInFinal);
+      console.log(`[DEBUG-SCHEMA] Missing in temp:`, missingInTemp);
+
+      res.json({
+        provider,
+        temp: {
+          table: tempTables.transactions,
+          columns: tempCols,
+          count: tempCols.length,
+          sampleError: tempSampleErr?.message,
+        },
+        final: {
+          table: finalTables.transactions,
+          columns: finalCols,
+          count: finalCols.length,
+          sampleError: finalSampleErr?.message,
+        },
+        comparison: {
+          missingInFinal,
+          missingInTemp,
+          aligned: missingInFinal.length === 0,
+        },
+      });
+    } catch (error) {
+      console.error('[DEBUG-SCHEMA] Error:', error);
+      next(error);
+    }
+  }
+);
+
+/**
  * POST /api/v1/dkv/import
  * Upload and import fuel card report (DKV, EUROWAG, etc.)
  * Query param: provider=dkv|eurowag (default: auto-detect)
@@ -1626,9 +1701,13 @@ router.post(
       const tempTables = getTempTableNames(provider);
       const finalTables = getTableNames(provider);
 
+      console.log(`[DKV-APPROVE] Starting approval for ${req.body.transaction_ids.length} transactions`);
+      console.log(`[DKV-APPROVE] Provider: ${provider}, Temp: ${tempTables.transactions}, Final: ${finalTables.transactions}`);
+
       const results = { approved: [], failed: [] };
 
       for (const txId of req.body.transaction_ids) {
+        console.log(`[DKV-APPROVE] Processing txId: ${txId}`);
         try {
           // Get transaction from temp table
           const { data: tempTx, error: fetchError } = await supabase
@@ -1639,11 +1718,15 @@ router.post(
             .single();
 
           if (fetchError || !tempTx) {
+            console.log(`[DKV-APPROVE] Not found in staging: ${txId}, error:`, fetchError);
             results.failed.push({ id: txId, error: 'Not found in staging' });
             continue;
           }
 
+          console.log(`[DKV-APPROVE] Found tempTx: vehicle=${tempTx.vehicle_registration}, truck_id=${tempTx.truck_id}`);
+
           if (!tempTx.truck_id) {
+            console.log(`[DKV-APPROVE] No truck assigned for txId: ${txId}`);
             results.failed.push({ id: txId, error: 'No truck assigned' });
             continue;
           }
@@ -1660,8 +1743,10 @@ router.post(
             category = 'taxe_drum';
           }
 
-          const amountEur = tempTx.gross_amount_eur || tempTx.gross_amount || tempTx.payment_value_eur || tempTx.net_amount_eur || tempTx.net_amount || 0;
+          const amountEur = tempTx.gross_amount_eur || tempTx.gross_value_eur || tempTx.gross_amount || tempTx.payment_value_eur || tempTx.net_amount_eur || tempTx.net_purchase_value_eur || tempTx.net_amount || 0;
           const transactionDate = tempTx.transaction_time || tempTx.transaction_date;
+
+          console.log(`[DKV-APPROVE] Creating expense: category=${category}, amount=${amountEur}, date=${transactionDate}`);
 
           // Create expense in transactions table
           const { data: expense, error: expenseError } = await supabase
@@ -1682,9 +1767,12 @@ router.post(
             .single();
 
           if (expenseError) {
+            console.error(`[DKV-APPROVE] Failed to create expense for ${txId}:`, expenseError);
             results.failed.push({ id: txId, error: expenseError.message });
             continue;
           }
+
+          console.log(`[DKV-APPROVE] Expense created: ${expense.id}`);
 
           // Copy to final table with expense reference
           const finalData = { ...tempTx };
@@ -1693,17 +1781,24 @@ router.post(
           finalData.status = 'created_expense';
           finalData.expense_id = expense.id; // All providers use expense_id consistently
 
+          // Log the columns we're trying to insert
+          console.log(`[DKV-APPROVE] Inserting to ${finalTables.transactions}, columns:`, Object.keys(finalData).join(', '));
+          console.log(`[DKV-APPROVE] finalData sample: company_id=${finalData.company_id}, expense_id=${finalData.expense_id}, status=${finalData.status}`);
+
           const { error: insertError } = await supabase
             .from(finalTables.transactions)
             .insert(finalData);
 
           if (insertError) {
             // Rollback expense
-            console.error(`Failed to insert to final table ${finalTables.transactions}:`, insertError);
+            console.error(`[DKV-APPROVE] Failed to insert to final table ${finalTables.transactions}:`, insertError);
+            console.error(`[DKV-APPROVE] Insert error details:`, JSON.stringify(insertError, null, 2));
             await supabase.from('transactions').delete().eq('id', expense.id);
             results.failed.push({ id: txId, error: insertError.message });
             continue;
           }
+
+          console.log(`[DKV-APPROVE] Successfully inserted to final table`);
 
           // Delete from temp table - use select to verify delete worked
           const { data: deletedRows, error: deleteError } = await supabase
@@ -1722,9 +1817,16 @@ router.post(
           }
 
           results.approved.push({ id: txId, expense_id: expense.id });
+          console.log(`[DKV-APPROVE] Transaction ${txId} approved successfully`);
         } catch (err) {
+          console.error(`[DKV-APPROVE] Exception for ${txId}:`, err.message, err.stack);
           results.failed.push({ id: txId, error: err.message });
         }
+      }
+
+      console.log(`[DKV-APPROVE] FINAL RESULTS: approved=${results.approved.length}, failed=${results.failed.length}`);
+      if (results.failed.length > 0) {
+        console.log(`[DKV-APPROVE] Failed transactions:`, JSON.stringify(results.failed, null, 2));
       }
 
       res.json({
@@ -1734,6 +1836,7 @@ router.post(
         results,
       });
     } catch (error) {
+      console.error(`[DKV-APPROVE] Route error:`, error);
       next(error);
     }
   }
