@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import {
   Brain,
   Lightbulb,
@@ -27,10 +28,7 @@ import {
   BarChart3,
   ShieldAlert,
   Rocket,
-  ChevronDown,
-  ChevronUp,
   FileText,
-  Zap,
 } from 'lucide-react'
 
 // Section configuration for insights parsing
@@ -137,48 +135,17 @@ function parseInsights(insightsText: string): InsightSection[] {
   return sections
 }
 
-// Collapsible section component
-function InsightCard({ section, defaultExpanded = true }: { section: InsightSection; defaultExpanded?: boolean }) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
-
+// Single insight section card component (used inside Accordion)
+function InsightSectionContent({ section }: { section: InsightSection }) {
   return (
-    <Card className={`${section.bgColor} ${section.borderColor} border-2 transition-all duration-200 hover:shadow-md`}>
-      <CardHeader
-        className="cursor-pointer py-4"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`p-2.5 rounded-lg ${section.iconBgColor}`}>
-              {section.icon}
-            </div>
-            <CardTitle className="text-lg font-semibold">{section.title}</CardTitle>
-            <Badge variant="secondary" className="ml-2">
-              {section.content.length} {section.content.length === 1 ? 'punct' : 'puncte'}
-            </Badge>
-          </div>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            {isExpanded ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </CardHeader>
-      {isExpanded && (
-        <CardContent className="pt-0 pb-4">
-          <ul className="space-y-3">
-            {section.content.map((item, idx) => (
-              <li key={idx} className="flex items-start gap-3">
-                <div className="mt-1.5 h-2 w-2 rounded-full bg-current opacity-40 flex-shrink-0" />
-                <span className="text-sm leading-relaxed">{item}</span>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      )}
-    </Card>
+    <ul className="space-y-3 px-4 pb-4">
+      {section.content.map((item, idx) => (
+        <li key={idx} className="flex items-start gap-3">
+          <div className="mt-1.5 h-2 w-2 rounded-full bg-current opacity-40 flex-shrink-0" />
+          <span className="text-sm leading-relaxed">{item}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -460,17 +427,36 @@ export default function AIAnalyticsPage() {
             </Card>
           )}
 
-          {/* Parsed Insights Sections */}
+          {/* Parsed Insights Sections with Smooth Accordion */}
           {!insightsLoading && parsedInsights.length > 0 && (
-            <div className="grid gap-4">
-              {parsedInsights.map((section, idx) => (
-                <InsightCard
+            <Accordion
+              type="multiple"
+              defaultValue={parsedInsights.slice(0, 2).map(s => s.id)}
+              className="space-y-3"
+            >
+              {parsedInsights.map((section) => (
+                <AccordionItem
                   key={section.id}
-                  section={section}
-                  defaultExpanded={idx < 2} // First 2 sections expanded by default
-                />
+                  value={section.id}
+                  className={`${section.bgColor} ${section.borderColor} border-2 rounded-lg overflow-hidden transition-all duration-200 hover:shadow-md`}
+                >
+                  <AccordionTrigger className="px-4 py-4 hover:no-underline">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-lg ${section.iconBgColor}`}>
+                        {section.icon}
+                      </div>
+                      <span className="text-lg font-semibold">{section.title}</span>
+                      <Badge variant="secondary" className="ml-2">
+                        {section.content.length} {section.content.length === 1 ? 'punct' : 'puncte'}
+                      </Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <InsightSectionContent section={section} />
+                  </AccordionContent>
+                </AccordionItem>
               ))}
-            </div>
+            </Accordion>
           )}
 
           {/* Empty State */}
