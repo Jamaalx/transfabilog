@@ -8,28 +8,28 @@ const bnrService = require('./bnrExchangeService');
  * Supports multiple variants (Romanian, German, English)
  */
 const DKV_COLUMNS = {
-  TRANSACTION_TIME: ['Timp tranzacție', 'Timp tranzactie', 'Transaction Time', 'Transaktionszeit', 'Datum', 'Date', 'Data'],
-  STATION_NAME: ['Denumire stație', 'Denumire statie', 'Station Name', 'Tankstellenname', 'Station'],
-  STATION_CITY: ['Orașul stației', 'Orasul statiei', 'Station City', 'Ort', 'City'],
+  TRANSACTION_TIME: ['Timp tranzacție', 'Timp tranzactie', 'Transaction Time', 'Transaktionszeit', 'Datum', 'Date', 'Data', 'Data tranzacție', 'Data tranzactie'],
+  STATION_NAME: ['Denumire stație', 'Denumire statie', 'Station Name', 'Tankstellenname', 'Station', 'Stație', 'Statie'],
+  STATION_CITY: ['Orașul stației', 'Orasul statiei', 'Station City', 'Ort', 'City', 'Oraș', 'Oras', 'Localitate'],
   STATION_NUMBER: ['Număr stație', 'Numar statie', 'Station Number', 'Stationsnummer'],
-  TRANSACTION_NUMBER: ['Numarul tranzactiei', 'Numărul tranzacției', 'Transaction Number', 'Transaktionsnummer', 'Belegnummer'],
-  COUNTRY: ['Țara de servicii', 'Tara de servicii', 'Service Country', 'Land', 'Country'],
+  TRANSACTION_NUMBER: ['Numarul tranzactiei', 'Numărul tranzacției', 'Transaction Number', 'Transaktionsnummer', 'Belegnummer', 'Nr. tranzacție', 'Nr. tranzactie'],
+  COUNTRY: ['Țara de servicii', 'Tara de servicii', 'Service Country', 'Land', 'Country', 'Țară', 'Tara'],
   COST_GROUP: ['Grupă cost', 'Grupa cost', 'Cost Group', 'Kostengruppe'],
   PRODUCT_GROUP: ['Grupă produs', 'Grupa produs', 'Product Group', 'Produktgruppe'],
-  GOODS_TYPE: ['Tip mărfuri', 'Tip marfuri', 'Goods Type', 'Warenart', 'Product', 'Produs'],
+  GOODS_TYPE: ['Tip mărfuri', 'Tip marfuri', 'Goods Type', 'Warenart', 'Product', 'Produs', 'Articol', 'Tip produs'],
   GOODS_CODE: ['Cod mărfuri', 'Cod marfuri', 'Goods Code', 'Warencode'],
-  PAYMENT_CURRENCY: ['Moneda de plată', 'Moneda de plata', 'Payment Currency', 'Zahlungswährung', 'Währung', 'Currency'],
-  UNIT: ['Unitate', 'Unit', 'Einheit', 'ME'],
-  QUANTITY: ['Cantitate', 'Quantity', 'Menge', 'Qty'],
-  PRICE_PER_UNIT: ['Preț pe unitate', 'Pret pe unitate', 'Price Per Unit', 'Einzelpreis', 'Unit Price'],
+  PAYMENT_CURRENCY: ['Moneda de plată', 'Moneda de plata', 'Payment Currency', 'Zahlungswährung', 'Währung', 'Currency', 'Valută', 'Valuta', 'Moneda'],
+  UNIT: ['Unitate', 'Unit', 'Einheit', 'ME', 'UM'],
+  QUANTITY: ['Cantitate', 'Quantity', 'Menge', 'Qty', 'Volum', 'Volume'],
+  PRICE_PER_UNIT: ['Preț pe unitate', 'Pret pe unitate', 'Price Per Unit', 'Einzelpreis', 'Unit Price', 'Preț unitar', 'Pret unitar'],
   NET_BASE_VALUE: ['Valoare de bază Netă', 'Valoare de baza Neta', 'Net Base Value', 'Nettobasiswert'],
   NET_SERVICE_FEE: ['Taxă de serviciu netă', 'Taxa de serviciu neta', 'Net Service Fee', 'Netto Servicegebühr'],
-  NET_PURCHASE_VALUE: ['Valoarea netă a achiziției', 'Valoarea neta a achizitiei', 'Net Purchase Value', 'Nettoeinkaufswert', 'Netto', 'Net', 'Net Amount'],
-  GROSS_VALUE: ['Valoare brută', 'Valoare bruta', 'Gross Value', 'Bruttowert', 'Brutto', 'Gross', 'Gross Amount', 'Total'],
-  VAT_AMOUNT: ['TVA', 'VAT', 'MwSt', 'MWST', 'VAT Amount', 'Steuer'],
-  PAYMENT_VALUE: ['Valoarea în moneda de plată', 'Valoarea in moneda de plata', 'Payment Value', 'Zahlungsbetrag', 'Amount'],
-  VEHICLE_REGISTRATION: ['Număr de înmatriculare vehicul', 'Numar de inmatriculare vehicul', 'Vehicle Registration', 'Fahrzeugkennzeichen', 'Kennzeichen', 'Registration', 'Nr. înmatriculare'],
-  CARD_NUMBER: ['Nr. card/cutie', 'Card Number', 'Kartennummer', 'Card'],
+  NET_PURCHASE_VALUE: ['Valoarea netă a achiziției', 'Valoarea neta a achizitiei', 'Net Purchase Value', 'Nettoeinkaufswert', 'Netto', 'Net', 'Net Amount', 'Sumă netă', 'Suma neta', 'Valoare netă', 'Valoare neta', 'Amount Net'],
+  GROSS_VALUE: ['Valoare brută', 'Valoare bruta', 'Gross Value', 'Bruttowert', 'Brutto', 'Gross', 'Gross Amount', 'Total', 'Sumă brută', 'Suma bruta', 'Valoarea brută', 'Valoarea bruta', 'Amount Gross', 'Suma totală', 'Suma totala'],
+  VAT_AMOUNT: ['TVA', 'VAT', 'MwSt', 'MWST', 'VAT Amount', 'Steuer', 'Taxă', 'Taxa', 'Impozit'],
+  PAYMENT_VALUE: ['Valoarea în moneda de plată', 'Valoarea in moneda de plata', 'Payment Value', 'Zahlungsbetrag', 'Amount', 'Suma de plată', 'Suma de plata'],
+  VEHICLE_REGISTRATION: ['Număr de înmatriculare vehicul', 'Numar de inmatriculare vehicul', 'Vehicle Registration', 'Fahrzeugkennzeichen', 'Kennzeichen', 'Registration', 'Nr. înmatriculare', 'Nr. inmatriculare', 'Înmatriculare', 'Inmatriculare', 'Vehicul', 'Vehicle'],
+  CARD_NUMBER: ['Nr. card/cutie', 'Card Number', 'Kartennummer', 'Card', 'Nr. card', 'Cartelă', 'Cartela'],
 };
 
 /**
@@ -83,21 +83,40 @@ async function parseDKVExcel(fileBuffer, mimeType) {
   // First row is headers
   const headers = rawData[0];
 
-  // Map column indices - supports multiple variants per column
+  // Map column indices - supports multiple variants per column with diacritics normalization
   const columnMap = {};
   headers.forEach((header, index) => {
+    if (!header) return;
     const trimmedHeader = String(header).trim().toLowerCase();
+    // Normalize header by removing diacritics (ă->a, â->a, î->i, ș->s, ț->t, etc.)
+    const normalizedHeader = trimmedHeader
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
     // Find matching DKV column
     for (const [key, variants] of Object.entries(DKV_COLUMNS)) {
+      // Skip if this column type is already mapped
+      if (columnMap[key] !== undefined) continue;
+
       // Check if any variant matches
-      const matched = variants.some(variant => {
+      let matched = false;
+      for (const variant of variants) {
         const variantLower = variant.toLowerCase();
-        return trimmedHeader === variantLower || trimmedHeader.includes(variantLower);
-      });
-      if (matched && columnMap[key] === undefined) {
-        columnMap[key] = index;
-        break;
+        const normalizedVariant = variantLower
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '');
+
+        if (trimmedHeader === variantLower ||
+            normalizedHeader === normalizedVariant ||
+            trimmedHeader.includes(variantLower) ||
+            normalizedHeader.includes(normalizedVariant)) {
+          columnMap[key] = index;
+          console.log(`DKV: Mapped column "${header}" -> ${key} (index ${index})`);
+          matched = true;
+          break;
+        }
       }
+      if (matched) break;
     }
   });
 
@@ -167,27 +186,55 @@ async function parseDKVExcel(fileBuffer, mimeType) {
     // Use country currency for conversion of net purchase value, gross value, etc.
     const transactionCurrency = countryCurrency;
 
-    // Calculate VAT amount (Brutto - Netto)
+    // Calculate VAT amount with multiple fallback strategies
     let calculatedVatAmount = 0;
     let vatRate = 0;
+    let effectiveGrossValue = grossValue;
 
+    // Strategy 1: Calculate from Brutto - Netto (most reliable)
     if (grossValue && netPurchaseValue && grossValue > netPurchaseValue) {
-      // Calculate from Brutto - Netto
       calculatedVatAmount = Math.round((grossValue - netPurchaseValue) * 100) / 100;
       vatRate = netPurchaseValue > 0
         ? Math.round((calculatedVatAmount / netPurchaseValue) * 10000) / 100
         : 0;
-    } else if (vatAmountFromFile && vatAmountFromFile > 0) {
-      // Use VAT from file if available
+      console.log(`DKV Row: VAT calculated from Gross-Net: ${calculatedVatAmount} (rate: ${vatRate}%)`);
+    }
+    // Strategy 2: Use VAT from file directly
+    else if (vatAmountFromFile && vatAmountFromFile > 0) {
       calculatedVatAmount = vatAmountFromFile;
       vatRate = netPurchaseValue > 0
         ? Math.round((calculatedVatAmount / netPurchaseValue) * 10000) / 100
         : 0;
+      // Also calculate gross if missing: Gross = Net + VAT
+      if (!effectiveGrossValue && netPurchaseValue) {
+        effectiveGrossValue = netPurchaseValue + calculatedVatAmount;
+      }
+      console.log(`DKV Row: VAT from file: ${calculatedVatAmount} (rate: ${vatRate}%)`);
     }
+    // Strategy 3: Calculate VAT using country's standard rate if we have Net but no Gross/VAT
+    else if (netPurchaseValue && vatInfo.rate > 0 && !grossValue && !vatAmountFromFile) {
+      calculatedVatAmount = Math.round((netPurchaseValue * vatInfo.rate / 100) * 100) / 100;
+      vatRate = vatInfo.rate;
+      effectiveGrossValue = netPurchaseValue + calculatedVatAmount;
+      console.log(`DKV Row: VAT calculated using country rate (${vatInfo.rate}%): ${calculatedVatAmount}`);
+    }
+    // Strategy 4: Check if values might be swapped (gross < net indicates data issue)
+    else if (grossValue && netPurchaseValue && grossValue < netPurchaseValue) {
+      // Swap might be needed - use the larger value as gross
+      effectiveGrossValue = netPurchaseValue;
+      calculatedVatAmount = Math.round((netPurchaseValue - grossValue) * 100) / 100;
+      vatRate = grossValue > 0
+        ? Math.round((calculatedVatAmount / grossValue) * 10000) / 100
+        : 0;
+      console.log(`DKV Row: Values possibly swapped, recalculated VAT: ${calculatedVatAmount}`);
+    }
+
+    // Use effective gross value for subsequent calculations
+    const finalGrossValue = effectiveGrossValue || grossValue;
 
     // Convert to EUR if needed
     let netPurchaseValueEur = netPurchaseValue;
-    let grossValueEur = grossValue;
+    let grossValueEur = finalGrossValue;
     let vatAmountEur = calculatedVatAmount;
     let paymentValueEur = paymentValue;
     let exchangeRate = 1;
@@ -204,8 +251,8 @@ async function parseDKVExcel(fileBuffer, mimeType) {
       rateDate = conversionResult.rateDate;
 
       // Convert other amounts with the same rate (they're all in the same country currency)
-      if (grossValue) {
-        const grossConv = await bnrService.convertToEur(grossValue, transactionCurrency, transactionTime);
+      if (finalGrossValue) {
+        const grossConv = await bnrService.convertToEur(finalGrossValue, transactionCurrency, transactionTime);
         grossValueEur = grossConv.amountEur;
       }
       if (calculatedVatAmount) {
@@ -245,7 +292,7 @@ async function parseDKVExcel(fileBuffer, mimeType) {
       net_service_fee: netServiceFee || 0,
       net_purchase_value: netPurchaseValue, // Original amount
       net_purchase_value_eur: netPurchaseValueEur, // Converted to EUR
-      gross_value: grossValue, // Original amount
+      gross_value: finalGrossValue, // Effective gross value (original or calculated)
       gross_value_eur: grossValueEur, // Converted to EUR
       payment_value: paymentValue, // Original amount
       payment_value_eur: paymentValueEur, // Converted to EUR (use this for totals)
