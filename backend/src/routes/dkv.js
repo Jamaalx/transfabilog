@@ -1704,10 +1704,15 @@ router.post(
           }
 
           // Delete from temp table
-          await supabase
+          const { error: deleteError } = await supabase
             .from(tempTables.transactions)
             .delete()
-            .eq('id', txId);
+            .eq('id', txId)
+            .eq('company_id', req.companyId);
+
+          if (deleteError) {
+            console.error('Failed to delete from temp:', deleteError);
+          }
 
           results.approved.push({ id: txId, expense_id: expense.id });
         } catch (err) {

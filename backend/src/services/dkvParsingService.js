@@ -239,8 +239,9 @@ async function parseDKVExcel(fileBuffer, mimeType) {
       gross_value_eur: grossValueEur, // Converted to EUR
       payment_value: paymentValue, // Original amount
       payment_value_eur: paymentValueEur, // Converted to EUR (use this for totals)
-      vat_amount: vatAmountEur, // VAT in EUR
-      vat_amount_original: calculatedVatAmount, // VAT in original currency
+      vat_amount: calculatedVatAmount, // VAT in original currency
+      vat_amount_eur: vatAmountEur, // VAT in EUR
+      vat_amount_original: calculatedVatAmount, // VAT in original currency (backup)
       vat_rate: vatRate, // Calculated VAT percentage
       vat_country: countryCode,
       vat_country_rate: vatInfo.rate, // Standard VAT rate for country
