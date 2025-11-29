@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { aiApi } from '@/lib/api'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,7 +24,163 @@ import {
   Sparkles,
   Bot,
   User,
+  BarChart3,
+  ShieldAlert,
+  Rocket,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  Zap,
 } from 'lucide-react'
+
+// Section configuration for insights parsing
+interface InsightSection {
+  id: string
+  title: string
+  icon: React.ReactNode
+  bgColor: string
+  borderColor: string
+  iconBgColor: string
+  content: string[]
+}
+
+// Parse insights markdown text into structured sections
+function parseInsights(insightsText: string): InsightSection[] {
+  if (!insightsText) return []
+
+  const sections: InsightSection[] = []
+  const sectionConfig: Record<string, { icon: React.ReactNode; bgColor: string; borderColor: string; iconBgColor: string }> = {
+    'ANALIZĂ GENERALĂ': {
+      icon: <BarChart3 className="h-5 w-5" />,
+      bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+      borderColor: 'border-blue-200 dark:border-blue-800',
+      iconBgColor: 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400',
+    },
+    'INSIGHTS': {
+      icon: <Lightbulb className="h-5 w-5" />,
+      bgColor: 'bg-amber-50 dark:bg-amber-950/30',
+      borderColor: 'border-amber-200 dark:border-amber-800',
+      iconBgColor: 'bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-400',
+    },
+    'RISCURI ȘI ATENȚIONĂRI': {
+      icon: <ShieldAlert className="h-5 w-5" />,
+      bgColor: 'bg-red-50 dark:bg-red-950/30',
+      borderColor: 'border-red-200 dark:border-red-800',
+      iconBgColor: 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400',
+    },
+    'RECOMANDĂRI CONCRETE': {
+      icon: <Target className="h-5 w-5" />,
+      bgColor: 'bg-green-50 dark:bg-green-950/30',
+      borderColor: 'border-green-200 dark:border-green-800',
+      iconBgColor: 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400',
+    },
+    'OPORTUNITĂȚI DE OPTIMIZARE': {
+      icon: <Rocket className="h-5 w-5" />,
+      bgColor: 'bg-purple-50 dark:bg-purple-950/30',
+      borderColor: 'border-purple-200 dark:border-purple-800',
+      iconBgColor: 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-400',
+    },
+  }
+
+  // Split by ### headers
+  const parts = insightsText.split(/###\s*/)
+
+  parts.forEach((part) => {
+    if (!part.trim()) return
+
+    // Extract section title (first line, remove emoji)
+    const lines = part.split('\n')
+    const titleLine = lines[0]?.replace(/[📊💡⚠️🎯📈🔍✨]/g, '').trim()
+
+    if (!titleLine) return
+
+    // Find matching config
+    const configKey = Object.keys(sectionConfig).find(key =>
+      titleLine.toUpperCase().includes(key)
+    )
+
+    if (!configKey) return
+
+    const config = sectionConfig[configKey]
+
+    // Parse content lines (bullet points)
+    const content: string[] = []
+    lines.slice(1).forEach(line => {
+      const trimmedLine = line.trim()
+      if (!trimmedLine) return
+
+      // Remove bullet markers and clean up
+      const cleanLine = trimmedLine
+        .replace(/^[-•*]\s*/, '')
+        .replace(/^\d+\.\s*/, '')
+        .replace(/\*\*/g, '')
+        .trim()
+
+      if (cleanLine) {
+        content.push(cleanLine)
+      }
+    })
+
+    if (content.length > 0) {
+      sections.push({
+        id: configKey.toLowerCase().replace(/\s+/g, '-'),
+        title: configKey.charAt(0) + configKey.slice(1).toLowerCase(),
+        icon: config.icon,
+        bgColor: config.bgColor,
+        borderColor: config.borderColor,
+        iconBgColor: config.iconBgColor,
+        content,
+      })
+    }
+  })
+
+  return sections
+}
+
+// Collapsible section component
+function InsightCard({ section, defaultExpanded = true }: { section: InsightSection; defaultExpanded?: boolean }) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded)
+
+  return (
+    <Card className={`${section.bgColor} ${section.borderColor} border-2 transition-all duration-200 hover:shadow-md`}>
+      <CardHeader
+        className="cursor-pointer py-4"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-lg ${section.iconBgColor}`}>
+              {section.icon}
+            </div>
+            <CardTitle className="text-lg font-semibold">{section.title}</CardTitle>
+            <Badge variant="secondary" className="ml-2">
+              {section.content.length} {section.content.length === 1 ? 'punct' : 'puncte'}
+            </Badge>
+          </div>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+      </CardHeader>
+      {isExpanded && (
+        <CardContent className="pt-0 pb-4">
+          <ul className="space-y-3">
+            {section.content.map((item, idx) => (
+              <li key={idx} className="flex items-start gap-3">
+                <div className="mt-1.5 h-2 w-2 rounded-full bg-current opacity-40 flex-shrink-0" />
+                <span className="text-sm leading-relaxed">{item}</span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      )}
+    </Card>
+  )
+}
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -126,6 +282,12 @@ export default function AIAnalyticsPage() {
   const insights = insightsData?.data
   const predictions = predictionsData?.data
   const recommendations = recommendationsData?.data
+
+  // Parse insights into structured sections
+  const parsedInsights = useMemo(() => {
+    if (!insights?.insights) return []
+    return parseInsights(insights.insights)
+  }, [insights?.insights])
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -250,37 +412,92 @@ export default function AIAnalyticsPage() {
 
         {/* Insights Tab */}
         <TabsContent value="insights" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-yellow-500" />
-                Analiză AI
-              </CardTitle>
-              <CardDescription>
-                Insights generate automat pe baza datelor companiei (ultimele 90 de zile)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {insightsLoading ? (
-                <div className="flex items-center justify-center py-12">
-                  <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-                  <span className="ml-2 text-muted-foreground">Se generează analiza...</span>
+          {/* Header Card */}
+          <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30 border-indigo-200 dark:border-indigo-800">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg">
+                    <Sparkles className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Analiză AI</CardTitle>
+                    <CardDescription className="mt-1">
+                      Insights generate automat pe baza datelor din ultimele 90 de zile
+                    </CardDescription>
+                  </div>
                 </div>
-              ) : insights?.insights ? (
+                {insights?.generatedAt && (
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground">
+                      Ultima actualizare
+                    </p>
+                    <p className="text-sm font-medium">
+                      {new Date(insights.generatedAt).toLocaleString('ro-RO')}
+                    </p>
+                    {insights.isLocalAnalysis && (
+                      <Badge variant="secondary" className="mt-1">analiză locală</Badge>
+                    )}
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+          </Card>
+
+          {/* Loading State */}
+          {insightsLoading && (
+            <Card className="py-16">
+              <CardContent className="flex flex-col items-center justify-center">
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                  <div className="relative p-4 rounded-full bg-primary/10">
+                    <Brain className="h-8 w-8 text-primary animate-pulse" />
+                  </div>
+                </div>
+                <p className="mt-4 text-muted-foreground font-medium">Se generează analiza AI...</p>
+                <p className="text-sm text-muted-foreground">Aceasta poate dura câteva secunde</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Parsed Insights Sections */}
+          {!insightsLoading && parsedInsights.length > 0 && (
+            <div className="grid gap-4">
+              {parsedInsights.map((section, idx) => (
+                <InsightCard
+                  key={section.id}
+                  section={section}
+                  defaultExpanded={idx < 2} // First 2 sections expanded by default
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!insightsLoading && parsedInsights.length === 0 && !insights?.insights && (
+            <Card className="py-12">
+              <CardContent className="text-center">
+                <div className="p-4 rounded-full bg-muted inline-block mb-4">
+                  <FileText className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <p className="text-lg font-medium">Nu sunt disponibile insights</p>
+                <p className="text-muted-foreground mt-1">
+                  Adaugă date despre flotă, curse și tranzacții pentru a genera analize
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Fallback for unparseable insights */}
+          {!insightsLoading && insights?.insights && parsedInsights.length === 0 && (
+            <Card>
+              <CardContent className="py-6">
                 <div className="prose prose-sm max-w-none dark:prose-invert">
                   <div className="whitespace-pre-wrap">{insights.insights}</div>
                 </div>
-              ) : (
-                <p className="text-muted-foreground">Nu sunt disponibile insights momentan.</p>
-              )}
-              {insights?.generatedAt && (
-                <p className="text-xs text-muted-foreground mt-4">
-                  Generat la: {new Date(insights.generatedAt).toLocaleString('ro-RO')}
-                  {insights.isLocalAnalysis && ' (analiză locală)'}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Predictions Tab */}
