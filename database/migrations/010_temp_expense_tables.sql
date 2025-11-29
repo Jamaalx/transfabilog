@@ -98,6 +98,7 @@ CREATE TABLE dkv_temp_transactions (
   -- VAT
   vat_amount DECIMAL(12, 2),
   vat_amount_eur DECIMAL(12, 2),
+  vat_amount_original DECIMAL(12, 2),
   vat_rate DECIMAL(5, 2),
   vat_country VARCHAR(10),
   vat_country_rate DECIMAL(5, 2),
@@ -109,6 +110,9 @@ CREATE TABLE dkv_temp_transactions (
 
   -- Entity linking
   truck_id UUID REFERENCES truck_heads(id) ON DELETE SET NULL,
+
+  -- Provider info
+  provider VARCHAR(20) DEFAULT 'dkv',
 
   -- Processing status
   status VARCHAR(30) DEFAULT 'pending' CHECK (status IN ('pending', 'matched', 'unmatched', 'created_expense', 'ignored')),
