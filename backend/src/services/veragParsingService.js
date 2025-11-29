@@ -1541,21 +1541,48 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
 
   // Batch insert into verag_transactions
   const CHUNK_SIZE = 100;
+  let insertedCount = 0;
+  const insertErrors = [];
+
   for (let i = 0; i < transactionsToInsert.length; i += CHUNK_SIZE) {
     const chunk = transactionsToInsert.slice(i, i + CHUNK_SIZE);
-    const { error: insertError } = await supabase
+    const { data: insertedData, error: insertError } = await supabase
       .from('verag_transactions')
-      .insert(chunk);
+      .insert(chunk)
+      .select('id');
 
     if (insertError) {
       console.error('Error inserting VERAG transactions chunk:', insertError);
+      insertErrors.push(insertError.message);
+    } else {
+      insertedCount += insertedData?.length || chunk.length;
     }
   }
 
-  // Update batch status
+  // If no transactions were inserted and there were errors, fail the import
+  if (insertedCount === 0 && insertErrors.length > 0) {
+    // Clean up the batch since no transactions were inserted
+    await supabase
+      .from('verag_import_batches')
+      .delete()
+      .eq('id', batch.id);
+
+    throw new Error(`Failed to insert VERAG transactions: ${insertErrors.join('; ')}`);
+  }
+
+  // Verify inserted count from database
+  const { count: actualCount } = await supabase
+    .from('verag_transactions')
+    .select('id', { count: 'exact', head: true })
+    .eq('batch_id', batch.id);
+
+  console.log(`VERAG Import: Expected ${transactionsToInsert.length}, Actually inserted ${actualCount}`);
+
+  // Update batch status with actual counts
   await supabase
     .from('verag_import_batches')
     .update({
+      total_transactions: actualCount || insertedCount,
       matched_transactions: matchedCount,
       unmatched_transactions: unmatchedCount,
       status: unmatchedCount > 0 ? 'partial' : 'completed',
@@ -1566,7 +1593,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
     success: true,
     provider: 'verag',
     batch_id: batch.id,
-    total_transactions: parsed.metadata.total_transactions,
+    total_transactions: actualCount || insertedCount,
     matched_transactions: matchedCount,
     unmatched_transactions: unmatchedCount,
     total_net_eur: parsed.metadata.total_net_eur,
@@ -1576,6 +1603,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
     period_end: parsed.metadata.period_end,
     vehicles: parsed.metadata.vehicles,
     countries: parsed.metadata.countries,
+    insert_errors: insertErrors.length > 0 ? insertErrors : undefined,
   };
 }
 

@@ -569,11 +569,25 @@ router.post(
       let category = 'combustibil';
       const serviceType = (tx.service_type || tx.cost_group || '').toLowerCase();
       const goodsType = (tx.goods_type || tx.product_type || '').toLowerCase();
+      const productCategory = (tx.product_category || '').toLowerCase();
 
-      if (goodsType.includes('adblue')) {
+      if (goodsType.includes('adblue') || productCategory.includes('adblue')) {
         category = 'adblue';
-      } else if (serviceType.includes('toll') || goodsType.includes('toll')) {
+      } else if (
+        serviceType.includes('toll') ||
+        goodsType.includes('toll') ||
+        productCategory.includes('toll') ||
+        productCategory.includes('vignette') ||
+        productCategory.includes('maut')
+      ) {
         category = 'taxe_drum';
+      } else if (
+        goodsType.includes('diesel') ||
+        goodsType.includes('gasoil') ||
+        productCategory.includes('diesel') ||
+        productCategory.includes('fuel')
+      ) {
+        category = 'combustibil';
       }
 
       // Get amount in EUR (use gross for total cost)
@@ -667,12 +681,30 @@ router.post(
             continue;
           }
 
-          // Determine category
+          // Determine category based on service/goods type and product_category
           let category = 'combustibil';
           const serviceType = (tx.service_type || tx.cost_group || '').toLowerCase();
           const goodsType = (tx.goods_type || tx.product_type || '').toLowerCase();
-          if (goodsType.includes('adblue')) category = 'adblue';
-          else if (serviceType.includes('toll') || goodsType.includes('toll')) category = 'taxe_drum';
+          const productCategory = (tx.product_category || '').toLowerCase();
+
+          if (goodsType.includes('adblue') || productCategory.includes('adblue')) {
+            category = 'adblue';
+          } else if (
+            serviceType.includes('toll') ||
+            goodsType.includes('toll') ||
+            productCategory.includes('toll') ||
+            productCategory.includes('vignette') ||
+            productCategory.includes('maut')
+          ) {
+            category = 'taxe_drum';
+          } else if (
+            goodsType.includes('diesel') ||
+            goodsType.includes('gasoil') ||
+            productCategory.includes('diesel') ||
+            productCategory.includes('fuel')
+          ) {
+            category = 'combustibil';
+          }
 
           const amountEur = tx.gross_amount_eur || tx.gross_amount || tx.net_amount_eur || tx.net_amount || 0;
           const transactionDate = tx.transaction_time || tx.transaction_date;

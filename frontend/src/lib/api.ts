@@ -17,18 +17,39 @@ api.interceptors.request.use(async (config) => {
   return config
 })
 
-// Handle response errors
+// Handle response errors with automatic retry after token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
-      // Token expired, try to refresh
-      const { error: refreshError } = await supabase.auth.refreshSession()
-      if (refreshError) {
-        // Refresh failed, redirect to login
+    const originalRequest = error.config
+
+    // If 401 and we haven't retried yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true
+
+      try {
+        // Token expired, try to refresh
+        const { data, error: refreshError } = await supabase.auth.refreshSession()
+
+        if (refreshError || !data.session) {
+          // Refresh failed, redirect to login
+          console.error('Session refresh failed:', refreshError?.message)
+          window.location.href = '/login'
+          return Promise.reject(error)
+        }
+
+        // Update the authorization header with new token
+        originalRequest.headers.Authorization = `Bearer ${data.session.access_token}`
+
+        // Retry the original request with the new token
+        return api(originalRequest)
+      } catch (refreshError) {
+        console.error('Error refreshing session:', refreshError)
         window.location.href = '/login'
+        return Promise.reject(error)
       }
     }
+
     return Promise.reject(error)
   }
 )

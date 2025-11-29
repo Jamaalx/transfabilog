@@ -138,7 +138,7 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
   const config = providerConfig[provider] || providerConfig.dkv
 
   // Fetch summary
-  const { data: summary } = useQuery<DKVSummary>({
+  const { data: summary, error: summaryError, isLoading: summaryLoading, refetch: refetchSummary } = useQuery<DKVSummary>({
     queryKey: ['dkv-summary', provider, summaryFilter],
     queryFn: async () => {
       const res = await dkvApi.getSummary(
@@ -147,10 +147,11 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       )
       return res.data
     },
+    retry: 2,
   })
 
   // Fetch transactions
-  const { data: txData, isLoading: txLoading } = useQuery({
+  const { data: txData, isLoading: txLoading, error: txError, refetch: refetchTx } = useQuery({
     queryKey: ['dkv-transactions', page, statusFilter, provider],
     queryFn: async () => {
       const params: Record<string, unknown> = { page, limit: 50 }
@@ -169,25 +170,28 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       return res.data
     },
     enabled: activeTab === 'transactions',
+    retry: 2,
   })
 
   // Fetch batches
-  const { data: batchData, isLoading: batchLoading } = useQuery({
+  const { data: batchData, isLoading: batchLoading, error: batchError, refetch: refetchBatches } = useQuery({
     queryKey: ['dkv-batches', provider],
     queryFn: async () => {
       const res = await dkvApi.getBatches(provider !== 'all' ? provider : undefined)
       return res.data
     },
     enabled: activeTab === 'batches',
+    retry: 2,
   })
 
-  // Fetch trucks for matching
+  // Fetch trucks for matching (silent error - not critical)
   const { data: trucksData } = useQuery({
     queryKey: ['trucks-for-dkv'],
     queryFn: async () => {
       const res = await vehiclesApi.getTrucks({ limit: 100 })
       return res.data
     },
+    retry: 2,
   })
 
   // Import mutation
@@ -436,6 +440,33 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
           </div>
           <p className="text-sm text-red-700 mt-1">
             {(importMutation.error as Error)?.message || 'A aparut o eroare'}
+          </p>
+        </div>
+      )}
+
+      {/* Query Errors */}
+      {(summaryError || txError) && (
+        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-800">
+              <AlertCircle className="h-5 w-5" />
+              <span className="font-medium">Eroare la incarcarea datelor</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetchSummary()
+                refetchTx()
+              }}
+              className="text-amber-700 border-amber-300 hover:bg-amber-100"
+            >
+              <Loader2 className="mr-1 h-3 w-3" />
+              Reincearca
+            </Button>
+          </div>
+          <p className="text-sm text-amber-700 mt-1">
+            {(summaryError as Error)?.message || (txError as Error)?.message || 'Verificati conexiunea si incercati din nou'}
           </p>
         </div>
       )}
