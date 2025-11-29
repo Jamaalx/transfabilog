@@ -20,6 +20,7 @@ import DocumentValidationPage from '@/pages/documents/DocumentValidationPage'
 import DKVPage from '@/pages/dkv/DKVPage'
 import EurowagPage from '@/pages/eurowag/EurowagPage'
 import VeragPage from '@/pages/verag/VeragPage'
+import HelpPage from '@/pages/help/HelpPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -70,6 +71,7 @@ function App() {
           <Route path="/dkv" element={<DKVPage />} />
           <Route path="/eurowag" element={<EurowagPage />} />
           <Route path="/verag" element={<VeragPage />} />
+          <Route path="/help" element={<HelpPage />} />
         </Route>
 
         {/* 404 */}

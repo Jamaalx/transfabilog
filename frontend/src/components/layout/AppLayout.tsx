@@ -17,6 +17,7 @@ import {
   Fuel,
   CreditCard,
   Milestone,
+  HelpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -31,6 +32,7 @@ const navigation = [
   { name: 'VERAG', href: '/verag', icon: Milestone },
   { name: 'Rapoarte', href: '/reports', icon: FileText },
   { name: 'AI Analytics', href: '/ai', icon: Brain },
+  { name: 'Ajutor', href: '/help', icon: HelpCircle },
 ]
 
 export default function AppLayout() {
