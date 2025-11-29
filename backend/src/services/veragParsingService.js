@@ -86,6 +86,52 @@ const COUNTRY_NAMES = {
   'Estonia': 'EE',
 };
 
+// Convert 3-letter country codes to 2-letter ISO codes
+const COUNTRY_CODE_MAP = {
+  'DEU': 'DE',
+  'GBR': 'GB',
+  'ROM': 'RO',
+  'SVN': 'SI',
+  // Standard 2-letter codes pass through
+  'AT': 'AT',
+  'BE': 'BE',
+  'BG': 'BG',
+  'CZ': 'CZ',
+  'DE': 'DE',
+  'FR': 'FR',
+  'HR': 'HR',
+  'HU': 'HU',
+  'IT': 'IT',
+  'PL': 'PL',
+  'SK': 'SK',
+  'CH': 'CH',
+  'SI': 'SI',
+  'NL': 'NL',
+  'LU': 'LU',
+  'ES': 'ES',
+  'PT': 'PT',
+  'DK': 'DK',
+  'SE': 'SE',
+  'NO': 'NO',
+  'FI': 'FI',
+  'GR': 'GR',
+  'RS': 'RS',
+  'LT': 'LT',
+  'LV': 'LV',
+  'EE': 'EE',
+  'RO': 'RO',
+  'GB': 'GB',
+};
+
+/**
+ * Convert country code to standard 2-letter ISO format
+ */
+function normalizeCountryCode(code) {
+  if (!code) return null;
+  const upper = code.toUpperCase().trim();
+  return COUNTRY_CODE_MAP[upper] || (upper.length <= 2 ? upper : upper.substring(0, 2));
+}
+
 /**
  * Create a standardized key for truck matching
  */
@@ -1522,7 +1568,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
       route_info: tx.route_info,
       // Location
       country: tx.country,
-      country_code: tx.country_code,
+      country_code: normalizeCountryCode(tx.country_code || tx.country),
       // Amounts (all in EUR for VERAG)
       currency: 'EUR',
       net_amount: tx.net_amount,
