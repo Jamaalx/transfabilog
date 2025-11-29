@@ -1691,21 +1691,7 @@ router.post(
           delete finalData.id; // Let DB generate new ID
           delete finalData.batch_id; // batch_id references temp batch table, not final batch table
           finalData.status = 'created_expense';
-
-          // Handle schema differences between temp and final tables per provider
-          if (provider === 'dkv') {
-            // DKV final table uses transaction_id instead of expense_id
-            // DKV also doesn't have vat_amount_eur column
-            delete finalData.vat_amount_eur;
-            finalData.transaction_id = expense.id;
-          } else if (provider === 'eurowag') {
-            // Eurowag temp has product_category but final doesn't
-            delete finalData.product_category;
-            finalData.expense_id = expense.id;
-          } else {
-            // Verag uses expense_id
-            finalData.expense_id = expense.id;
-          }
+          finalData.expense_id = expense.id; // All providers use expense_id consistently
 
           const { error: insertError } = await supabase
             .from(finalTables.transactions)
