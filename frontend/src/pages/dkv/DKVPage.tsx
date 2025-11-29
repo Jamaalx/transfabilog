@@ -137,11 +137,11 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
   const queryClient = useQueryClient()
   const config = providerConfig[provider] || providerConfig.dkv
 
-  // Fetch summary
+  // Fetch summary from TEMP staging tables
   const { data: summary, error: summaryError, isLoading: summaryLoading, refetch: refetchSummary } = useQuery<DKVSummary>({
-    queryKey: ['dkv-summary', provider, summaryFilter],
+    queryKey: ['dkv-temp-summary', provider, summaryFilter],
     queryFn: async () => {
-      const res = await dkvApi.getSummary(
+      const res = await dkvApi.getTempSummary(
         provider !== 'all' ? provider : undefined,
         summaryFilter === 'latest' ? { latest: true } : undefined
       )
@@ -150,34 +150,28 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
     retry: 2,
   })
 
-  // Fetch transactions
+  // Fetch transactions from TEMP staging tables
   const { data: txData, isLoading: txLoading, error: txError, refetch: refetchTx } = useQuery({
-    queryKey: ['dkv-transactions', page, statusFilter, provider],
+    queryKey: ['dkv-temp-transactions', page, statusFilter, provider],
     queryFn: async () => {
       const params: Record<string, unknown> = { page, limit: 50 }
-      // If a specific status is selected, pass it and disable hide_processed
-      if (statusFilter) {
+      // If a specific status is selected, pass it
+      if (statusFilter && statusFilter !== 'all') {
         params.status = statusFilter
-        params.hide_processed = false // Show the specific status even if processed
-      }
-      // If "all" is selected (including processed), disable hide_processed
-      if (statusFilter === 'all') {
-        delete params.status
-        params.hide_processed = false
       }
       if (provider !== 'all') params.provider = provider
-      const res = await dkvApi.getTransactions(params)
+      const res = await dkvApi.getTempTransactions(params)
       return res.data
     },
     enabled: activeTab === 'transactions',
     retry: 2,
   })
 
-  // Fetch batches
+  // Fetch batches from TEMP staging tables
   const { data: batchData, isLoading: batchLoading, error: batchError, refetch: refetchBatches } = useQuery({
-    queryKey: ['dkv-batches', provider],
+    queryKey: ['dkv-temp-batches', provider],
     queryFn: async () => {
-      const res = await dkvApi.getBatches(provider !== 'all' ? provider : undefined)
+      const res = await dkvApi.getTempBatches(provider !== 'all' ? provider : undefined)
       return res.data
     },
     enabled: activeTab === 'batches',
@@ -194,7 +188,7 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
     retry: 2,
   })
 
-  // Import mutation
+  // Import mutation - saves to TEMP staging tables
   const importMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData()
@@ -203,73 +197,77 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       return res.data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-batches'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
       // Auto-switch to show only the latest import after successful import
       setSummaryFilter('latest')
     },
   })
 
-  // Match mutation
+  // Match mutation - updates in TEMP staging tables
   const matchMutation = useMutation({
     mutationFn: async ({ txId, truckId }: { txId: string; truckId: string }) => {
-      const res = await dkvApi.matchTransaction(txId, truckId, provider !== 'all' ? provider : undefined)
+      const res = await dkvApi.matchTempTransaction(txId, truckId, provider !== 'all' ? provider : undefined)
       return res.data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
       setMatchingTxId(null)
     },
   })
 
-  // Create expense mutation
+  // Create expense mutation - approves single transaction from TEMP to FINAL
   const createExpenseMutation = useMutation({
     mutationFn: async (txId: string) => {
-      const res = await dkvApi.createExpense(txId, undefined, provider !== 'all' ? provider : undefined)
+      const res = await dkvApi.approveTempTransactions([txId], provider !== 'all' ? provider : undefined)
       return res.data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
     },
   })
 
-  // Bulk create expenses mutation
+  // Bulk approve mutation - moves from TEMP to FINAL and creates expenses
   const bulkCreateMutation = useMutation({
     mutationFn: async (txIds: string[]) => {
-      const res = await dkvApi.bulkCreateExpenses(txIds, provider !== 'all' ? provider : undefined)
+      const res = await dkvApi.approveTempTransactions(txIds, provider !== 'all' ? provider : undefined)
       return res.data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
       setSelectedTx([])
     },
   })
 
-  // Ignore mutation
+  // Ignore mutation - marks as ignored in TEMP (or deletes from temp)
   const ignoreMutation = useMutation({
     mutationFn: async (txId: string) => {
+      // For temp tables, we can delete the transaction instead of ignoring
       const res = await dkvApi.ignoreTransaction(txId, undefined, provider !== 'all' ? provider : undefined)
       return res.data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
     },
   })
 
-  // Bulk ignore mutation (Reject All)
+  // Bulk ignore mutation (Reject All) - removes from temp staging
   const bulkIgnoreMutation = useMutation({
     mutationFn: async (txIds: string[]) => {
       const res = await dkvApi.bulkIgnoreTransactions(txIds, provider !== 'all' ? provider : undefined)
       return res.data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
       setSelectedTx([])
     },
   })
@@ -281,9 +279,9 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       return res.data
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-batches'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
       alert(`Sterse ${data?.deleted || 0} tranzactii: ${data?.message || 'OK'}`)
     },
     onError: (error: Error) => {
@@ -292,15 +290,15 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
     },
   })
 
-  // Delete batch mutation
+  // Delete batch mutation - deletes from TEMP staging
   const deleteBatchMutation = useMutation({
     mutationFn: async (batchId: string) => {
-      await dkvApi.deleteBatch(batchId, provider !== 'all' ? provider : undefined)
+      await dkvApi.deleteTempBatch(batchId, provider !== 'all' ? provider : undefined)
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-batches'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
     },
   })
 
@@ -334,12 +332,17 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
   }
 
   const handleBulkCreateExpenses = () => {
-    const matchedIds = selectedTx.filter((id) => {
+    // Approve all selected transactions that have a truck assigned
+    const approveIds = selectedTx.filter((id) => {
       const tx = transactions.find((t) => t.id === id)
-      return tx && tx.status === 'matched'
+      return tx && (tx.status === 'matched' || tx.truck_id)
     })
-    if (matchedIds.length > 0) {
-      bulkCreateMutation.mutate(matchedIds)
+    if (approveIds.length > 0) {
+      if (confirm(`Sigur doriti sa aprobati ${approveIds.length} tranzactii? Se vor crea cheltuieli in sistem.`)) {
+        bulkCreateMutation.mutate(approveIds)
+      }
+    } else {
+      alert('Selectati tranzactii asociate cu un camion pentru a crea cheltuieli.')
     }
   }
 
@@ -375,8 +378,8 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
   const isTollProvider = provider === 'verag'
   const pageTitle = isTollProvider ? 'Rapoarte Taxe Drum (Maut)' : `Rapoarte ${config.name}`
   const pageDesc = isTollProvider
-    ? 'Importa si gestioneaza taxele de drum VERAG'
-    : `Importa si gestioneaza tranzactiile de carburant ${config.name}`
+    ? 'Importa, verifica si aproba taxele de drum VERAG'
+    : `Importa, verifica si aproba tranzactiile ${config.name}`
 
   return (
     <div className="p-6">
@@ -412,6 +415,17 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Staging Mode Indicator */}
+      <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex items-center gap-2 text-amber-800">
+          <Clock className="h-5 w-5" />
+          <span className="font-medium">Zona de Verificare (Staging)</span>
+        </div>
+        <p className="text-sm text-amber-700 mt-1">
+          Tranzactiile importate apar aici pentru verificare. Asociati-le cu camioane si apasati "Creeaza Cheltuieli" pentru a le aproba si a crea cheltuielile in sistem.
+        </p>
       </div>
 
       {/* Import Success/Error Message */}
@@ -567,53 +581,30 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
                   }}
                   className="border rounded-md px-3 py-2"
                 >
-                  <option value="">De procesat (activi)</option>
-                  <option value="pending">In Asteptare</option>
-                  <option value="matched">Asociate</option>
-                  <option value="unmatched">Neasociate</option>
-                  <option value="created_expense">Cheltuieli Create</option>
-                  <option value="ignored">Ignorate</option>
-                  <option value="all">Toate (inclusiv procesate)</option>
+                  <option value="">Toate in asteptare</option>
+                  <option value="pending">In Asteptare (neverificate)</option>
+                  <option value="matched">Asociate (gata de aprobare)</option>
+                  <option value="unmatched">Neasociate (necesita asociere)</option>
                 </select>
 
                 <div className="flex items-center gap-2 ml-auto">
-                  {/* Delete Ignored Button - only show when there are ignored transactions */}
-                  {(summary?.ignored || 0) > 0 && (
+                  {/* Reject/Delete Selected Button */}
+                  {selectedTx.length > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        if (confirm(`Sigur doriti sa stergeti PERMANENT ${summary?.ignored} tranzactii refuzate? Aceasta actiune nu poate fi anulata!`)) {
-                          bulkDeleteMutation.mutate('ignored')
-                        }
-                      }}
-                      disabled={bulkDeleteMutation.isPending}
-                      className="text-red-700 hover:text-red-800 hover:bg-red-100 border-red-300"
+                      onClick={handleRejectAll}
+                      disabled={bulkIgnoreMutation.isPending}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
-                      {bulkDeleteMutation.isPending ? (
+                      {bulkIgnoreMutation.isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
                         <Trash2 className="mr-2 h-4 w-4" />
                       )}
-                      Sterge {summary?.ignored} Refuzate
+                      Sterge {selectedTx.length} selectate
                     </Button>
                   )}
-
-                  {/* Reject All Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRejectAll}
-                    disabled={bulkIgnoreMutation.isPending}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    {bulkIgnoreMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Ban className="mr-2 h-4 w-4" />
-                    )}
-                    {selectedTx.length > 0 ? `Refuza ${selectedTx.length} selectate` : 'Refuza Toate'}
-                  </Button>
 
                   {selectedTx.length > 0 && (
                     <>
@@ -624,13 +615,14 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
                         size="sm"
                         onClick={handleBulkCreateExpenses}
                         disabled={bulkCreateMutation.isPending}
+                        className="bg-green-600 hover:bg-green-700"
                       >
                         {bulkCreateMutation.isPending ? (
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         ) : (
-                          <Plus className="mr-2 h-4 w-4" />
+                          <CheckCircle className="mr-2 h-4 w-4" />
                         )}
-                        Creeaza Cheltuieli
+                        Aproba si Creeaza Cheltuieli
                       </Button>
                     </>
                   )}
@@ -865,28 +857,35 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
                             </td>
                             <td className="p-3">
                               <div className="flex items-center gap-1">
-                                {tx.status === 'matched' && (
+                                {(tx.status === 'matched' || tx.truck_id) && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => createExpenseMutation.mutate(tx.id)}
+                                    onClick={() => {
+                                      if (confirm('Aproba tranzactia si creeaza cheltuiala?')) {
+                                        createExpenseMutation.mutate(tx.id)
+                                      }
+                                    }}
                                     disabled={createExpenseMutation.isPending}
-                                    title="Creeaza Cheltuiala"
+                                    title="Aproba si Creeaza Cheltuiala"
+                                    className="text-green-600 hover:text-green-700"
                                   >
-                                    <Plus className="h-4 w-4" />
+                                    <CheckCircle className="h-4 w-4" />
                                   </Button>
                                 )}
-                                {['pending', 'matched', 'unmatched'].includes(tx.status) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => ignoreMutation.mutate(tx.id)}
-                                    title="Ignora"
-                                    className="text-red-500 hover:text-red-600"
-                                  >
-                                    <XCircle className="h-4 w-4" />
-                                  </Button>
-                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    if (confirm('Sterge tranzactia din staging?')) {
+                                      ignoreMutation.mutate(tx.id)
+                                    }
+                                  }}
+                                  title="Sterge din staging"
+                                  className="text-red-500 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
                               </div>
                             </td>
                           </tr>
@@ -934,7 +933,7 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5" />
-              Istoricul Importurilor {config.name}
+              Importuri in Asteptare (Staging) - {config.name}
             </CardTitle>
           </CardHeader>
           <CardContent>

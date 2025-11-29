@@ -132,13 +132,57 @@ export const uploadedDocumentsApi = {
 
 export const dkvApi = {
   // Import - supports provider parameter for DKV, EUROWAG, VERAG
+  // By default, saves to TEMP tables for staging
   import: (formData: FormData, provider?: string) => {
     const url = provider ? `/dkv/import?provider=${provider}` : '/dkv/import'
     return api.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  // Batches - supports provider filtering
+
+  // ============= TEMP/STAGING ENDPOINTS =============
+  // These are used for the new staging workflow
+
+  // Get batches from temp staging tables
+  getTempBatches: (provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.get('/dkv/temp/batches', { params })
+  },
+
+  // Get transactions from temp staging tables
+  getTempTransactions: (params?: Record<string, unknown>) => api.get('/dkv/temp/transactions', { params }),
+
+  // Match transaction in temp staging (before approval)
+  matchTempTransaction: (id: string, truckId: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.put(`/dkv/temp/transaction/${id}/match`, { truck_id: truckId }, { params })
+  },
+
+  // Delete batch from temp staging
+  deleteTempBatch: (id: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.delete(`/dkv/temp/batch/${id}`, { params })
+  },
+
+  // Approve temp transactions - moves to final tables and creates expenses
+  approveTempTransactions: (transactionIds: string[], provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.post('/dkv/temp/approve', { transaction_ids: transactionIds }, { params })
+  },
+
+  // Get summary from temp tables
+  getTempSummary: (provider?: string, options?: { batch_id?: string; latest?: boolean }) => {
+    const params: Record<string, string | boolean> = {}
+    if (provider) params.provider = provider
+    if (options?.batch_id) params.batch_id = options.batch_id
+    if (options?.latest) params.latest = true
+    return api.get('/dkv/temp/summary', { params })
+  },
+
+  // ============= FINAL TABLE ENDPOINTS =============
+  // These access the final/approved data
+
+  // Batches - supports provider filtering (final tables)
   getBatches: (provider?: string) => {
     const params = provider ? { provider } : {}
     return api.get('/dkv/batches', { params })
@@ -151,7 +195,7 @@ export const dkvApi = {
     const params = provider ? { provider } : {}
     return api.delete(`/dkv/batches/${id}`, { params })
   },
-  // Transactions - supports status and provider filtering
+  // Transactions - supports status and provider filtering (final tables)
   getTransactions: (params?: Record<string, unknown>) => api.get('/dkv/transactions', { params }),
   getTransaction: (id: string, provider?: string) => {
     const params = provider ? { provider } : {}
@@ -182,7 +226,7 @@ export const dkvApi = {
     if (provider) params.provider = provider
     return api.delete('/dkv/transactions/bulk-delete', { params })
   },
-  // Summary - supports provider filtering and batch filtering
+  // Summary - supports provider filtering and batch filtering (final tables)
   getSummary: (provider?: string, options?: { batch_id?: string; latest?: boolean }) => {
     const params: Record<string, string | boolean> = {}
     if (provider) params.provider = provider
