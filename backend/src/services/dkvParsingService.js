@@ -297,7 +297,14 @@ function parseDate(value) {
     return date;
   }
 
-  // Try DD.MM.YYYY HH:MM format
+  // Try DD.MM.YYYY - HH:MM format (DKV CSV with dash separator)
+  const euDashMatch = str.match(/(\d{2})\.(\d{2})\.(\d{4})\s*-\s*(\d{2}):(\d{2})/);
+  if (euDashMatch) {
+    const [, day, month, year, hour, minute] = euDashMatch;
+    return new Date(year, month - 1, day, hour, minute);
+  }
+
+  // Try DD.MM.YYYY HH:MM format (standard EU with space)
   const euMatch = str.match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
   if (euMatch) {
     const [, day, month, year, hour, minute] = euMatch;
