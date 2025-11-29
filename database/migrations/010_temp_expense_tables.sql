@@ -65,6 +65,7 @@ CREATE TABLE dkv_temp_transactions (
   station_city VARCHAR(255),
   station_number VARCHAR(50),
   country VARCHAR(10),
+  country_code VARCHAR(2),
 
   -- Product information
   cost_group VARCHAR(100),
