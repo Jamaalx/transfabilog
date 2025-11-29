@@ -69,18 +69,6 @@ router.get('/types', (req, res) => {
     { value: 'extras_bancar', label: 'Extrase Bancare', category: 'financial', icon: 'Building' },
     { value: 'bon_fiscal', label: 'Bonuri Fiscale', category: 'financial', icon: 'Receipt' },
 
-    // Fuel
-    { value: 'raport_dkv', label: 'Rapoarte DKV', category: 'fuel', icon: 'Fuel' },
-    { value: 'raport_eurowag', label: 'Rapoarte Eurowag', category: 'fuel', icon: 'Fuel' },
-    { value: 'raport_verag', label: 'Rapoarte Verag', category: 'fuel', icon: 'Fuel' },
-    { value: 'raport_shell', label: 'Rapoarte Shell', category: 'fuel', icon: 'Fuel' },
-    { value: 'raport_omv', label: 'Rapoarte OMV', category: 'fuel', icon: 'Fuel' },
-
-    // Transport
-    { value: 'cmr', label: 'CMR-uri', category: 'transport', icon: 'FileText' },
-    { value: 'aviz_expeditie', label: 'Avize de Expediție', category: 'transport', icon: 'Truck' },
-    { value: 'contract_transport', label: 'Contracte Transport', category: 'transport', icon: 'FileSignature' },
-
     // Fleet
     { value: 'asigurare', label: 'Asigurări (RCA/CASCO)', category: 'fleet', icon: 'Shield' },
     { value: 'itp', label: 'ITP / Inspecție Tehnică', category: 'fleet', icon: 'ClipboardCheck' },
@@ -91,18 +79,12 @@ router.get('/types', (req, res) => {
     { value: 'contract_munca', label: 'Contracte de Muncă', category: 'hr', icon: 'Users' },
     { value: 'permis_conducere', label: 'Permise de Conducere', category: 'hr', icon: 'CreditCard' },
     { value: 'atestat', label: 'Atestate Profesionale', category: 'hr', icon: 'Award' },
-
-    // Other
-    { value: 'altele', label: 'Alte Documente', category: 'other', icon: 'File' },
   ];
 
   const categories = [
     { value: 'financial', label: 'Financiare', color: 'green' },
-    { value: 'fuel', label: 'Combustibil', color: 'orange' },
-    { value: 'transport', label: 'Transport', color: 'blue' },
     { value: 'fleet', label: 'Flotă', color: 'purple' },
     { value: 'hr', label: 'Resurse Umane', color: 'pink' },
-    { value: 'other', label: 'Altele', color: 'gray' },
   ];
 
   res.json({ types, categories });

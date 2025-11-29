@@ -27,7 +27,6 @@ import {
   Trash2,
   Eye,
   Brain,
-  Fuel,
   Building,
   Receipt,
   Truck,
@@ -62,10 +61,7 @@ const iconMap: Record<string, React.ElementType> = {
   FileOutput: FileText,
   Building: Building,
   Receipt: Receipt,
-  Fuel: Fuel,
   FileText: FileText,
-  Truck: Truck,
-  FileSignature: FileText,
   Shield: Shield,
   ClipboardCheck: FileText,
   Road: FileText,
@@ -78,20 +74,14 @@ const iconMap: Record<string, React.ElementType> = {
 
 const categoryColors: Record<string, string> = {
   financial: 'bg-green-100 text-green-800 border-green-300',
-  fuel: 'bg-orange-100 text-orange-800 border-orange-300',
-  transport: 'bg-blue-100 text-blue-800 border-blue-300',
   fleet: 'bg-purple-100 text-purple-800 border-purple-300',
   hr: 'bg-pink-100 text-pink-800 border-pink-300',
-  other: 'bg-gray-100 text-gray-800 border-gray-300',
 }
 
 const categoryLabels: Record<string, string> = {
   financial: 'Financiare',
-  fuel: 'Combustibil',
-  transport: 'Transport',
   fleet: 'Flotă',
   hr: 'Resurse Umane',
-  other: 'Altele',
 }
 
 interface TruckData {
