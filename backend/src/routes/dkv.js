@@ -1686,11 +1686,26 @@ router.post(
             continue;
           }
 
-          // Copy to final table with expense_id
+          // Copy to final table with expense reference
           const finalData = { ...tempTx };
           delete finalData.id; // Let DB generate new ID
+          delete finalData.batch_id; // batch_id references temp batch table, not final batch table
           finalData.status = 'created_expense';
-          finalData.expense_id = expense.id;
+
+          // Handle schema differences between temp and final tables per provider
+          if (provider === 'dkv') {
+            // DKV final table uses transaction_id instead of expense_id
+            // DKV also doesn't have vat_amount_eur column
+            delete finalData.vat_amount_eur;
+            finalData.transaction_id = expense.id;
+          } else if (provider === 'eurowag') {
+            // Eurowag temp has product_category but final doesn't
+            delete finalData.product_category;
+            finalData.expense_id = expense.id;
+          } else {
+            // Verag uses expense_id
+            finalData.expense_id = expense.id;
+          }
 
           const { error: insertError } = await supabase
             .from(finalTables.transactions)
@@ -1698,6 +1713,7 @@ router.post(
 
           if (insertError) {
             // Rollback expense
+            console.error(`Failed to insert to final table ${finalTables.transactions}:`, insertError);
             await supabase.from('transactions').delete().eq('id', expense.id);
             results.failed.push({ id: txId, error: insertError.message });
             continue;
