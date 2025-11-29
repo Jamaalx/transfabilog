@@ -228,6 +228,7 @@ CREATE TABLE transactions (
   currency VARCHAR(3) DEFAULT 'EUR',
   date DATE NOT NULL,
   description TEXT,
+  notes TEXT, -- Additional notes (e.g., import source, country)
   trip_id UUID REFERENCES trips(id),
   driver_id UUID REFERENCES drivers(id),
   truck_id UUID REFERENCES truck_heads(id),
