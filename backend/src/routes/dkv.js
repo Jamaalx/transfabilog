@@ -1482,6 +1482,133 @@ router.delete(
 );
 
 /**
+ * PATCH /api/v1/dkv/temp/transaction/:id/ignore
+ * Mark a transaction as ignored in TEMP staging (or delete it)
+ */
+router.patch(
+  '/temp/transaction/:id/ignore',
+  authorize('admin', 'manager', 'operator'),
+  [
+    param('id').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tables = getTempTableNames(provider);
+
+      // For temp staging, just delete the transaction instead of marking ignored
+      const { error } = await supabase
+        .from(tables.transactions)
+        .delete()
+        .eq('id', req.params.id)
+        .eq('company_id', req.companyId);
+
+      if (error) throw error;
+
+      res.json({ message: 'Transaction removed from staging' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/dkv/temp/transactions/bulk-ignore
+ * Bulk delete transactions from TEMP staging
+ */
+router.post(
+  '/temp/transactions/bulk-ignore',
+  authorize('admin', 'manager', 'operator'),
+  [
+    body('transaction_ids').isArray({ min: 1, max: 500 }),
+    body('transaction_ids.*').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tables = getTempTableNames(provider);
+
+      // Delete transactions from temp staging
+      const { data, error } = await supabase
+        .from(tables.transactions)
+        .delete()
+        .in('id', req.body.transaction_ids)
+        .eq('company_id', req.companyId)
+        .select('id');
+
+      if (error) throw error;
+
+      res.json({
+        success: true,
+        deleted: data?.length || 0,
+        total: req.body.transaction_ids.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/dkv/temp/transactions/bulk-delete
+ * Permanently delete all transactions from TEMP staging
+ */
+router.delete(
+  '/temp/transactions/bulk-delete',
+  authorize('admin', 'manager', 'operator'),
+  [
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tables = getTempTableNames(provider);
+
+      // Delete all transactions from temp staging for this company
+      const { data, error } = await supabase
+        .from(tables.transactions)
+        .delete()
+        .eq('company_id', req.companyId)
+        .select('id');
+
+      if (error) throw error;
+
+      // Also clean up empty batches
+      const { data: batches } = await supabase
+        .from(tables.batches)
+        .select('id')
+        .eq('company_id', req.companyId);
+
+      if (batches) {
+        for (const batch of batches) {
+          const { count } = await supabase
+            .from(tables.transactions)
+            .select('id', { count: 'exact', head: true })
+            .eq('batch_id', batch.id);
+
+          if (count === 0) {
+            await supabase
+              .from(tables.batches)
+              .delete()
+              .eq('id', batch.id);
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        deleted: data?.length || 0,
+        message: `Deleted ${data?.length || 0} transactions from staging`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * POST /api/v1/dkv/temp/approve
  * Approve transactions - move from TEMP to FINAL and create expenses
  */

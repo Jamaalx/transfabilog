@@ -132,12 +132,59 @@ export const uploadedDocumentsApi = {
 
 export const dkvApi = {
   // Import - supports provider parameter for DKV, EUROWAG, VERAG
+  // Saves to TEMP staging tables
   import: (formData: FormData, provider?: string) => {
     const url = provider ? `/dkv/import?provider=${provider}` : '/dkv/import'
     return api.post(url, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+
+  // ============= TEMP STAGING ENDPOINTS =============
+  // Batches from TEMP tables
+  getTempBatches: (provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.get('/dkv/temp/batches', { params })
+  },
+  // Transactions from TEMP tables
+  getTempTransactions: (params?: Record<string, unknown>) => api.get('/dkv/temp/transactions', { params }),
+  // Summary from TEMP tables
+  getTempSummary: (provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.get('/dkv/temp/summary', { params })
+  },
+  // Match in TEMP table
+  matchTempTransaction: (id: string, truckId: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.put(`/dkv/temp/transaction/${id}/match`, { truck_id: truckId }, { params })
+  },
+  // Delete batch from TEMP
+  deleteTempBatch: (id: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.delete(`/dkv/temp/batch/${id}`, { params })
+  },
+  // Approve - move from TEMP to FINAL and create expenses
+  approveTempTransactions: (transactionIds: string[], provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.post('/dkv/temp/approve', { transaction_ids: transactionIds }, { params })
+  },
+  // Ignore single transaction in TEMP (deletes from staging)
+  ignoreTempTransaction: (id: string, provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.patch(`/dkv/temp/transaction/${id}/ignore`, {}, { params })
+  },
+  // Bulk ignore transactions in TEMP (deletes from staging)
+  bulkIgnoreTempTransactions: (transactionIds: string[], provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.post('/dkv/temp/transactions/bulk-ignore', { transaction_ids: transactionIds }, { params })
+  },
+  // Bulk delete all transactions from TEMP staging
+  bulkDeleteTempTransactions: (provider?: string) => {
+    const params = provider ? { provider } : {}
+    return api.delete('/dkv/temp/transactions/bulk-delete', { params })
+  },
+
+  // ============= FINAL TABLE ENDPOINTS =============
   // Batches - supports provider filtering
   getBatches: (provider?: string) => {
     const params = provider ? { provider } : {}
