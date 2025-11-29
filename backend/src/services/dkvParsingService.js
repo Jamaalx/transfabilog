@@ -5,30 +5,31 @@ const bnrService = require('./bnrExchangeService');
 /**
  * DKV Excel Column Mappings
  * Based on Invoice-Transactions_Report format
+ * Supports multiple variants (Romanian, German, English)
  */
 const DKV_COLUMNS = {
-  TRANSACTION_TIME: 'Timp tranzacție',
-  STATION_NAME: 'Denumire stație',
-  STATION_CITY: 'Orașul stației',
-  STATION_NUMBER: 'Număr stație',
-  TRANSACTION_NUMBER: 'Numarul tranzactiei',
-  COUNTRY: 'Țara de servicii',
-  COST_GROUP: 'Grupă cost',
-  PRODUCT_GROUP: 'Grupă produs',
-  GOODS_TYPE: 'Tip mărfuri',
-  GOODS_CODE: 'Cod mărfuri',
-  PAYMENT_CURRENCY: 'Moneda de plată',
-  UNIT: 'Unitate',
-  QUANTITY: 'Cantitate',
-  PRICE_PER_UNIT: 'Preț pe unitate',
-  NET_BASE_VALUE: 'Valoare de bază Netă',
-  NET_SERVICE_FEE: 'Taxă de serviciu netă',
-  NET_PURCHASE_VALUE: 'Valoarea netă a achiziției',
-  GROSS_VALUE: 'Valoare brută',  // Brutto value
-  VAT_AMOUNT: 'TVA',  // VAT amount
-  PAYMENT_VALUE: 'Valoarea în moneda de plată',
-  VEHICLE_REGISTRATION: 'Număr de înmatriculare vehicul',
-  CARD_NUMBER: 'Nr. card/cutie',
+  TRANSACTION_TIME: ['Timp tranzacție', 'Timp tranzactie', 'Transaction Time', 'Transaktionszeit', 'Datum', 'Date', 'Data'],
+  STATION_NAME: ['Denumire stație', 'Denumire statie', 'Station Name', 'Tankstellenname', 'Station'],
+  STATION_CITY: ['Orașul stației', 'Orasul statiei', 'Station City', 'Ort', 'City'],
+  STATION_NUMBER: ['Număr stație', 'Numar statie', 'Station Number', 'Stationsnummer'],
+  TRANSACTION_NUMBER: ['Numarul tranzactiei', 'Numărul tranzacției', 'Transaction Number', 'Transaktionsnummer', 'Belegnummer'],
+  COUNTRY: ['Țara de servicii', 'Tara de servicii', 'Service Country', 'Land', 'Country'],
+  COST_GROUP: ['Grupă cost', 'Grupa cost', 'Cost Group', 'Kostengruppe'],
+  PRODUCT_GROUP: ['Grupă produs', 'Grupa produs', 'Product Group', 'Produktgruppe'],
+  GOODS_TYPE: ['Tip mărfuri', 'Tip marfuri', 'Goods Type', 'Warenart', 'Product', 'Produs'],
+  GOODS_CODE: ['Cod mărfuri', 'Cod marfuri', 'Goods Code', 'Warencode'],
+  PAYMENT_CURRENCY: ['Moneda de plată', 'Moneda de plata', 'Payment Currency', 'Zahlungswährung', 'Währung', 'Currency'],
+  UNIT: ['Unitate', 'Unit', 'Einheit', 'ME'],
+  QUANTITY: ['Cantitate', 'Quantity', 'Menge', 'Qty'],
+  PRICE_PER_UNIT: ['Preț pe unitate', 'Pret pe unitate', 'Price Per Unit', 'Einzelpreis', 'Unit Price'],
+  NET_BASE_VALUE: ['Valoare de bază Netă', 'Valoare de baza Neta', 'Net Base Value', 'Nettobasiswert'],
+  NET_SERVICE_FEE: ['Taxă de serviciu netă', 'Taxa de serviciu neta', 'Net Service Fee', 'Netto Servicegebühr'],
+  NET_PURCHASE_VALUE: ['Valoarea netă a achiziției', 'Valoarea neta a achizitiei', 'Net Purchase Value', 'Nettoeinkaufswert', 'Netto', 'Net', 'Net Amount'],
+  GROSS_VALUE: ['Valoare brută', 'Valoare bruta', 'Gross Value', 'Bruttowert', 'Brutto', 'Gross', 'Gross Amount', 'Total'],
+  VAT_AMOUNT: ['TVA', 'VAT', 'MwSt', 'MWST', 'VAT Amount', 'Steuer'],
+  PAYMENT_VALUE: ['Valoarea în moneda de plată', 'Valoarea in moneda de plata', 'Payment Value', 'Zahlungsbetrag', 'Amount'],
+  VEHICLE_REGISTRATION: ['Număr de înmatriculare vehicul', 'Numar de inmatriculare vehicul', 'Vehicle Registration', 'Fahrzeugkennzeichen', 'Kennzeichen', 'Registration', 'Nr. înmatriculare'],
+  CARD_NUMBER: ['Nr. card/cutie', 'Card Number', 'Kartennummer', 'Card'],
 };
 
 /**
@@ -82,18 +83,27 @@ async function parseDKVExcel(fileBuffer, mimeType) {
   // First row is headers
   const headers = rawData[0];
 
-  // Map column indices
+  // Map column indices - supports multiple variants per column
   const columnMap = {};
   headers.forEach((header, index) => {
-    const trimmedHeader = String(header).trim();
+    const trimmedHeader = String(header).trim().toLowerCase();
     // Find matching DKV column
-    for (const [key, label] of Object.entries(DKV_COLUMNS)) {
-      if (trimmedHeader === label || trimmedHeader.includes(label)) {
+    for (const [key, variants] of Object.entries(DKV_COLUMNS)) {
+      // Check if any variant matches
+      const matched = variants.some(variant => {
+        const variantLower = variant.toLowerCase();
+        return trimmedHeader === variantLower || trimmedHeader.includes(variantLower);
+      });
+      if (matched && columnMap[key] === undefined) {
         columnMap[key] = index;
         break;
       }
     }
   });
+
+  // Log found columns for debugging
+  console.log('DKV Column mapping:', Object.keys(columnMap).join(', '));
+  console.log('Headers found:', headers.slice(0, 25).join(' | '));
 
   // Validate required columns exist
   const requiredColumns = ['TRANSACTION_TIME', 'VEHICLE_REGISTRATION', 'QUANTITY', 'NET_PURCHASE_VALUE'];

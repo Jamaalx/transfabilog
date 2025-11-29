@@ -218,10 +218,19 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       const res = await dkvApi.approveTempTransactions([txId], provider !== 'all' ? provider : undefined)
       return res.data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
+    onSuccess: (data) => {
+      // Force refetch all related queries
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'], refetchType: 'all' })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'], refetchType: 'all' })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'], refetchType: 'all' })
+      // Show result to user
+      if (data?.failed > 0) {
+        alert(`Aprobat: ${data.approved}, Eșuat: ${data.failed}`)
+      }
+    },
+    onError: (error: Error) => {
+      console.error('Create expense error:', error)
+      alert(`Eroare la creare cheltuială: ${error.message}`)
     },
   })
 
@@ -231,11 +240,18 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       const res = await dkvApi.approveTempTransactions(txIds, provider !== 'all' ? provider : undefined)
       return res.data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
-      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
+    onSuccess: (data) => {
+      // Force refetch all related queries
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'], refetchType: 'all' })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'], refetchType: 'all' })
+      queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'], refetchType: 'all' })
       setSelectedTx([])
+      // Show result to user
+      alert(`Aprobat: ${data?.approved || 0} cheltuieli, Eșuat: ${data?.failed || 0}`)
+    },
+    onError: (error: Error) => {
+      console.error('Bulk create error:', error)
+      alert(`Eroare la creare cheltuieli: ${error.message}`)
     },
   })
 

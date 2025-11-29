@@ -1703,15 +1703,20 @@ router.post(
             continue;
           }
 
-          // Delete from temp table
-          const { error: deleteError } = await supabase
+          // Delete from temp table - use select to verify delete worked
+          const { data: deletedRows, error: deleteError } = await supabase
             .from(tempTables.transactions)
             .delete()
             .eq('id', txId)
-            .eq('company_id', req.companyId);
+            .eq('company_id', req.companyId)
+            .select('id');
 
           if (deleteError) {
             console.error('Failed to delete from temp:', deleteError);
+          } else if (!deletedRows || deletedRows.length === 0) {
+            console.warn(`Delete from temp table returned no rows for txId: ${txId}, table: ${tempTables.transactions}`);
+          } else {
+            console.log(`Successfully deleted txId: ${txId} from ${tempTables.transactions}`);
           }
 
           results.approved.push({ id: txId, expense_id: expense.id });
