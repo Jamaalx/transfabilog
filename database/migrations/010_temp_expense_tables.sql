@@ -90,6 +90,11 @@ CREATE TABLE dkv_temp_transactions (
   gross_value DECIMAL(12, 2),
   gross_value_eur DECIMAL(12, 2),
 
+  -- Exchange rate (for non-EUR transactions)
+  original_currency VARCHAR(3),
+  exchange_rate DECIMAL(10, 6) DEFAULT 1,
+  exchange_rate_date VARCHAR(20),
+
   -- VAT
   vat_amount DECIMAL(12, 2),
   vat_amount_eur DECIMAL(12, 2),
