@@ -7,7 +7,7 @@ const logger = winston.createLogger({
     winston.format.errors({ stack: true }),
     winston.format.json()
   ),
-  defaultMeta: { service: 'transport-saas-api' },
+  defaultMeta: { service: 'floteris-api' },
   transports: [
     new winston.transports.Console({
       format: winston.format.combine(
