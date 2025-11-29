@@ -39,6 +39,28 @@ function getTableNames(provider) {
   }
 }
 
+// Helper function to get TEMP staging table names based on provider
+function getTempTableNames(provider) {
+  switch (provider) {
+    case 'eurowag':
+      return {
+        transactions: 'eurowag_temp_transactions',
+        batches: 'eurowag_temp_import_batches',
+      };
+    case 'verag':
+      return {
+        transactions: 'verag_temp_transactions',
+        batches: 'verag_temp_import_batches',
+      };
+    case 'dkv':
+    default:
+      return {
+        transactions: 'dkv_temp_transactions',
+        batches: 'dkv_temp_import_batches',
+      };
+  }
+}
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -1230,6 +1252,348 @@ router.post(
           rate_date: toEur.rateDate,
         });
       }
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ============================================
+// TEMP STAGING ENDPOINTS
+// These operate on temporary staging tables
+// ============================================
+
+/**
+ * GET /api/v1/dkv/temp/batches
+ * List batches from TEMP staging tables
+ */
+router.get(
+  '/temp/batches',
+  [
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tables = getTempTableNames(provider);
+
+      const { data, error } = await supabase
+        .from(tables.batches)
+        .select('*')
+        .eq('company_id', req.companyId)
+        .order('import_date', { ascending: false });
+
+      if (error) throw error;
+
+      res.json({ data: data || [] });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/dkv/temp/transactions
+ * List transactions from TEMP staging tables
+ */
+router.get(
+  '/temp/transactions',
+  [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 200 }).toInt(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+    query('status').optional().isIn(['pending', 'matched', 'unmatched']),
+  ],
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tables = getTempTableNames(provider);
+      const page = req.query.page || 1;
+      const limit = req.query.limit || 50;
+      const offset = (page - 1) * limit;
+
+      let txQuery = supabase
+        .from(tables.transactions)
+        .select(`
+          *,
+          truck:truck_heads(id, registration_number, brand, model)
+        `, { count: 'exact' })
+        .eq('company_id', req.companyId);
+
+      if (req.query.status) {
+        txQuery = txQuery.eq('status', req.query.status);
+      }
+
+      const timeColumn = provider === 'verag' ? 'transaction_date' : 'transaction_time';
+      txQuery = txQuery
+        .order(timeColumn, { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      const { data, error, count } = await txQuery;
+
+      if (error) throw error;
+
+      res.json({
+        data: data || [],
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/dkv/temp/summary
+ * Get summary from TEMP staging tables
+ */
+router.get(
+  '/temp/summary',
+  [
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tables = getTempTableNames(provider);
+
+      // Select value columns based on provider
+      let valueColumns;
+      if (provider === 'dkv') {
+        valueColumns = 'status, payment_value_eur, gross_value_eur';
+      } else if (provider === 'verag') {
+        valueColumns = 'status, gross_amount, net_amount';
+      } else {
+        valueColumns = 'status, gross_amount_eur, net_amount_eur';
+      }
+
+      const { data: transactions, error } = await supabase
+        .from(tables.transactions)
+        .select(valueColumns)
+        .eq('company_id', req.companyId);
+
+      if (error) throw error;
+
+      const summary = {
+        total_transactions: transactions?.length || 0,
+        pending: 0,
+        matched: 0,
+        unmatched: 0,
+        total_value: 0,
+        pending_value: 0,
+      };
+
+      if (transactions) {
+        transactions.forEach((tx) => {
+          if (summary[tx.status] !== undefined) {
+            summary[tx.status]++;
+          }
+          const valueEur = tx.payment_value_eur || tx.gross_value_eur || tx.gross_amount_eur || tx.gross_amount || tx.net_amount_eur || tx.net_amount || 0;
+          if (valueEur) {
+            summary.total_value += parseFloat(valueEur);
+            summary.pending_value += parseFloat(valueEur);
+          }
+        });
+      }
+
+      summary.total_value = Math.round(summary.total_value * 100) / 100;
+      summary.pending_value = Math.round(summary.pending_value * 100) / 100;
+
+      res.json(summary);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/v1/dkv/temp/transaction/:id/match
+ * Match a transaction to a truck in TEMP staging
+ */
+router.put(
+  '/temp/transaction/:id/match',
+  authorize('admin', 'manager', 'operator'),
+  [
+    param('id').isUUID(),
+    body('truck_id').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tables = getTempTableNames(provider);
+
+      // Update transaction with truck
+      const { data, error } = await supabase
+        .from(tables.transactions)
+        .update({
+          truck_id: req.body.truck_id,
+          status: 'matched',
+        })
+        .eq('id', req.params.id)
+        .eq('company_id', req.companyId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/dkv/temp/batch/:id
+ * Delete a batch from TEMP staging
+ */
+router.delete(
+  '/temp/batch/:id',
+  authorize('admin', 'manager'),
+  [
+    param('id').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tables = getTempTableNames(provider);
+
+      // Delete batch (transactions cascade)
+      const { error } = await supabase
+        .from(tables.batches)
+        .delete()
+        .eq('id', req.params.id)
+        .eq('company_id', req.companyId);
+
+      if (error) throw error;
+
+      res.json({ message: 'Batch deleted from staging' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/dkv/temp/approve
+ * Approve transactions - move from TEMP to FINAL and create expenses
+ */
+router.post(
+  '/temp/approve',
+  authorize('admin', 'manager', 'operator'),
+  [
+    body('transaction_ids').isArray({ min: 1, max: 500 }),
+    body('transaction_ids.*').isUUID(),
+    query('provider').optional().isIn(['dkv', 'eurowag', 'verag']),
+  ],
+  async (req, res, next) => {
+    try {
+      const provider = req.query.provider || 'dkv';
+      const tempTables = getTempTableNames(provider);
+      const finalTables = getTableNames(provider);
+
+      const results = { approved: [], failed: [] };
+
+      for (const txId of req.body.transaction_ids) {
+        try {
+          // Get transaction from temp table
+          const { data: tempTx, error: fetchError } = await supabase
+            .from(tempTables.transactions)
+            .select('*')
+            .eq('id', txId)
+            .eq('company_id', req.companyId)
+            .single();
+
+          if (fetchError || !tempTx) {
+            results.failed.push({ id: txId, error: 'Not found in staging' });
+            continue;
+          }
+
+          if (!tempTx.truck_id) {
+            results.failed.push({ id: txId, error: 'No truck assigned' });
+            continue;
+          }
+
+          // Determine expense category
+          let category = 'combustibil';
+          const serviceType = (tempTx.service_type || tempTx.cost_group || '').toLowerCase();
+          const goodsType = (tempTx.goods_type || tempTx.product_type || '').toLowerCase();
+          const productCategory = (tempTx.product_category || '').toLowerCase();
+
+          if (goodsType.includes('adblue') || productCategory.includes('adblue')) {
+            category = 'adblue';
+          } else if (serviceType.includes('toll') || goodsType.includes('toll') || productCategory.includes('maut')) {
+            category = 'taxe_drum';
+          }
+
+          const amountEur = tempTx.gross_amount_eur || tempTx.gross_amount || tempTx.payment_value_eur || tempTx.net_amount_eur || tempTx.net_amount || 0;
+          const transactionDate = tempTx.transaction_time || tempTx.transaction_date;
+
+          // Create expense in transactions table
+          const { data: expense, error: expenseError } = await supabase
+            .from('transactions')
+            .insert({
+              company_id: req.companyId,
+              truck_id: tempTx.truck_id,
+              type: 'expense',
+              category: category,
+              amount: amountEur,
+              currency: 'EUR',
+              date: transactionDate,
+              description: `${provider.toUpperCase()} - ${tempTx.vehicle_registration || ''} - ${goodsType || serviceType || 'Fuel'}`,
+              notes: `Import from ${provider.toUpperCase()} | ${tempTx.country || ''}`,
+              created_by: req.user.id,
+            })
+            .select()
+            .single();
+
+          if (expenseError) {
+            results.failed.push({ id: txId, error: expenseError.message });
+            continue;
+          }
+
+          // Copy to final table with expense_id
+          const finalData = { ...tempTx };
+          delete finalData.id; // Let DB generate new ID
+          finalData.status = 'created_expense';
+          finalData.expense_id = expense.id;
+
+          const { error: insertError } = await supabase
+            .from(finalTables.transactions)
+            .insert(finalData);
+
+          if (insertError) {
+            // Rollback expense
+            await supabase.from('transactions').delete().eq('id', expense.id);
+            results.failed.push({ id: txId, error: insertError.message });
+            continue;
+          }
+
+          // Delete from temp table
+          await supabase
+            .from(tempTables.transactions)
+            .delete()
+            .eq('id', txId);
+
+          results.approved.push({ id: txId, expense_id: expense.id });
+        } catch (err) {
+          results.failed.push({ id: txId, error: err.message });
+        }
+      }
+
+      res.json({
+        total: req.body.transaction_ids.length,
+        approved: results.approved.length,
+        failed: results.failed.length,
+        results,
+      });
     } catch (error) {
       next(error);
     }

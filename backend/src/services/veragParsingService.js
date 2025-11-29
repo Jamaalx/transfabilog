@@ -1488,7 +1488,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
 
   // Create import batch in verag_import_batches table
   const { data: batch, error: batchError } = await supabase
-    .from('verag_import_batches')
+    .from('verag_temp_import_batches')
     .insert({
       company_id: companyId,
       uploaded_document_id: documentId,
@@ -1593,7 +1593,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
   for (let i = 0; i < transactionsToInsert.length; i += CHUNK_SIZE) {
     const chunk = transactionsToInsert.slice(i, i + CHUNK_SIZE);
     const { data: insertedData, error: insertError } = await supabase
-      .from('verag_transactions')
+      .from('verag_temp_transactions')
       .insert(chunk)
       .select('id');
 
@@ -1609,7 +1609,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
   if (insertedCount === 0 && insertErrors.length > 0) {
     // Clean up the batch since no transactions were inserted
     await supabase
-      .from('verag_import_batches')
+      .from('verag_temp_import_batches')
       .delete()
       .eq('id', batch.id);
 
@@ -1618,7 +1618,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
 
   // Verify inserted count from database
   const { count: actualCount } = await supabase
-    .from('verag_transactions')
+    .from('verag_temp_transactions')
     .select('id', { count: 'exact', head: true })
     .eq('batch_id', batch.id);
 
@@ -1626,7 +1626,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
 
   // Update batch status with actual counts
   await supabase
-    .from('verag_import_batches')
+    .from('verag_temp_import_batches')
     .update({
       total_transactions: actualCount || insertedCount,
       matched_transactions: matchedCount,

@@ -307,7 +307,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
 
   // Get existing transactions for this company within the date range
   const { data: existingTx, error: existingError } = await supabase
-    .from('eurowag_transactions')
+    .from('eurowag_temp_transactions')
     .select('transaction_time, vehicle_registration, net_amount_eur')
     .eq('company_id', companyId)
     .gte('transaction_time', parsed.metadata.period_start)
@@ -368,7 +368,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
 
   // Create import batch in eurowag_import_batches table
   const { data: batch, error: batchError } = await supabase
-    .from('eurowag_import_batches')
+    .from('eurowag_temp_import_batches')
     .insert({
       company_id: companyId,
       uploaded_document_id: documentId,
@@ -472,7 +472,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
   for (let i = 0; i < transactionsToInsert.length; i += CHUNK_SIZE) {
     const chunk = transactionsToInsert.slice(i, i + CHUNK_SIZE);
     const { error: insertError } = await supabase
-      .from('eurowag_transactions')
+      .from('eurowag_temp_transactions')
       .insert(chunk);
 
     if (insertError) {
@@ -482,7 +482,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
 
   // Update batch status
   await supabase
-    .from('eurowag_import_batches')
+    .from('eurowag_temp_import_batches')
     .update({
       matched_transactions: matchedCount,
       unmatched_transactions: unmatchedCount,

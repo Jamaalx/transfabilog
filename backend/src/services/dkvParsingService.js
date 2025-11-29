@@ -297,25 +297,11 @@ function parseDate(value) {
     return date;
   }
 
-  // Try DD.MM.YYYY - HH:MM format (DKV CSV format with dash separator)
-  const euDashMatch = str.match(/(\d{2})\.(\d{2})\.(\d{4})\s*-\s*(\d{2}):(\d{2})/);
-  if (euDashMatch) {
-    const [, day, month, year, hour, minute] = euDashMatch;
-    return new Date(year, month - 1, day, hour, minute);
-  }
-
-  // Try DD.MM.YYYY HH:MM format (standard EU format with space)
+  // Try DD.MM.YYYY HH:MM format
   const euMatch = str.match(/(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})/);
   if (euMatch) {
     const [, day, month, year, hour, minute] = euMatch;
     return new Date(year, month - 1, day, hour, minute);
-  }
-
-  // Try DD.MM.YYYY format (date only, no time)
-  const euDateOnlyMatch = str.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  if (euDateOnlyMatch) {
-    const [, day, month, year] = euDateOnlyMatch;
-    return new Date(year, month - 1, day, 0, 0);
   }
 
   // Try YYYY-MM-DD HH:MM:SS format
@@ -415,7 +401,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
 
   // Check for existing transactions to prevent duplicates
   const { data: existingTx, error: existingError } = await supabase
-    .from('dkv_transactions')
+    .from('dkv_temp_transactions')
     .select('transaction_time, vehicle_registration, net_purchase_value')
     .eq('company_id', companyId)
     .gte('transaction_time', parsed.metadata.period_start)
@@ -480,7 +466,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
 
   // Create import batch
   const { data: batch, error: batchError } = await supabase
-    .from('dkv_import_batches')
+    .from('dkv_temp_import_batches')
     .insert({
       company_id: companyId,
       uploaded_document_id: documentId,
@@ -563,7 +549,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
   for (let i = 0; i < transactionsToInsert.length; i += CHUNK_SIZE) {
     const chunk = transactionsToInsert.slice(i, i + CHUNK_SIZE);
     const { error: insertError } = await supabase
-      .from('dkv_transactions')
+      .from('dkv_temp_transactions')
       .insert(chunk);
 
     if (insertError) {
@@ -574,7 +560,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
 
   // Update batch with final counts
   const { error: updateError } = await supabase
-    .from('dkv_import_batches')
+    .from('dkv_temp_import_batches')
     .update({
       matched_transactions: matchedCount,
       unmatched_transactions: unmatchedCount,
@@ -606,7 +592,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
  */
 async function matchDKVTransaction(transactionId, truckId) {
   const { data, error } = await supabase
-    .from('dkv_transactions')
+    .from('dkv_temp_transactions')
     .update({
       truck_id: truckId,
       status: 'matched',
@@ -626,7 +612,7 @@ async function matchDKVTransaction(transactionId, truckId) {
 async function createExpenseFromDKV(transactionId, companyId, userId, tripId = null) {
   // Get transaction details
   const { data: tx, error: txError } = await supabase
-    .from('dkv_transactions')
+    .from('dkv_temp_transactions')
     .select('*, truck:truck_heads(id, registration_number)')
     .eq('id', transactionId)
     .single();
@@ -677,7 +663,7 @@ async function createExpenseFromDKV(transactionId, companyId, userId, tripId = n
 
   // Update DKV transaction status
   await supabase
-    .from('dkv_transactions')
+    .from('dkv_temp_transactions')
     .update({
       status: 'created_expense',
       transaction_id: expense.id,
@@ -698,7 +684,7 @@ async function getDKVBatches(companyId, page = 1, limit = 20, provider = null) {
   const offset = (page - 1) * limit;
 
   let query = supabase
-    .from('dkv_import_batches')
+    .from('dkv_temp_import_batches')
     .select('*', { count: 'exact' })
     .eq('company_id', companyId);
 
@@ -766,7 +752,7 @@ async function getDKVTransactions(companyId, filters = {}) {
 
     // Also get batch IDs for older data that may not have provider on transactions
     let batchQuery = supabase
-      .from('dkv_import_batches')
+      .from('dkv_temp_import_batches')
       .select('id')
       .eq('company_id', companyId);
 
@@ -805,11 +791,11 @@ async function getDKVTransactions(companyId, filters = {}) {
   }
 
   let query = supabase
-    .from('dkv_transactions')
+    .from('dkv_temp_transactions')
     .select(`
       *,
       truck:truck_heads(id, registration_number, brand),
-      batch:dkv_import_batches(id, file_name, import_date)
+      batch:dkv_temp_import_batches(id, file_name, import_date)
     `, { count: 'exact' })
     .eq('company_id', companyId)
     .order('transaction_time', { ascending: false });
@@ -867,7 +853,7 @@ async function bulkIgnoreTransactions(transactionIds, companyId, notes = null) {
     const chunk = transactionIds.slice(i, i + CHUNK_SIZE);
 
     const { data, error } = await supabase
-      .from('dkv_transactions')
+      .from('dkv_temp_transactions')
       .update({
         status: 'ignored',
         notes: notes || 'Bulk ignored'
