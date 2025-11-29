@@ -1,82 +1,45 @@
-# Transport SaaS
+# Floteris
 
-**Sistema de Management pentru Flotă de Transport**
+**Platformă Inteligentă pentru Managementul Flotei de Transport**
 
-[![Status](https://img.shields.io/badge/status-planning-yellow.svg)]()
-[![Documentation](https://img.shields.io/badge/docs-available-green.svg)]()
+[![Status](https://img.shields.io/badge/status-production--ready-green.svg)]()
+[![Frontend](https://img.shields.io/badge/frontend-Netlify-00C7B7.svg)]()
+[![Backend](https://img.shields.io/badge/backend-Render-46E3B7.svg)]()
 
 ---
 
-## Despre Proiect
+## Despre Floteris
 
-Transport SaaS este o aplicație web pentru managementul complet al unei flote de transport. Centralizează datele din multiple surse externe (facturi, bănci, combustibil, GPS) și oferă rapoarte detaliate pe trei axe principale:
+Floteris este o aplicație SaaS pentru managementul complet al flotelor de transport. Centralizează datele din multiple surse externe (facturi, bănci, combustibil, GPS) și oferă rapoarte detaliate pe trei axe principale:
 
 - **Cap Tractor** - tracking, costuri, profitabilitate per vehicul
-- **Șofer** - curse, diurnă, performanță
+- **Sofer** - curse, diurnă, performanță
 - **Remorcă** - utilizare, documente, costuri
 
 ## Funcționalități Principale
 
-- Dashboard real-time cu GPS tracking
+- Dashboard real-time cu statistici
 - Management vehicule și șoferi
 - Curse simple și complexe (multi-stop)
-- Sincronizare automată SmartBill, DKV, Eurowag
-- Matching inteligent tranzacții
+- Import automat DKV, Eurowag, VERAG
+- Validare documente cu AI
 - Alerte documente care expiră
 - Rapoarte profitabilitate și consum
+- Analiză AI pentru optimizare
 
 ## Stack Tehnologic
 
 | Layer | Tehnologie |
 |-------|------------|
 | Frontend | React 18, Vite, Tailwind CSS, Shadcn/ui |
-| State | Redux Toolkit, TanStack Query |
+| State | Zustand, TanStack Query |
 | Backend | Node.js, Express.js |
 | Database | Supabase (PostgreSQL) |
 | Auth | Supabase Auth + RLS |
-| Maps | Leaflet |
 | Charts | Recharts |
+| Hosting | Netlify (frontend), Render (backend) |
 
-## Documentație
-
-Întreaga documentație tehnică se află în acest repository:
-
-### Documente Core
-| Document | Descriere |
-|----------|-----------|
-| [transport_saas_complete_plan.md](./transport_saas_complete_plan.md) | Plan tehnic complet - DB schema, API, security |
-| [transport_saas_frontend_plan.md](./transport_saas_frontend_plan.md) | Arhitectură frontend React |
-| [transport_saas_implementation_roadmap.md](./transport_saas_implementation_roadmap.md) | Roadmap implementare (7 săptămâni) |
-| [transport_saas_remaining_plans.md](./transport_saas_remaining_plans.md) | Index documente proiect |
-
-### Planuri Detaliate (`/plans`)
-| Plan | Descriere |
-|------|-----------|
-| [01_data_migration_plan.md](./plans/01_data_migration_plan.md) | Migrare date istorice |
-| [02_financial_cost_breakdown.md](./plans/02_financial_cost_breakdown.md) | Buget și ROI |
-| [03_security_gdpr_plan.md](./plans/03_security_gdpr_plan.md) | Securitate și conformitate GDPR |
-| [04_training_documentation_plan.md](./plans/04_training_documentation_plan.md) | Training și documentație utilizator |
-| [05_go_live_launch_plan.md](./plans/05_go_live_launch_plan.md) | Plan lansare producție |
-| [06_monitoring_kpi_plan.md](./plans/06_monitoring_kpi_plan.md) | Monitorizare și KPIs |
-| [07_integration_specifications.md](./plans/07_integration_specifications.md) | Specificații API externe |
-| [08_scalability_plan.md](./plans/08_scalability_plan.md) | Strategie scalabilitate |
-| [09_support_maintenance_plan.md](./plans/09_support_maintenance_plan.md) | Suport și mentenanță |
-| [10_mobile_app_strategy.md](./plans/10_mobile_app_strategy.md) | Strategie aplicație mobilă |
-| [11_contingency_risk_plan.md](./plans/11_contingency_risk_plan.md) | Gestionare riscuri |
-| [12_testing_plan.md](./plans/12_testing_plan.md) | Plan testare detaliat |
-
-## Status Proiect
-
-```
-Faza 1: Planificare     ████████████████████ 100% ✅
-Faza 2: Setup           ░░░░░░░░░░░░░░░░░░░░   0%
-Faza 3: Integrări       ░░░░░░░░░░░░░░░░░░░░   0%
-Faza 4: Frontend        ░░░░░░░░░░░░░░░░░░░░   0%
-Faza 5: Date Istorice   ░░░░░░░░░░░░░░░░░░░░   0%
-Faza 6: Go-Live         ░░░░░░░░░░░░░░░░░░░░   0%
-```
-
-## Quick Start (Când va fi implementat)
+## Quick Start - Development
 
 ### Prerequisites
 - Node.js 20 LTS
@@ -85,65 +48,119 @@ Faza 6: Go-Live         ░░░░░░░░░░░░░░░░░░�
 
 ### Backend
 ```bash
-cd transport-backend
+cd backend
 npm install
 cp .env.example .env
-# Editează .env cu credențialele Supabase
+# Editează .env cu credențialele tale
 npm run dev
 ```
 
 ### Frontend
 ```bash
-cd transport-frontend
+cd frontend
 npm install
 cp .env.example .env
-# Editează .env cu credențialele Supabase
+# Editează .env cu credențialele tale
 npm run dev
 ```
 
-## Arhitectura
+## Production Deployment
+
+### Frontend pe Netlify
+
+1. **Conectează repository-ul la Netlify**
+   - New site from Git → selectează acest repo
+   - Base directory: `frontend`
+   - Build command: `npm run build`
+   - Publish directory: `frontend/dist`
+
+2. **Configurează Environment Variables** (Site settings → Environment variables):
+   ```
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your-anon-key
+   VITE_API_URL=https://your-render-app.onrender.com/api/v1
+   ```
+
+3. **Deploy** - se face automat la fiecare push
+
+### Backend pe Render
+
+1. **Creează un nou Web Service**
+   - Connect repository → selectează acest repo
+   - Root Directory: `backend`
+   - Runtime: Node
+   - Build Command: `npm install`
+   - Start Command: `npm start`
+
+2. **Configurează Environment Variables**:
+   ```
+   NODE_ENV=production
+   PORT=10000
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your-anon-key
+   SUPABASE_SERVICE_KEY=your-service-key
+   FRONTEND_URL=https://your-netlify-app.netlify.app
+   ```
+
+3. **Deploy** - se face automat la fiecare push
+
+### Post-Deployment Checklist
+
+- [ ] Verifică health endpoint: `https://your-render-app.onrender.com/api/v1/health`
+- [ ] Verifică frontend se încarcă corect
+- [ ] Testează login cu credențialele de test
+- [ ] Verifică CORS funcționează (frontend poate accesa API)
+- [ ] Testează import documente (DKV, Eurowag, VERAG)
+
+## Structura Proiectului
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        FRONTEND                             │
-│                   React + Vite + Redux                      │
-├─────────────────────────────────────────────────────────────┤
-│                          API                                │
-│                   Express.js + Auth                         │
-├─────────────────────────────────────────────────────────────┤
-│                       DATABASE                              │
-│              Supabase (PostgreSQL + RLS)                    │
-├─────────────────────────────────────────────────────────────┤
-│                    EXTERNAL APIs                            │
-│    SmartBill │ BT │ DKV │ Eurowag │ GPS │ Gmail/Drive      │
-└─────────────────────────────────────────────────────────────┘
+floteris/
+├── frontend/                 # React + Vite frontend
+│   ├── src/
+│   │   ├── components/      # UI components
+│   │   ├── pages/           # Page components
+│   │   ├── lib/             # Utilities & API client
+│   │   └── store/           # Zustand state
+│   ├── netlify.toml         # Netlify config
+│   └── package.json
+│
+├── backend/                  # Node.js + Express API
+│   ├── src/
+│   │   ├── routes/          # API endpoints
+│   │   ├── middleware/      # Express middleware
+│   │   └── utils/           # Utilities
+│   ├── render.yaml          # Render config
+│   └── package.json
+│
+├── database/                 # SQL migrations & seeds
+│   └── seed_real_data.sql   # Sample data
+│
+└── plans/                    # Documentation
 ```
 
-## Integrări
+## API Endpoints
 
-| Sursă | Tip | Status |
-|-------|-----|--------|
-| SmartBill | API REST | Planned |
-| Banca Transilvania | PSD2 API | Planned |
-| DKV | API REST | Planned |
-| Eurowag | API REST | Planned |
-| Wialon | API REST | Planned |
-| AROBS | API REST | Planned |
-| Volvo | API REST | Planned |
-| Google Gmail/Drive | OAuth2 | Planned |
+| Endpoint | Descriere |
+|----------|-----------|
+| `GET /api/v1/health` | Health check |
+| `POST /api/v1/auth/login` | Autentificare |
+| `GET /api/v1/vehicles` | Lista vehicule |
+| `GET /api/v1/drivers` | Lista șoferi |
+| `GET /api/v1/trips` | Lista curse |
+| `GET /api/v1/dashboard` | Date dashboard |
+| `POST /api/v1/dkv/import` | Import DKV |
+| `POST /api/v1/uploaded-documents` | Upload documente |
 
-## Estimări
+## Clienți
 
-| Metric | Valoare |
-|--------|---------|
-| Timeline dezvoltare | 7 săptămâni |
-| Cost dezvoltare | €9,000 - €15,000 |
-| Cost lunar operațional | €80 - €150 |
-| ROI estimat | 8-14 luni |
+Floteris este o platformă multi-tenant. Fiecare companie de transport are propriul spațiu izolat.
 
-## Contribuire
+**Clientul actual:** TRANSFABI LOG SRL
 
-Proiect intern. Pentru întrebări sau sugestii, contactați echipa de dezvoltare.
+## Test Credentials
+
+Vezi `TEST_CREDENTIALS.md` pentru credențialele de test.
 
 ## Licență
 
@@ -151,4 +168,4 @@ Proprietar. Toate drepturile rezervate.
 
 ---
 
-**Ultima actualizare:** 2025-11-26
+**Floteris** - Flotă. Management. Inteligent.

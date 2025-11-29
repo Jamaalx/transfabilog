@@ -67,7 +67,7 @@ export default function AppLayout() {
           <div className="flex h-16 items-center justify-between px-4 border-b">
             <div className="flex items-center">
               <Truck className="h-8 w-8 text-primary" />
-              <span className="ml-2 text-xl font-bold">Transport</span>
+              <span className="ml-2 text-xl font-bold">Floteris</span>
             </div>
             <button
               className="lg:hidden"
