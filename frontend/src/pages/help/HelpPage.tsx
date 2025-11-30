@@ -35,7 +35,7 @@ export default function HelpPage() {
           <h1 className="text-3xl font-bold">Centru de Ajutor</h1>
         </div>
         <p className="text-muted-foreground text-lg">
-          Ghid complet pentru utilizarea platformei ZED-ZEN
+          Ghid complet pentru utilizarea platformei FLOTERIS
         </p>
       </div>
 
@@ -44,7 +44,7 @@ export default function HelpPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <PlayCircle className="h-6 w-6 text-primary" />
-            Bine ai venit la ZED-ZEN!
+            Bine ai venit la FLOTERIS!
           </CardTitle>
           <CardDescription className="text-base">
             Platforma ta completa pentru gestionarea flotei de transport
@@ -52,7 +52,7 @@ export default function HelpPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p>
-            ZED-ZEN este o solutie moderna pentru companiile de transport care doresc sa-si
+            FLOTERIS este o solutie moderna pentru companiile de transport care doresc sa-si
             gestioneze eficient flota de vehicule, soferii, cursele si documentele. Cu ajutorul
             inteligentei artificiale, platforma automatizeaza procesele repetitive si ofera
             rapoarte detaliate pentru decizii mai bune.
@@ -577,8 +577,8 @@ export default function HelpPage() {
 
       {/* Version Info */}
       <div className="text-center text-sm text-muted-foreground pb-4">
-        <p>ZED-ZEN v1.0 - Platforma de Management Transport</p>
-        <p>© 2024 Zed-Zen. Toate drepturile rezervate.</p>
+        <p>FLOTERIS v1.0 - Platforma de Management Transport</p>
+        <p>© 2024 ZED-ZEN. Toate drepturile rezervate.</p>
       </div>
     </div>
   )
