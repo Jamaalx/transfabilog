@@ -1,6 +1,5 @@
 import { Outlet, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
-import { Truck } from 'lucide-react'
 
 export default function AuthLayout() {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -23,9 +22,9 @@ export default function AuthLayout() {
       <div className="hidden lg:flex lg:w-1/2 bg-primary items-center justify-center p-12">
         <div className="text-white text-center">
           <div className="flex items-center justify-center mb-8">
-            <Truck className="h-16 w-16" />
+            <img src="/logo.webp" alt="Floteris Logo" className="h-24 w-24 brightness-0 invert" />
           </div>
-          <h1 className="text-4xl font-bold mb-4">Floteris</h1>
+          <h1 className="text-4xl font-bold mb-4">FLOTERIS</h1>
           <p className="text-xl opacity-90">
             Platformă inteligentă pentru managementul flotei
           </p>
@@ -33,6 +32,7 @@ export default function AuthLayout() {
             <p>Vehicule, șoferi, curse și finanțe</p>
             <p>totul într-un singur loc</p>
           </div>
+          <p className="mt-12 text-xs opacity-50">by ZED-ZEN</p>
         </div>
       </div>
 
@@ -40,8 +40,8 @@ export default function AuthLayout() {
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center justify-center mb-8">
-            <Truck className="h-10 w-10 text-primary mr-2" />
-            <span className="text-2xl font-bold">Floteris</span>
+            <img src="/logo.webp" alt="Floteris Logo" className="h-10 w-10 mr-2" />
+            <span className="text-2xl font-bold">FLOTERIS</span>
           </div>
           <Outlet />
         </div>

@@ -66,8 +66,8 @@ export default function AppLayout() {
           {/* Logo */}
           <div className="flex h-16 items-center justify-between px-4 border-b">
             <div className="flex items-center">
-              <Truck className="h-8 w-8 text-primary" />
-              <span className="ml-2 text-xl font-bold">Floteris</span>
+              <img src="/logo.webp" alt="Floteris Logo" className="h-8 w-8" />
+              <span className="ml-2 text-xl font-bold">FLOTERIS</span>
             </div>
             <button
               className="lg:hidden"
