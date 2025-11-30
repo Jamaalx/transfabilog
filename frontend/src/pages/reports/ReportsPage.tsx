@@ -300,7 +300,7 @@ export default function ReportsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    const data = Object.entries(financialReport?.expensesByCategory || {}).map(([cat, val]: [string, { total: number; count: number }]) => ({
+                    const data = (Object.entries(financialReport?.expensesByCategory || {}) as [string, { total: number; count: number }][]).map(([cat, val]) => ({
                       Categorie: expenseCategories[cat] || cat,
                       Total: val.total,
                       Tranzactii: val.count,
@@ -314,7 +314,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {Object.entries(financialReport?.expensesByCategory || {}).map(([category, data]: [string, { total: number; count: number }]) => {
+                  {(Object.entries(financialReport?.expensesByCategory || {}) as [string, { total: number; count: number }][]).map(([category, data]) => {
                     const percentage = financialReport?.summary?.totalExpenses > 0
                       ? (data.total / financialReport.summary.totalExpenses) * 100
                       : 0
@@ -351,7 +351,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {Object.entries(financialReport?.incomeByCategory || {}).map(([category, data]: [string, { total: number; count: number }]) => {
+                  {(Object.entries(financialReport?.incomeByCategory || {}) as [string, { total: number; count: number }][]).map(([category, data]) => {
                     const percentage = financialReport?.summary?.totalIncome > 0
                       ? (data.total / financialReport.summary.totalIncome) * 100
                       : 0
@@ -390,7 +390,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {Object.entries(financialReport?.monthlyData || {}).sort().map(([month, data]: [string, { income: number; expenses: number }]) => (
+                {(Object.entries(financialReport?.monthlyData || {}) as [string, { income: number; expenses: number }][]).sort().map(([month, data]) => (
                   <div key={month} className="grid grid-cols-4 gap-4 items-center border-b pb-2 last:border-0">
                     <span className="font-medium">{month}</span>
                     <div className="text-green-600">
@@ -911,7 +911,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
-                {Object.entries(tripsReport?.tripsByDestination || {}).map(([country, data]: [string, { trips: number; revenue: number }]) => (
+                {(Object.entries(tripsReport?.tripsByDestination || {}) as [string, { trips: number; revenue: number }][]).map(([country, data]) => (
                   <div key={country} className="border rounded-lg p-3">
                     <p className="font-medium">{country}</p>
                     <p className="text-2xl font-bold">{data.trips}</p>
@@ -1163,7 +1163,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {Object.entries(expensesReport?.byCategory || {}).map(([category, data]: [string, { total: number; count: number; percentage: string }]) => (
+                  {(Object.entries(expensesReport?.byCategory || {}) as [string, { total: number; count: number; percentage: string }][]).map(([category, data]) => (
                     <div key={category} className="space-y-1">
                       <div className="flex justify-between text-sm">
                         <span className="flex items-center gap-2">
@@ -1198,7 +1198,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {Object.entries(expensesReport?.byPaymentMethod || {}).map(([method, data]: [string, { total: number; count: number }]) => (
+                  {(Object.entries(expensesReport?.byPaymentMethod || {}) as [string, { total: number; count: number }][]).map(([method, data]) => (
                     <div key={method} className="flex items-center justify-between border-b pb-2 last:border-0">
                       <div>
                         <p className="font-medium capitalize">{method}</p>

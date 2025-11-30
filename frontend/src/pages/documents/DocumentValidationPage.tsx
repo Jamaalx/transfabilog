@@ -126,6 +126,7 @@ interface DocumentData {
       confidence: number
       reasoning: string
     }
+    bank_statement_type?: 'per_camion' | 'administrativ'
   }
   truck_id?: string
   driver_id?: string
@@ -319,9 +320,9 @@ export default function DocumentValidationPage() {
       // Initialize transaction categories from AI suggestions
       if (document.document_type === 'extras_bancar' && structured.transactions) {
         const initialCategories: Record<number, string> = {}
-        structured.transactions.forEach((tx: BankTransaction, index: number) => {
+        structured.transactions.forEach((tx: Record<string, unknown>, index: number) => {
           // Use AI category if available, otherwise default to 'altele'
-          initialCategories[index] = tx.ai_category || tx.category || 'altele'
+          initialCategories[index] = (tx.ai_category as string) || (tx.category as string) || 'altele'
         })
         setTransactionCategories(initialCategories)
       }

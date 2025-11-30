@@ -335,7 +335,7 @@ export default function DocumentUploadPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {Object.entries(typesByCategory).map(([category, types]) => (
+              {(Object.entries(typesByCategory) as [string, DocumentType[]][]).map(([category, types]) => (
                 <div key={category} className="mb-6">
                   <h3 className="font-semibold mb-3 flex items-center gap-2">
                     <Badge className={categoryColors[category]}>{categoryLabels[category]}</Badge>

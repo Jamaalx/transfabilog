@@ -46,3 +46,20 @@ temp_images/
 
 # Sample data files
 samples/
+
+# Backend uploads (user files)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Frontend build cache
+frontend/.vite/
+
+# Credentials and secrets
+credentials.json
+secrets/
+*.key
+*.crt
+
+# Lock files (optional - uncomment if needed)
+# package-lock.json
+# yarn.lock
