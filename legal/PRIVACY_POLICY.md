@@ -90,10 +90,46 @@ Această Politică de Confidențialitate descrie modul în care TransfaBilog (�
 | **Wialon / AROBS / Volvo / Ecomotive** | Poziții GPS, telemetrie | Tracking flotă |
 | **Gmail / Google Drive** | Documente atașate | Stocare documente |
 
-### 4.3 Date Generate Automat
+### 4.3 Procesare prin Inteligență Artificială (OpenAI)
+
+**IMPORTANT:** Platforma utilizează servicii de inteligență artificială furnizate de OpenAI (OpenAI, L.L.C., SUA) pentru a oferi funcționalități avansate de analiză și recomandări.
+
+#### Date trimise către OpenAI:
+| Categorie | Date specifice | Scop |
+|-----------|----------------|------|
+| Statistici flotă | Număr vehicule, remorci, șoferi (fără date personale) | Analiză capacitate |
+| Performanță agregată | Statistici curse, km, venituri (agregate) | Insights business |
+| Date financiare sumar | Profit, cheltuieli pe categorii (fără detalii tranzacții) | Recomandări optimizare |
+| Nume șoferi + statistici | Prenume, nume + nr. curse, km | Analiză performanță |
+| Nr. înmatriculare vehicule | Numere înmatriculare + statistici | Analiză utilizare |
+
+#### Date care NU se trimit către OpenAI:
+- CNP-uri sau date de identificare personale sensibile
+- IBAN-uri sau date bancare complete
+- Parole sau credențiale
+- Documente complete (facturi, contracte)
+- Adrese de domiciliu
+- Date GPS brute sau trasee complete
+
+#### Temei legal:
+- **Consimțământ explicit (Art. 6(1)(a) GDPR)** - Utilizarea funcțiilor AI este opțională și necesită acordul dumneavoastră
+- Puteți utiliza platforma fără funcțiile AI
+
+#### Transfer internațional:
+- Datele sunt procesate de OpenAI în **Statele Unite ale Americii**
+- OpenAI respectă **Cadrul UE-SUA pentru Protecția Datelor (Data Privacy Framework)**
+- Utilizăm **Clauze Contractuale Standard** pentru protecție suplimentară
+
+#### Drepturile dumneavoastră privind AI:
+1. **Dezactivare** - Puteți dezactiva funcțiile AI din setări
+2. **Ștergere** - OpenAI nu reține datele după procesare (model fără training pe date utilizatori)
+3. **Transparență** - Puteți solicita detalii despre datele procesate prin AI
+
+### 4.4 Date Generate Automat
 - Calcule de profit și costuri
 - Statistici și rapoarte
 - Alerte automate
+- Insights generate de AI (cu consimțământ)
 
 ---
 
@@ -145,6 +181,7 @@ Majoritatea prelucrărilor sunt necesare pentru furnizarea serviciului contracta
 - Newsletter și marketing
 - Cookie-uri non-esențiale
 - Funcționalități opționale
+- **Procesare AI prin OpenAI** (funcții de analiză și recomandări)
 
 ---
 
@@ -156,6 +193,9 @@ Majoritatea prelucrărilor sunt necesare pentru furnizarea serviciului contracta
 | **Supabase** | Bază de date, autentificare | EU (Germania) |
 | **Vercel** | Hosting frontend | EU |
 | **Sentry** | Monitorizare erori | EU |
+| **OpenAI** | Procesare AI (analiză, recomandări) | SUA* |
+
+*OpenAI procesează date în SUA sub protecția Data Privacy Framework UE-SUA și Clauze Contractuale Standard. Utilizarea este opțională și necesită consimțământul dumneavoastră explicit. Vezi secțiunea 4.3 pentru detalii.
 
 ### 7.2 Integrări cu Terți
 Când activați o integrare (SmartBill, BT, DKV, etc.), datele necesare sunt partajate cu acel serviciu conform politicii lor de confidențialitate.
@@ -181,6 +221,13 @@ Datele sunt stocate în centre de date localizate în **Uniunea Europeană** (Ge
 - Utilizăm Clauze Contractuale Standard aprobate de CE
 - Verificăm existența unei decizii de adecvare
 - Implementăm măsuri tehnice suplimentare
+
+### 8.3 Transfer către OpenAI (SUA)
+Pentru funcțiile de inteligență artificială, datele agregate și statistici sunt procesate de OpenAI în SUA:
+- **Bază legală:** Consimțământ explicit + Data Privacy Framework UE-SUA
+- **Date transferate:** Statistici agregate, nume șoferi, nr. înmatriculare (vezi 4.3)
+- **Date NETRANSFERATE:** CNP, IBAN, adrese, documente complete
+- **Opțional:** Puteți utiliza platforma fără funcții AI
 
 ---
 

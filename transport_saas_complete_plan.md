@@ -1,6 +1,27 @@
 # TRANSPORT SaaS - PLAN COMPLET DE IMPLEMENTARE
 ## Document Tehnic pentru Dezvoltare
 
+**Versiune:** 1.1
+**Ultima actualizare:** 2025-11-26
+**Status:** În dezvoltare
+
+---
+
+## CUPRINS
+
+1. [Despre Proiect](#-1-despre-proiect)
+2. [Stack Tehnologic](#️-2-stack-tehnologic)
+3. [Schema Bazei de Date](#️-3-schema-bazei-de-date)
+4. [API Endpoints](#-4-api-endpoints)
+5. [Frontend Architecture](#-5-frontend-architecture)
+6. [Integrări Externe](#-6-integrări-externe)
+7. [Securitate & GDPR](#-7-securitate--gdpr)
+8. [Roadmap Implementare](#-8-roadmap-implementare)
+9. [Data Migration](#-9-data-migration)
+10. [Testing Checklist](#-10-testing-checklist)
+11. [Comenzi Quick Start](#-11-comenzi-quick-start)
+12. [Environment Variables](#-12-environment-variables)
+
 ---
 
 # 📋 1. DESPRE PROIECT
@@ -8,21 +29,38 @@
 ## 1.1 Descriere
 SaaS pentru managementul unei flote de transport. Centralizează datele financiare, operaționale și de cheltuieli din multiple surse externe, oferind rapoarte și analize pe 3 variabile principale: **Cap de Remorcă**, **Șofer**, **Remorcă**.
 
+### Obiective Principale
+- **Centralizare date**: Agregarea automată a datelor din 12+ surse externe
+- **Automatizare**: Reducerea muncii manuale pentru introducere date și raportare
+- **Vizibilitate**: Dashboard real-time cu poziții GPS, costuri și profitabilitate
+- **Conformitate**: Respectarea cerințelor GDPR și legislației fiscale românești
+- **Scalabilitate**: Arhitectură multi-tenant pregătită pentru creștere
+
+### Utilizatori Țintă
+| Rol | Responsabilități | Acces |
+|-----|------------------|-------|
+| Admin | Configurare sistem, utilizatori, integrări | Complet |
+| Manager | Rapoarte, analize, aprobare curse | Citire + Rapoarte |
+| Operator | Introducere curse, documente, tranzacții | CRUD entități proprii |
+| Viewer | Vizualizare dashboard și rapoarte | Doar citire |
+
 ## 1.2 Surse de Date Externe
-| Sursă | Tip | Date |
-|-------|-----|------|
-| SmartBill | API | Facturi emise/primite |
-| Banca Transilvania | API PSD2 | Tranzacții bancare |
-| DKV | API | Combustibil |
-| Eurowag | API | Combustibil |
-| Verag | CSV din Gmail | Combustibil |
-| Sprint Diesel | PDF din Gmail | Combustibil |
-| Wialon | API | GPS tracking |
-| AROBS | API | GPS tracking |
-| Volvo | API | GPS tracking |
-| Ecomotive | API | GPS tracking |
-| Google Drive | API | Documente, state plată |
-| Gmail | API | Documente, facturi |
+| Sursă | Tip | Date | Frecvență Sync | Prioritate |
+|-------|-----|------|----------------|------------|
+| SmartBill | API REST | Facturi emise/primite | Zilnic | HIGH |
+| Banca Transilvania | API PSD2 | Tranzacții bancare | Zilnic | HIGH |
+| DKV | API REST | Combustibil, taxe | Zilnic | MEDIUM |
+| Eurowag | API REST | Combustibil, taxe | Zilnic | MEDIUM |
+| Verag | CSV din Gmail | Combustibil | La cerere | LOW |
+| Sprint Diesel | PDF din Gmail | Combustibil | La cerere | LOW |
+| Wialon | API REST | GPS tracking | Real-time (1 min) | HIGH |
+| AROBS | API REST | GPS tracking | Real-time (1 min) | HIGH |
+| Volvo | API REST | GPS tracking, telemetrie | Real-time (1 min) | MEDIUM |
+| Ecomotive | API REST | GPS tracking | Real-time (1 min) | MEDIUM |
+| Google Drive | API OAuth2 | Documente, state plată | La cerere | LOW |
+| Gmail | API OAuth2 | Documente, facturi | Zilnic | LOW |
+
+> **Notă**: Frecvența de sincronizare poate fi configurată per companie din setări.
 
 ## 1.3 Logica de Business
 Sistemul permite combinații flexibile între cele 3 entități principale pentru rapoarte:
@@ -31,56 +69,130 @@ Sistemul permite combinații flexibile între cele 3 entități principale pentr
 - Fiecare entitate are costuri și documente proprii
 - Rapoartele pot fi generate per entitate sau combinații
 
+### Relații între Entități
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   ȘOFER     │────▶│    CURSĂ    │◀────│  CAP TRACTOR│
+└─────────────┘     └──────┬──────┘     └──────┬──────┘
+                           │                   │
+                           ▼                   ▼
+                    ┌─────────────┐     ┌─────────────┐
+                    │   REMORCĂ   │     │  GPS DATA   │
+                    └─────────────┘     └─────────────┘
+                           │
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+        ┌──────────┐ ┌──────────┐ ┌──────────┐
+        │TRANZACȚII│ │DOCUMENTE │ │ FACTURI  │
+        └──────────┘ └──────────┘ └──────────┘
+```
+
+### Calcul Profitabilitate per Cursă
+```
+PROFIT = VENIT_CURSĂ - COSTURI_DIRECTE - COSTURI_ALOCATE
+
+Unde:
+- VENIT_CURSĂ = valoare factură client (convertită în RON)
+- COSTURI_DIRECTE = combustibil + taxe drum + diurnă șofer
+- COSTURI_ALOCATE = (cost_vehicul_lunar / zile_lucrate) × zile_cursă
+```
+
+### Reguli de Matching Tranzacții
+1. **Automat**: Card combustibil → Vehicul (prin fuel_card_mappings)
+2. **Automat**: Factură SmartBill → Cursă (prin settlement_number)
+3. **Semi-automat**: Tranzacție bancară → Sugestii bazate pe descriere
+4. **Manual**: Operator alocă tranzacțiile nepotrivite
+
 ---
 
 # 🛠️ 2. STACK TEHNOLOGIC
 
 ## 2.1 Backend
 ```
-Node.js + Express.js
-├── @supabase/supabase-js - Database client
-├── cors - CORS middleware
-├── dotenv - Environment variables
-├── express-rate-limit - Rate limiting
-├── multer - File uploads
-├── node-cron - Scheduled jobs
-├── axios - External API calls
-├── pdf-parse - PDF parsing
-├── csv-parser - CSV parsing
-├── googleapis - Gmail/Drive API
-└── nodemon - Development
+Node.js v20 LTS + Express.js v4.18+
+├── @supabase/supabase-js ^2.38 - Database client & auth
+├── cors ^2.8 - CORS middleware
+├── dotenv ^16.3 - Environment variables
+├── express-rate-limit ^7.1 - Rate limiting (100 req/15min)
+├── express-validator ^7.0 - Input validation
+├── helmet ^7.1 - Security headers
+├── multer ^1.4 - File uploads (max 50MB)
+├── node-cron ^3.0 - Scheduled jobs
+├── axios ^1.6 - External API calls
+├── pdf-parse ^1.1 - PDF parsing
+├── csv-parser ^3.0 - CSV parsing
+├── googleapis ^130 - Gmail/Drive API
+├── winston ^3.11 - Logging
+├── compression ^1.7 - Response compression
+└── nodemon ^3.0 - Development hot reload
 ```
+
+### Justificare Alegeri
+| Tehnologie | Alternativă | De ce am ales-o |
+|------------|-------------|-----------------|
+| Express.js | Fastify, Koa | Maturitate, ecosistem vast, documentație |
+| Supabase | Firebase, MongoDB | PostgreSQL, RLS built-in, pricing accesibil |
+| node-cron | Bull, Agenda | Simplitate, fără Redis necesar |
 
 ## 2.2 Frontend
 ```
-React 18+ (Vite)
-├── react-router-dom v6 - Routing
-├── @reduxjs/toolkit - Global state
-├── @tanstack/react-query - Server state & cache
-├── @supabase/supabase-js - Auth & realtime
-├── tailwindcss - Styling
-├── shadcn/ui (@radix-ui) - Components
-├── react-hook-form - Forms
-├── zod - Validation
-├── recharts - Charts
-├── leaflet + react-leaflet - Maps
-├── @tanstack/react-table - Tables
-├── date-fns - Date utils
-├── react-hot-toast - Notifications
-├── lucide-react - Icons
-└── axios - API calls
+React 18.2+ (Vite 5.0+)
+├── react-router-dom ^6.20 - Routing cu lazy loading
+├── @reduxjs/toolkit ^2.0 - Global state (auth, UI)
+├── @tanstack/react-query ^5.0 - Server state, cache, mutations
+├── @supabase/supabase-js ^2.38 - Auth & realtime subscriptions
+├── tailwindcss ^3.4 - Utility-first CSS
+├── shadcn/ui (Radix UI) - Accessible component library
+├── react-hook-form ^7.48 - Performant forms
+├── zod ^3.22 - Schema validation
+├── recharts ^2.10 - Charts & graphs
+├── leaflet ^1.9 + react-leaflet ^4.2 - GPS maps
+├── @tanstack/react-table ^8.10 - Advanced tables
+├── date-fns ^3.0 - Date manipulation
+├── react-hot-toast ^2.4 - Toast notifications
+├── lucide-react ^0.300 - Icon library
+├── axios ^1.6 - HTTP client
+└── @hookform/resolvers ^3.3 - Zod integration
+```
+
+### Structura Build
+```
+Production Build Target:
+├── Initial bundle: < 200KB (gzipped)
+├── Lazy chunks: < 50KB each
+├── Total app: < 1MB
+└── Tree-shaking: enabled
 ```
 
 ## 2.3 Database & Infrastructure
 ```
-Supabase (PostgreSQL)
-├── Database hosting
+Supabase (PostgreSQL 15)
+├── Database hosting (Pro plan recomandat)
+│   ├── 8GB RAM, 2 CPU cores
+│   ├── 100GB storage
+│   └── Daily backups (7 zile retenție)
 ├── Authentication
-├── Row Level Security
+│   ├── Email/Password
+│   ├── Magic links
+│   └── Row Level Security
 ├── Realtime subscriptions
+│   ├── GPS updates (broadcast)
+│   └── Alerts (postgres_changes)
 ├── Storage (documents)
-└── Edge Functions (optional)
+│   ├── 100GB included
+│   ├── Max file: 50MB
+│   └── CDN delivery
+└── Edge Functions (pentru webhooks)
 ```
+
+### Estimare Spațiu Stocare
+| Tip Date | Volum/lună | Retenție | Total/an |
+|----------|------------|----------|----------|
+| GPS data | ~500MB | 12 luni | 6GB |
+| Documente | ~200MB | 7 ani | 16.8GB |
+| Tranzacții | ~50MB | 7 ani | 4.2GB |
+| Facturi | ~100MB | 10 ani | 12GB |
+| **TOTAL** | | | **~40GB** |
 
 ---
 
@@ -1187,66 +1299,218 @@ async function parseSprintDieselPDF(buffer) {
 # 🔒 7. SECURITATE & GDPR
 
 ## 7.1 Authentication
+
+### Supabase Auth Configuration
 ```javascript
-// Supabase Auth cu Row Level Security
+// Configurare Supabase Auth
+const supabaseConfig = {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce', // Mai sigur decât implicit
+  }
+};
+
+// Login cu validare
 const { data, error } = await supabase.auth.signInWithPassword({
-  email,
-  password
+  email: email.toLowerCase().trim(),
+  password: password
 });
 
-// RLS Policies
-CREATE POLICY "Users can only access their company data"
-ON truck_heads FOR ALL
-USING (company_id = auth.jwt() -> 'user_metadata' ->> 'company_id');
+if (error) {
+  // Log failed attempt pentru rate limiting
+  await logFailedLogin(email, request.ip);
+  throw new AuthenticationError(error.message);
+}
+
+// Setare user metadata la signup
+await supabase.auth.signUp({
+  email,
+  password,
+  options: {
+    data: {
+      company_id: companyId,
+      role: 'operator', // Default role
+      first_name: firstName,
+      last_name: lastName
+    }
+  }
+});
 ```
 
-## 7.2 Security Checklist
+### Row Level Security Policies
+```sql
+-- Enable RLS on all tables
+ALTER TABLE truck_heads ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trailers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE drivers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trips ENABLE ROW LEVEL SECURITY;
+-- ... pentru toate tabelele
+
+-- Policy: Users can only access their company data
+CREATE POLICY "company_isolation_policy" ON truck_heads
+FOR ALL USING (
+  company_id = (auth.jwt() -> 'user_metadata' ->> 'company_id')::uuid
+);
+
+-- Policy: Admins can manage users in their company
+CREATE POLICY "admin_user_management" ON users
+FOR ALL USING (
+  (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
+  AND company_id = (auth.jwt() -> 'user_metadata' ->> 'company_id')::uuid
+);
+
+-- Policy: Read-only for viewers
+CREATE POLICY "viewer_read_only" ON trips
+FOR SELECT USING (
+  company_id = (auth.jwt() -> 'user_metadata' ->> 'company_id')::uuid
+);
 ```
-AUTENTIFICARE:
-☐ 2FA pentru admin accounts
-☐ Session timeout (30 min)
-☐ Password complexity (min 8 chars, mixed)
-☐ Account lockout după 5 încercări
-☐ Refresh token rotation
 
-PROTECȚIE DATE:
-☐ Encryption at rest (Supabase default)
-☐ Encryption in transit (HTTPS only)
-☐ API rate limiting (100 req/15 min)
-☐ SQL injection protection (Supabase)
-☐ XSS protection (React default + sanitize)
+## 7.2 Security Implementation
 
-ROW LEVEL SECURITY:
-☐ Toate tabelele au RLS enabled
-☐ company_id verificat pe toate queries
-☐ Audit logs pentru acțiuni sensibile
+### Autentificare
+| Măsură | Status | Implementare |
+|--------|--------|--------------|
+| 2FA pentru admin | Planificat | Supabase MFA sau TOTP |
+| Session timeout | Activ | 30 min inactivitate |
+| Password complexity | Activ | Min 8 chars, uppercase, lowercase, number |
+| Account lockout | Activ | 5 încercări → 15 min blocare |
+| Refresh token rotation | Activ | La fiecare refresh |
+| Secure cookies | Activ | HttpOnly, Secure, SameSite=Strict |
+
+### Protecție Date
+| Măsură | Status | Detalii |
+|--------|--------|---------|
+| Encryption at rest | Activ | AES-256 (Supabase default) |
+| Encryption in transit | Activ | TLS 1.3 |
+| API rate limiting | Activ | 100 req/15min per IP |
+| SQL injection | Protejat | Prepared statements (Supabase) |
+| XSS protection | Activ | React escaping + DOMPurify |
+| CSRF protection | Activ | SameSite cookies + tokens |
+| Security headers | Activ | Helmet.js middleware |
+
+### Backend Security Middleware
+```javascript
+// security.middleware.js
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    }
+  },
+  hsts: { maxAge: 31536000, includeSubDomains: true }
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minute
+  max: 100, // 100 requests per window
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', limiter);
+
+// Stricter limit for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 oră
+  max: 10, // 10 încercări de login
+  skipSuccessfulRequests: true,
+});
+app.use('/api/v1/auth/login', authLimiter);
 ```
 
 ## 7.3 GDPR Compliance
-```
-☐ Privacy Policy (page/document)
-☐ Terms of Service
-☐ Cookie Consent (dacă folosim cookies)
-☐ Data Retention Policy (7 ani pentru fiscal)
-☐ Right to Deletion (cu excepții legale)
-☐ Data Export Capability
-☐ Audit Logs pentru access la date personale
-☐ CNP și date personale criptate
+
+### Cerințe Implementate
+| Cerință GDPR | Status | Implementare |
+|--------------|--------|--------------|
+| Privacy Policy | Necesar | Pagină `/privacy` + modal la signup |
+| Terms of Service | Necesar | Pagină `/terms` + accept obligatoriu |
+| Cookie Consent | Necesar | Banner cu opțiuni granulare |
+| Data Retention | Implementat | 7 ani fiscal, 10 ani facturi |
+| Right to Deletion | Parțial | Ștergere cu excepții legale |
+| Data Export | Implementat | Export JSON/CSV din setări |
+| Audit Logs | Implementat | Toate acțiunile logate |
+| Date personale criptate | Implementat | CNP, IBAN criptate în DB |
+
+### Date Personale Procesate
+```sql
+-- Câmpuri criptate în baza de date
+-- Folosim pgcrypto pentru criptare simetrică
+
+-- La inserare
+INSERT INTO drivers (cnp_encrypted, iban_encrypted, ...)
+VALUES (
+  pgp_sym_encrypt(cnp, current_setting('app.encryption_key')),
+  pgp_sym_encrypt(iban, current_setting('app.encryption_key')),
+  ...
+);
+
+-- La citire
+SELECT
+  pgp_sym_decrypt(cnp_encrypted::bytea, current_setting('app.encryption_key')) as cnp,
+  pgp_sym_decrypt(iban_encrypted::bytea, current_setting('app.encryption_key')) as iban
+FROM drivers;
 ```
 
-## 7.4 Backup Strategy
-```
-SUPABASE (inclus):
-- Point-in-time recovery
-- Daily backups
+### Data Retention Policy
+| Tip Date | Retenție | Bază Legală |
+|----------|----------|-------------|
+| Facturi | 10 ani | Cod Fiscal art. 25 |
+| Documente contabile | 10 ani | Legea contabilității |
+| Date salariale | 50 ani | Cod Muncii |
+| GPS data | 12 luni | Interes legitim |
+| Logs aplicație | 90 zile | Securitate |
+| Date marketing | Până la retragere consimțământ | GDPR art. 6 |
 
-ADDITIONAL:
-☐ Export săptămânal JSON/SQL
-☐ Storage separat pentru documente
-☐ Recovery Time Objective: 4 ore
-☐ Recovery Point Objective: 24 ore
-☐ Test restore lunar
+## 7.4 Backup & Disaster Recovery
+
+### Strategie Backup
 ```
+┌─────────────────────────────────────────────────────────────┐
+│                    BACKUP STRATEGY                          │
+├─────────────────────────────────────────────────────────────┤
+│ NIVEL 1: Supabase (automat)                                 │
+│ ├── Point-in-time recovery (ultimele 7 zile)               │
+│ ├── Daily backups                                          │
+│ └── Replicare geografică (EU region)                       │
+├─────────────────────────────────────────────────────────────┤
+│ NIVEL 2: Export Programat                                   │
+│ ├── Weekly: Full database dump (SQL)                        │
+│ ├── Daily: Incremental transactions                         │
+│ └── Storage: AWS S3 / Google Cloud Storage                  │
+├─────────────────────────────────────────────────────────────┤
+│ NIVEL 3: Documente                                          │
+│ ├── Sync zilnic către storage secundar                      │
+│ └── Versionare activată                                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Recovery Objectives
+| Metric | Target | Actual |
+|--------|--------|--------|
+| RTO (Recovery Time) | 4 ore | TBD |
+| RPO (Recovery Point) | 24 ore | TBD |
+| Backup Success Rate | 100% | Monitorizat |
+| Test Restore | Lunar | Programat |
+
+### Procedură Disaster Recovery
+1. **Detectare** (0-15 min): Alertă automată via Sentry/UptimeRobot
+2. **Evaluare** (15-30 min): Identificare cauză și impact
+3. **Decizie** (30-45 min): Failover sau fix în loc
+4. **Restore** (45min-4h): Restaurare din backup
+5. **Verificare** (post-restore): Test integritate date
+6. **Post-mortem** (24-48h): Analiză și îmbunătățiri
 
 ---
 

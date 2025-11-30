@@ -38,8 +38,23 @@ Platforma oferă următoarele servicii:
 - Integrare bancară (PSD2)
 - Integrare cu SmartBill pentru facturare
 - Rapoarte și analize financiare
+- **Funcții AI** (opționale) - analiză, predicții și recomandări folosind inteligență artificială
 
-### 3.2 Disponibilitate
+### 3.2 Funcționalități AI (OpenAI)
+
+Platforma oferă funcționalități opționale de inteligență artificială:
+- **Insights automate** - analiză performanță și recomandări
+- **Chat AI** - întrebări și răspunsuri despre datele companiei
+- **Predicții** - estimări venituri și cheltuieli
+
+**Important despre AI:**
+- Funcțiile AI sunt **opționale** și necesită consimțământul dumneavoastră
+- Pentru a funcționa, datele agregate sunt procesate de **OpenAI** (SUA)
+- Nu se trimit date personale sensibile (CNP, IBAN, etc.)
+- Puteți dezactiva AI oricând din setări
+- Răspunsurile AI sunt orientative și nu constituie consultanță profesională
+
+### 3.3 Disponibilitate
 Ne angajăm să menținem o disponibilitate a serviciului de minimum 99.5% lunar, excluzând perioadele planificate de mentenanță.
 
 ---

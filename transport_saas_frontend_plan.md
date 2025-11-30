@@ -1,28 +1,168 @@
 # Transport SaaS - Plan Frontend React
 ## Arhitectură & Strategie de Implementare
 
+**Versiune:** 1.1
+**Ultima actualizare:** 2025-11-26
+**Status:** În dezvoltare
+
+---
+
+## CUPRINS
+
+1. [Overview Tehnic](#-overview-tehnic)
+2. [Arhitectura Aplicației](#️-arhitectura-aplicației)
+3. [Componente Principale](#-componente-principale)
+4. [State Management Strategy](#-state-management-strategy)
+5. [Data Flow](#-data-flow)
+6. [Faze de Implementare](#-faze-de-implementare)
+7. [Design System](#-design-system)
+8. [Responsive Design](#-responsive-design)
+9. [Security Considerations](#-security-considerations)
+10. [Performance Targets](#-performance-targets)
+11. [Testing Strategy](#-testing-strategy)
+12. [Deployment Strategy](#-deployment-strategy)
+
 ---
 
 ## 📋 OVERVIEW TEHNIC
 
 ### Stack Frontend Propus:
-- **React 18+** - Framework principal
-- **Vite** - Build tool (mai rapid decât CRA)
-- **React Router v6** - Routing
-- **Redux Toolkit** - State management global
-- **React Query (TanStack Query)** - Server state & caching
-- **Tailwind CSS** - Styling
-- **Shadcn/ui** - Component library
-- **React Hook Form** - Formulare complexe
-- **Recharts/Tremor** - Charts & graphs
-- **Leaflet** - Hărți pentru GPS tracking
-- **React Hot Toast** - Notificări
-- **date-fns** - Date manipulation
-- **React Table v8** - Tabele complexe cu sorting/filtering
+
+| Categorie | Tehnologie | Versiune | Scop |
+|-----------|------------|----------|------|
+| **Core** | React | 18.2+ | Framework UI |
+| **Build** | Vite | 5.0+ | Bundler rapid (10x vs CRA) |
+| **Routing** | React Router | v6.20+ | Client-side routing, lazy loading |
+| **State (Global)** | Redux Toolkit | 2.0+ | Auth, UI state, cache |
+| **State (Server)** | TanStack Query | v5.0+ | Data fetching, cache, mutations |
+| **Styling** | Tailwind CSS | 3.4+ | Utility-first CSS |
+| **Components** | Shadcn/ui | latest | Radix UI based, accessible |
+| **Forms** | React Hook Form | 7.48+ | Performant form management |
+| **Validation** | Zod | 3.22+ | Schema validation |
+| **Charts** | Recharts | 2.10+ | Data visualization |
+| **Maps** | Leaflet + react-leaflet | 1.9/4.2 | GPS tracking maps |
+| **Tables** | TanStack Table | v8.10+ | Advanced data tables |
+| **Dates** | date-fns | 3.0+ | Date manipulation |
+| **Notifications** | React Hot Toast | 2.4+ | Toast messages |
+| **Icons** | Lucide React | 0.300+ | Icon library |
+| **HTTP** | Axios | 1.6+ | API requests |
+| **Auth** | Supabase JS | 2.38+ | Authentication |
+
+### De ce aceste alegeri?
+
+```
+✅ Vite vs Create React App
+   - Build 10-20x mai rapid
+   - HMR instant
+   - Bundle size mai mic
+   - Native ESM support
+
+✅ Redux Toolkit vs Context API
+   - DevTools pentru debugging
+   - Middleware (thunk, saga)
+   - Structură predictabilă
+   - Compatibil cu React Query
+
+✅ Shadcn/ui vs Material UI
+   - Zero-runtime (copy-paste components)
+   - Fully customizable
+   - Accessibility built-in (Radix)
+   - Bundle size minimal
+
+✅ TanStack Query vs SWR
+   - Devtools mai bune
+   - Mutations handling superior
+   - Offline support
+   - Infinite queries
+```
 
 ---
 
 ## 🏗️ ARHITECTURA APLICAȚIEI
+
+### Structura Folder-elor
+
+```
+transport-frontend/
+├── public/
+│   ├── favicon.ico
+│   ├── logo.svg
+│   └── locales/              # i18n files (future)
+├── src/
+│   ├── api/                  # API layer
+│   │   ├── client.ts         # Axios instance configured
+│   │   ├── supabase.ts       # Supabase client
+│   │   └── endpoints/        # API functions by domain
+│   │       ├── auth.ts
+│   │       ├── vehicles.ts
+│   │       ├── drivers.ts
+│   │       ├── trips.ts
+│   │       └── reports.ts
+│   ├── components/
+│   │   ├── ui/               # Shadcn/ui components
+│   │   │   ├── button.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── dialog.tsx
+│   │   │   └── ...
+│   │   ├── common/           # Shared components
+│   │   │   ├── DataTable/
+│   │   │   ├── PageHeader/
+│   │   │   ├── LoadingSpinner/
+│   │   │   └── EmptyState/
+│   │   ├── layout/           # Layout components
+│   │   │   ├── AppLayout.tsx
+│   │   │   ├── Sidebar.tsx
+│   │   │   ├── Header.tsx
+│   │   │   └── Footer.tsx
+│   │   └── features/         # Feature-specific components
+│   │       ├── dashboard/
+│   │       ├── vehicles/
+│   │       ├── drivers/
+│   │       ├── trips/
+│   │       ├── documents/
+│   │       ├── finance/
+│   │       └── reports/
+│   ├── hooks/                # Custom React hooks
+│   │   ├── useAuth.ts
+│   │   ├── useVehicles.ts
+│   │   ├── useRealtime.ts
+│   │   └── useDebounce.ts
+│   ├── store/                # Redux store
+│   │   ├── index.ts
+│   │   ├── auth/
+│   │   ├── ui/
+│   │   └── middleware/
+│   ├── pages/                # Route pages
+│   │   ├── auth/
+│   │   ├── dashboard/
+│   │   ├── vehicles/
+│   │   ├── drivers/
+│   │   ├── trips/
+│   │   ├── documents/
+│   │   ├── finance/
+│   │   ├── reports/
+│   │   └── settings/
+│   ├── lib/                  # Utility libraries
+│   │   ├── utils.ts          # Helper functions
+│   │   ├── constants.ts      # App constants
+│   │   └── validators.ts     # Zod schemas
+│   ├── types/                # TypeScript types
+│   │   ├── api.ts
+│   │   ├── models.ts
+│   │   └── components.ts
+│   ├── styles/               # Global styles
+│   │   └── globals.css
+│   ├── App.tsx
+│   ├── main.tsx
+│   └── routes.tsx
+├── .env.example
+├── .eslintrc.cjs
+├── .prettierrc
+├── tailwind.config.js
+├── tsconfig.json
+├── vite.config.ts
+└── package.json
+```
 
 ### 1. Structura de Pagini (Routes)
 
@@ -433,8 +573,22 @@ Body:
 
 ## 📚 DEPENDENCIES PRINCIPALE
 
+### package.json
 ```json
 {
+  "name": "transport-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives",
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -442,10 +596,11 @@ Body:
     "@reduxjs/toolkit": "^2.0.0",
     "react-redux": "^9.0.0",
     "@tanstack/react-query": "^5.0.0",
+    "@tanstack/react-query-devtools": "^5.0.0",
     "@supabase/supabase-js": "^2.38.0",
     "react-hook-form": "^7.48.0",
-    "tailwindcss": "^3.3.0",
-    "@radix-ui/react-*": "latest",
+    "@hookform/resolvers": "^3.3.0",
+    "tailwindcss": "^3.4.0",
     "recharts": "^2.10.0",
     "leaflet": "^1.9.0",
     "react-leaflet": "^4.2.0",
@@ -454,9 +609,65 @@ Body:
     "@tanstack/react-table": "^8.10.0",
     "axios": "^1.6.0",
     "zod": "^3.22.0",
-    "lucide-react": "^0.300.0"
+    "lucide-react": "^0.300.0",
+    "clsx": "^2.0.0",
+    "tailwind-merge": "^2.0.0",
+    "class-variance-authority": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/leaflet": "^1.9.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "autoprefixer": "^10.4.0",
+    "eslint": "^8.50.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "postcss": "^8.4.0",
+    "prettier": "^3.1.0",
+    "prettier-plugin-tailwindcss": "^0.5.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0",
+    "@testing-library/react": "^14.0.0"
   }
 }
+```
+
+### vite.config.ts
+```typescript
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@hooks': path.resolve(__dirname, './src/hooks'),
+      '@api': path.resolve(__dirname, './src/api'),
+      '@store': path.resolve(__dirname, './src/store'),
+      '@lib': path.resolve(__dirname, './src/lib'),
+      '@types': path.resolve(__dirname, './src/types'),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          redux: ['@reduxjs/toolkit', 'react-redux'],
+          query: ['@tanstack/react-query'],
+          charts: ['recharts'],
+          maps: ['leaflet', 'react-leaflet'],
+        },
+      },
+    },
+  },
+});
 ```
 
 ---

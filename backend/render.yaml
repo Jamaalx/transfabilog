@@ -1,0 +1,34 @@
+# Floteris Backend - Render Configuration
+# Deploy settings for production
+
+services:
+  - type: web
+    name: floteris-backend
+    runtime: node
+    region: frankfurt  # EU region for GDPR compliance
+    plan: starter  # Can upgrade to standard for production
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # Set these in Render dashboard:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false  # Set to Netlify URL
+      # Optional external APIs:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DKV_API_KEY
+        sync: false
+      - key: EUROWAG_API_KEY
+        sync: false
+    autoDeploy: true  # Auto-deploy on git push
