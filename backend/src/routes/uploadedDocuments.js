@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { body, query, param, validationResult } = require('express-validator');
 const { supabaseAdmin: supabase } = require('../config/supabase');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize, requireAdminDb } = require('../middleware/auth');
 const {
   processDocument,
   DOCUMENT_TYPES,
@@ -54,8 +54,9 @@ const upload = multer({
   },
 });
 
-// All routes require authentication
+// All routes require authentication and admin database access
 router.use(authenticate);
+router.use(requireAdminDb);
 
 /**
  * GET /api/v1/uploaded-documents/types

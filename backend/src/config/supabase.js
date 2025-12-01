@@ -34,4 +34,7 @@ const supabaseAdmin = isConfigured && supabaseServiceKey
     })
   : null;
 
-module.exports = { supabase, supabaseAdmin, isConfigured };
+// Flag to indicate if admin client is available
+const isAdminConfigured = isConfigured && !!supabaseServiceKey;
+
+module.exports = { supabase, supabaseAdmin, isConfigured, isAdminConfigured };
