@@ -1,0 +1,20 @@
+# Railway/Nixpacks configuration for Floteris Frontend
+# This file tells Railway how to build the React/Vite frontend
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[staticAssets]
+root = "dist"
+
+[start]
+cmd = "npm start"
+
+[variables]
+NODE_ENV = "production"
