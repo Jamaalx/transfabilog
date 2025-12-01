@@ -1,10 +1,15 @@
 const OpenAI = require('openai');
 const { supabaseAdmin: supabase } = require('../config/supabase');
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize OpenAI client only if API key is available
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+} else {
+  console.warn('⚠️  OpenAI API key not configured - AI features will use local fallback');
+}
 
 /**
  * Get company data summary for AI context
@@ -169,6 +174,11 @@ async function getCompanyDataSummary(companyId) {
  */
 async function generateInsights(companyId) {
   const dataSummary = await getCompanyDataSummary(companyId);
+
+  // If OpenAI is not configured, use local fallback
+  if (!openai) {
+    return generateLocalInsights(dataSummary);
+  }
 
   const systemPrompt = `Ești un asistent AI expert în analiza datelor pentru companii de transport.
 Analizezi datele unei companii de transport din România și oferi insights valoroase, recomandări practice și identifici oportunități de optimizare.
@@ -335,6 +345,15 @@ ${recommendations.length > 0 ? recommendations.map((r, i) => `${i + 1}. ${r}`).j
  * Chat with AI about company data
  */
 async function chatWithAI(companyId, message, conversationHistory = []) {
+  // If OpenAI is not configured, return error message
+  if (!openai) {
+    return {
+      response: 'Serviciul AI nu este configurat. Contactați administratorul pentru a activa funcțiile AI.',
+      timestamp: new Date().toISOString(),
+      error: true,
+    };
+  }
+
   const dataSummary = await getCompanyDataSummary(companyId);
 
   const systemPrompt = `Ești un asistent AI expert pentru o companie de transport din România.
