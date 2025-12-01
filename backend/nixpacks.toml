@@ -1,0 +1,14 @@
+# Railway/Nixpacks configuration for Floteris Backend
+# This file tells Railway how to build and start the Node.js backend
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[start]
+cmd = "npm start"
+
+[variables]
+NODE_ENV = "production"
