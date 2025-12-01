@@ -719,7 +719,7 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Button variant="outline" className="w-full border-white text-white hover:bg-white hover:text-slate-900 text-sm md:text-base">
+                <Button className="w-full bg-transparent border-2 border-blue-400 text-blue-400 hover:bg-blue-400 hover:text-white text-sm md:text-base">
                   Contactează Vânzări
                 </Button>
               </CardContent>
