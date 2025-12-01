@@ -22,7 +22,7 @@ export default function AuthLayout() {
       <div className="hidden lg:flex lg:w-1/2 bg-primary items-center justify-center p-12">
         <div className="text-white text-center">
           <div className="flex items-center justify-center mb-8">
-            <img src="/logo.webp" alt="Floteris Logo" className="h-24 w-24 brightness-0 invert" />
+            <img src="/logo-white.webp" alt="Floteris Logo" className="h-24 w-24" />
           </div>
           <h1 className="text-4xl font-bold mb-4">FLOTERIS</h1>
           <p className="text-xl opacity-90">

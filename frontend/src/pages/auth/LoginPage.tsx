@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/use-toast'
+import { ArrowRight } from 'lucide-react'
 
 const loginSchema = z.object({
   email: z.string().email('Email invalid'),
@@ -91,8 +92,16 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <div className="mt-4 text-center text-sm text-muted-foreground">
-          <p>Demo: contacteaza administratorul pentru acces</p>
+        <div className="mt-6 pt-6 border-t">
+          <p className="text-center text-sm text-muted-foreground mb-3">
+            Nu ai cont? Solicită o demonstrație gratuită
+          </p>
+          <Link to="/#demo">
+            <Button variant="outline" className="w-full">
+              Solicită Demo Gratuit
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       </CardContent>
     </Card>
