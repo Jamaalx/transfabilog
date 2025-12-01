@@ -245,8 +245,11 @@ export default function LandingPage() {
       {/* Integrations Partners */}
       <section className="py-8 md:py-12 bg-slate-50 border-b overflow-hidden">
         <div className="container mx-auto px-3 sm:px-4">
-          <p className="text-center text-xs md:text-sm text-slate-500 mb-6 md:mb-8 font-medium">
-            INTEGRĂRI DISPONIBILE CU PRINCIPALII FURNIZORI
+          <p className="text-center text-xs md:text-sm text-slate-500 mb-2 font-medium">
+            INTEGRĂRI ÎN DEZVOLTARE
+          </p>
+          <p className="text-center text-xs text-slate-400 mb-6 md:mb-8">
+            Suntem în colaborare cu principalii furnizori pentru integrări API directe
           </p>
           <div className="flex flex-wrap justify-center items-center gap-3 sm:gap-4 md:gap-8">
             {[
@@ -257,12 +260,16 @@ export default function LandingPage() {
               { name: 'OMV', color: 'text-blue-800' },
               { name: 'Petrom', color: 'text-red-600' }
             ].map((partner, idx) => (
-              <div key={idx} className="flex items-center gap-1.5 md:gap-2 px-3 py-2 md:px-6 md:py-3 bg-white rounded-lg border shadow-sm">
+              <div key={idx} className="flex items-center gap-1.5 md:gap-2 px-3 py-2 md:px-6 md:py-3 bg-white rounded-lg border shadow-sm relative">
                 <Fuel className="h-4 w-4 md:h-5 md:w-5 text-slate-400" />
                 <span className={`text-sm md:text-lg font-bold ${partner.color}`}>{partner.name}</span>
+                <span className="absolute -top-2 -right-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
               </div>
             ))}
           </div>
+          <p className="text-center text-xs text-slate-400 mt-4">
+            Momentan suportăm import manual din fișiere Excel/CSV
+          </p>
         </div>
       </section>
 
@@ -331,15 +338,15 @@ export default function LandingPage() {
                 <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
                   <Fuel className="h-6 w-6 md:h-7 md:w-7 text-white" />
                 </div>
-                <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">Import Automat Carburant</h3>
+                <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">Import Carburant</h3>
                 <p className="text-sm md:text-base text-slate-600 mb-4 md:mb-6">
-                  Import direct din DKV, Eurowag, Verag și Shell. Detectare automată dubluri și calcul cost/km.
+                  Import din fișiere Excel/CSV. Detectare automată dubluri și calcul cost/km. Integrări API în dezvoltare.
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-3 bg-slate-50 rounded-lg text-center font-bold text-slate-700">DKV</div>
-                  <div className="p-3 bg-slate-50 rounded-lg text-center font-bold text-blue-700">EUROWAG</div>
-                  <div className="p-3 bg-slate-50 rounded-lg text-center font-bold text-green-700">VERAG</div>
-                  <div className="p-3 bg-slate-50 rounded-lg text-center font-bold text-yellow-600">SHELL</div>
+                  <div className="p-2 bg-green-50 rounded-lg text-center text-xs font-medium text-green-700 border border-green-200">Excel/CSV ✓</div>
+                  <div className="p-2 bg-amber-50 rounded-lg text-center text-xs font-medium text-amber-700 border border-amber-200">DKV Soon</div>
+                  <div className="p-2 bg-amber-50 rounded-lg text-center text-xs font-medium text-amber-700 border border-amber-200">Eurowag Soon</div>
+                  <div className="p-2 bg-amber-50 rounded-lg text-center text-xs font-medium text-amber-700 border border-amber-200">+ altele</div>
                 </div>
               </CardContent>
             </Card>
@@ -669,10 +676,10 @@ export default function LandingPage() {
                   {[
                     'Vehicule nelimitate',
                     'AI Document Processing',
-                    'Import DKV / Eurowag / Verag',
+                    'Import Excel/CSV carburant',
                     'Rapoarte profitabilitate',
                     'AI Assistant Chat',
-                    'Suport prioritar 24/7',
+                    'Suport email',
                     'Export date nelimitat',
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-2 md:gap-3">
@@ -700,11 +707,11 @@ export default function LandingPage() {
                   {[
                     'Tot ce include Pro',
                     'API Access complet',
-                    'Integrări ERP custom',
+                    'Integrări DKV/Eurowag (când disponibile)',
                     'Onboarding dedicat',
-                    'SLA garantat 99.9%',
+                    'Suport prioritar',
                     'Account manager dedicat',
-                    'White-labeling disponibil',
+                    'Customizări la cerere',
                   ].map((item) => (
                     <li key={item} className="flex items-center gap-2 md:gap-3">
                       <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5 text-blue-400 shrink-0" />
