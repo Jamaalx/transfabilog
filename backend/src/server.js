@@ -101,6 +101,25 @@ app.get('/api/v1/health', (req, res) => {
   });
 });
 
+// Public configuration endpoint for frontend
+// Returns only public (safe to expose) configuration values
+app.get('/api/v1/config', (req, res) => {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return res.status(503).json({
+      error: 'Configuration unavailable',
+      message: 'Supabase configuration not set on server',
+    });
+  }
+
+  res.json({
+    supabaseUrl,
+    supabaseAnonKey,
+  });
+});
+
 // API routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/vehicles', vehicleRoutes);

@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { supabase } from './supabase'
+import { getSupabaseAsync } from './supabase'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api/v1',
@@ -10,9 +10,14 @@ const api = axios.create({
 
 // Add auth token to requests
 api.interceptors.request.use(async (config) => {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (session?.access_token) {
-    config.headers.Authorization = `Bearer ${session.access_token}`
+  try {
+    const supabase = await getSupabaseAsync()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      config.headers.Authorization = `Bearer ${session.access_token}`
+    }
+  } catch (error) {
+    console.warn('[API] Could not get auth session:', error)
   }
   return config
 })
@@ -29,6 +34,7 @@ api.interceptors.response.use(
 
       try {
         // Token expired, try to refresh
+        const supabase = await getSupabaseAsync()
         const { data, error: refreshError } = await supabase.auth.refreshSession()
 
         if (refreshError || !data.session) {
