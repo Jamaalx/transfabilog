@@ -251,26 +251,26 @@ export default function LandingPage() {
           <p className="text-center text-xs md:text-sm text-slate-500 mb-2 font-medium">
             INTEGRĂRI ÎN DEZVOLTARE
           </p>
-          <p className="text-center text-xs text-slate-400 mb-6 md:mb-8">
+          <p className="hidden sm:block text-center text-xs text-slate-400 mb-6 md:mb-8">
             Suntem în colaborare cu principalii furnizori pentru integrări API directe
           </p>
           <div className="flex flex-wrap justify-center items-center gap-3 sm:gap-4 md:gap-8">
             {[
-              { name: 'DKV', color: 'text-slate-700' },
-              { name: 'Eurowag', color: 'text-blue-600' },
-              { name: 'Verag', color: 'text-green-600' },
-              { name: 'Shell', color: 'text-yellow-600' },
-              { name: 'OMV', color: 'text-blue-800' },
-              { name: 'Petrom', color: 'text-red-600' }
+              { name: 'DKV', color: 'text-slate-700', showOnMobile: true },
+              { name: 'Eurowag', color: 'text-blue-600', showOnMobile: true },
+              { name: 'Verag', color: 'text-green-600', showOnMobile: true },
+              { name: 'Shell', color: 'text-yellow-600', showOnMobile: false },
+              { name: 'OMV', color: 'text-blue-800', showOnMobile: false },
+              { name: 'Petrom', color: 'text-red-600', showOnMobile: false }
             ].map((partner, idx) => (
-              <div key={idx} className="flex items-center gap-1.5 md:gap-2 px-3 py-2 md:px-6 md:py-3 bg-white rounded-lg border shadow-sm relative">
+              <div key={idx} className={`${partner.showOnMobile ? 'flex' : 'hidden sm:flex'} items-center gap-1.5 md:gap-2 px-3 py-2 md:px-6 md:py-3 bg-white rounded-lg border shadow-sm relative`}>
                 <Fuel className="h-4 w-4 md:h-5 md:w-5 text-slate-400" />
                 <span className={`text-sm md:text-lg font-bold ${partner.color}`}>{partner.name}</span>
                 <span className="absolute -top-2 -right-2 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
               </div>
             ))}
           </div>
-          <p className="text-center text-xs text-slate-400 mt-4">
+          <p className="hidden sm:block text-center text-xs text-slate-400 mt-4">
             Momentan suportăm import manual din fișiere Excel/CSV
           </p>
         </div>
@@ -399,8 +399,8 @@ export default function LandingPage() {
               </CardContent>
             </Card>
 
-            {/* Feature 5 - Drivers */}
-            <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
+            {/* Feature 5 - Drivers - Hidden on mobile */}
+            <Card className="hidden sm:block border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
               <CardContent className="p-5 md:p-8">
                 <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
                   <Users className="h-6 w-6 md:h-7 md:w-7 text-white" />
@@ -425,8 +425,8 @@ export default function LandingPage() {
               </CardContent>
             </Card>
 
-            {/* Feature 6 - AI Chat */}
-            <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
+            {/* Feature 6 - AI Chat - Hidden on mobile */}
+            <Card className="hidden sm:block border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
               <CardContent className="p-5 md:p-8">
                 <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
                   <Zap className="h-6 w-6 md:h-7 md:w-7 text-white" />
@@ -561,8 +561,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Example Scenario Section */}
-      <section className="py-24 bg-white">
+      {/* Example Scenario Section - Hidden on mobile */}
+      <section className="hidden md:block py-24 bg-white">
         <div className="container mx-auto px-4">
           <div className="max-w-5xl mx-auto">
             <Badge variant="outline" className="mb-4">Scenariu Exemplu</Badge>
@@ -788,8 +788,8 @@ export default function LandingPage() {
             ))}
           </div>
 
-          {/* Early Adopter CTA */}
-          <div className="mt-10 md:mt-16 text-center px-2">
+          {/* Early Adopter CTA - Hidden on mobile */}
+          <div className="hidden sm:block mt-10 md:mt-16 text-center px-2">
             <div className="inline-block bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl md:rounded-2xl p-5 md:p-8 border border-blue-100">
               <h3 className="text-lg md:text-xl font-bold mb-2">Fii printre primii utilizatori</h3>
               <p className="text-sm md:text-base text-slate-600 mb-4">
