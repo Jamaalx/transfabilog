@@ -15,6 +15,34 @@ interface RuntimeConfig {
   supabaseAnonKey: string
 }
 
+// Validate that an API key looks like a valid JWT or new Supabase key format
+function isValidApiKey(key: string): boolean {
+  if (!key || typeof key !== 'string' || key.length < 20) {
+    return false
+  }
+
+  // New Supabase key format: sb_publishable_... or sb_secret_...
+  if (key.startsWith('sb_')) {
+    return true
+  }
+
+  // Legacy JWT format: must start with 'eyJ' (base64 for '{"')
+  // This catches truncated keys that are missing the leading 'e'
+  if (!key.startsWith('eyJ')) {
+    console.error('[Supabase] Invalid API key format: JWT tokens must start with "eyJ". Your key starts with:', key.substring(0, 10))
+    return false
+  }
+
+  // Basic JWT structure check: should have 3 parts separated by dots
+  const parts = key.split('.')
+  if (parts.length !== 3) {
+    console.error('[Supabase] Invalid API key format: JWT tokens must have 3 parts separated by dots')
+    return false
+  }
+
+  return true
+}
+
 // Cached config and client
 let cachedConfig: RuntimeConfig | null = null
 let supabaseClient: SupabaseClient | null = null
@@ -26,12 +54,17 @@ async function fetchRuntimeConfig(): Promise<RuntimeConfig> {
   const buildTimeUrl = import.meta.env.VITE_SUPABASE_URL
   const buildTimeKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-  // If valid build-time config exists, use it
+  // If valid build-time config exists, use it (with API key format validation)
   if (buildTimeUrl && buildTimeKey && !buildTimeUrl.includes('localhost:54321') && buildTimeKey !== 'placeholder-key') {
-    console.log('[Supabase] Using build-time configuration')
-    return {
-      supabaseUrl: buildTimeUrl,
-      supabaseAnonKey: buildTimeKey,
+    // Validate the API key format before using it
+    if (isValidApiKey(buildTimeKey)) {
+      console.log('[Supabase] Using build-time configuration')
+      return {
+        supabaseUrl: buildTimeUrl,
+        supabaseAnonKey: buildTimeKey,
+      }
+    } else {
+      console.warn('[Supabase] Build-time API key is invalid, will try runtime configuration')
     }
   }
 
@@ -50,6 +83,11 @@ async function fetchRuntimeConfig(): Promise<RuntimeConfig> {
       throw new Error('Invalid config response: missing supabaseUrl or supabaseAnonKey')
     }
 
+    // Validate the API key from runtime config
+    if (!isValidApiKey(config.supabaseAnonKey)) {
+      throw new Error('Invalid API key format received from server. Please check SUPABASE_ANON_KEY in server environment variables.')
+    }
+
     console.log('[Supabase] Using runtime configuration from server')
     return {
       supabaseUrl: config.supabaseUrl,
@@ -59,7 +97,7 @@ async function fetchRuntimeConfig(): Promise<RuntimeConfig> {
     console.error('[Supabase] Failed to fetch runtime config:', error)
 
     // Last resort: try build-time config even if it looks like placeholder
-    if (buildTimeUrl && buildTimeKey) {
+    if (buildTimeUrl && buildTimeKey && isValidApiKey(buildTimeKey)) {
       console.warn('[Supabase] Falling back to build-time configuration (may be placeholders)')
       return {
         supabaseUrl: buildTimeUrl,
