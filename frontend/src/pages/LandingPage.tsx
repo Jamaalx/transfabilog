@@ -14,11 +14,22 @@ import {
   ShieldCheck,
   Zap,
   CreditCard,
-  Globe
+  Globe,
+  Users,
+  Star,
+  Quote,
+  Play
 } from 'lucide-react'
 
 export default function LandingPage() {
   const navigate = useNavigate()
+
+  const scrollToSection = (id: string) => {
+    const element = document.getElementById(id)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -28,6 +39,20 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <img src="/logo.webp" alt="Floteris" className="h-8 w-8" />
             <span className="text-xl font-bold text-slate-900">Floteris</span>
+          </div>
+          <div className="hidden md:flex items-center gap-6">
+            <button onClick={() => scrollToSection('features')} className="text-sm text-slate-600 hover:text-slate-900 transition-colors">
+              Funcționalități
+            </button>
+            <button onClick={() => scrollToSection('pricing')} className="text-sm text-slate-600 hover:text-slate-900 transition-colors">
+              Prețuri
+            </button>
+            <button onClick={() => scrollToSection('testimonials')} className="text-sm text-slate-600 hover:text-slate-900 transition-colors">
+              Testimoniale
+            </button>
+            <button onClick={() => scrollToSection('faq')} className="text-sm text-slate-600 hover:text-slate-900 transition-colors">
+              FAQ
+            </button>
           </div>
           <div className="flex items-center gap-4">
             <Button variant="ghost" onClick={() => navigate('/login')}>
@@ -61,7 +86,8 @@ export default function LandingPage() {
               Încearcă Platforma
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            <Button size="lg" variant="outline" className="h-12 px-8 text-lg">
+            <Button size="lg" variant="outline" className="h-12 px-8 text-lg" onClick={() => scrollToSection('features')}>
+              <Play className="mr-2 h-4 w-4" />
               Vezi Demo
             </Button>
           </div>
@@ -94,7 +120,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid - Similar to VoiceOS "AI Voice Typing" sections */}
-      <section className="py-24 bg-white">
+      <section id="features" className="py-24 bg-white scroll-mt-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">Funcționalități Esențiale</h2>
@@ -195,6 +221,7 @@ export default function LandingPage() {
               { icon: CreditCard, label: 'Extrase Bancare' },
               { icon: Globe, label: 'Rute & Curse' },
               { icon: Brain, label: 'Chat cu Datele (AI)' },
+              { icon: Users, label: 'Gestiune Șoferi' },
             ].map((item, idx) => (
               <div key={idx} className="flex flex-col items-center justify-center p-6 bg-white rounded-xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
                 <item.icon className="h-8 w-8 text-slate-700 mb-3" />
@@ -206,7 +233,7 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing - Similar to VoiceOS Pricing */}
-      <section className="py-24 bg-white">
+      <section id="pricing" className="py-24 bg-white scroll-mt-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold mb-4">Prețuri Transparente</h2>
@@ -296,8 +323,61 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Testimonials Section */}
+      <section id="testimonials" className="py-24 bg-slate-50 scroll-mt-20">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold mb-4">Ce Spun Clienții Noștri</h2>
+            <p className="text-slate-500">Companii de transport care au ales Floteris.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            {[
+              {
+                name: 'Mihai Popescu',
+                role: 'Director Operațiuni',
+                company: 'TransLog SRL',
+                text: 'De când folosim Floteris, am redus timpul de procesare a documentelor cu 80%. Sistemul AI identifică automat toate datele din facturi.',
+                rating: 5
+              },
+              {
+                name: 'Elena Ionescu',
+                role: 'Manager Flotă',
+                company: 'CargoExpress',
+                text: 'Importul automat de la DKV ne-a salvat ore întregi de muncă manuală. Acum avem vizibilitate completă asupra costurilor de carburant.',
+                rating: 5
+              },
+              {
+                name: 'Adrian Gheorghe',
+                role: 'Administrator',
+                company: 'RoTrans International',
+                text: 'Alertele pentru documente expirate ne-au salvat de amenzi. Recomand tuturor companiilor de transport!',
+                rating: 5
+              }
+            ].map((testimonial, idx) => (
+              <Card key={idx} className="border-none shadow-lg bg-white">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-1 mb-4">
+                    {[...Array(testimonial.rating)].map((_, i) => (
+                      <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    ))}
+                  </div>
+                  <Quote className="h-8 w-8 text-blue-100 mb-2" />
+                  <p className="text-slate-600 mb-6 italic">"{testimonial.text}"</p>
+                  <div className="border-t pt-4">
+                    <p className="font-semibold text-slate-900">{testimonial.name}</p>
+                    <p className="text-sm text-slate-500">{testimonial.role}</p>
+                    <p className="text-sm text-blue-600">{testimonial.company}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* FAQ - Using existing Accordion component */}
-      <section className="py-24 bg-white border-t">
+      <section id="faq" className="py-24 bg-white border-t scroll-mt-20">
         <div className="container mx-auto px-4 max-w-3xl">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">Întrebări Frecvente</h2>
@@ -334,6 +414,39 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* CTA Section */}
+      <section className="py-20 bg-gradient-to-r from-blue-600 to-cyan-500">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+            Gata să Îți Simplifici Operațiunile?
+          </h2>
+          <p className="text-blue-100 text-lg mb-8 max-w-2xl mx-auto">
+            Alătură-te celor peste 50+ de companii de transport care și-au digitalizat flota cu Floteris.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Button
+              size="lg"
+              onClick={() => navigate('/login')}
+              className="h-12 px-8 text-lg bg-white text-blue-600 hover:bg-blue-50 shadow-lg"
+            >
+              Încearcă Gratuit 14 Zile
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-12 px-8 text-lg border-white text-white hover:bg-white/10"
+              onClick={() => scrollToSection('pricing')}
+            >
+              Vezi Prețuri
+            </Button>
+          </div>
+          <p className="text-blue-200 text-sm mt-6">
+            Nu necesită card de credit. Anulezi oricând.
+          </p>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="bg-slate-900 text-slate-400 py-12">
         <div className="container mx-auto px-4">
@@ -342,7 +455,7 @@ export default function LandingPage() {
               <img src="/logo-full.webp" alt="Floteris" className="h-8 brightness-0 invert" />
             </div>
             <div className="text-sm">
-              © 2024 Floteris. Toate drepturile rezervate.
+              © 2025 Floteris. Toate drepturile rezervate.
             </div>
             <div className="flex gap-6 mt-4 md:mt-0 text-sm">
               <a href="#" className="hover:text-white transition-colors">Termeni</a>
