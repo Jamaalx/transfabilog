@@ -4,8 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Label } from '@/components/ui/label'
-import { Slider } from '@/components/ui/slider'
 import {
   ArrowRight,
   CheckCircle2,
@@ -478,31 +476,41 @@ export default function LandingPage() {
 
                 <div className="space-y-6">
                   <div>
-                    <Label className="text-slate-300 mb-3 block">
+                    <label className="text-slate-300 mb-3 block text-sm font-medium">
                       Număr vehicule: <span className="text-white font-bold">{vehicleCount}</span>
-                    </Label>
-                    <Slider
-                      value={[vehicleCount]}
-                      onValueChange={(v) => setVehicleCount(v[0])}
+                    </label>
+                    <input
+                      type="range"
+                      value={vehicleCount}
+                      onChange={(e) => setVehicleCount(Number(e.target.value))}
                       min={1}
                       max={100}
                       step={1}
-                      className="mt-2"
+                      className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>1</span>
+                      <span>100</span>
+                    </div>
                   </div>
 
                   <div>
-                    <Label className="text-slate-300 mb-3 block">
+                    <label className="text-slate-300 mb-3 block text-sm font-medium">
                       Ore/săptămână pe administrare manuală: <span className="text-white font-bold">{hoursPerWeek}h</span>
-                    </Label>
-                    <Slider
-                      value={[hoursPerWeek]}
-                      onValueChange={(v) => setHoursPerWeek(v[0])}
+                    </label>
+                    <input
+                      type="range"
+                      value={hoursPerWeek}
+                      onChange={(e) => setHoursPerWeek(Number(e.target.value))}
                       min={1}
                       max={40}
                       step={1}
-                      className="mt-2"
+                      className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>1h</span>
+                      <span>40h</span>
+                    </div>
                   </div>
 
                   <div className="pt-4 border-t border-white/10">
