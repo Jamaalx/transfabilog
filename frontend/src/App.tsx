@@ -7,8 +7,10 @@ import AppLayout from '@/components/layout/AppLayout'
 import AuthLayout from '@/components/layout/AuthLayout'
 
 // Pages
+import LandingPage from '@/pages/LandingPage' // <--- Importa pagina noua
 import LoginPage from '@/pages/auth/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
+// ... alte importuri existente ...
 import VehiclesPage from '@/pages/vehicles/VehiclesPage'
 import DriversPage from '@/pages/drivers/DriversPage'
 import TripsPage from '@/pages/trips/TripsPage'
@@ -44,6 +46,9 @@ function App() {
   return (
     <>
       <Routes>
+        {/* Public Route - Landing Page */}
+        <Route path="/" element={<LandingPage />} />
+
         {/* Auth Routes */}
         <Route element={<AuthLayout />}>
           <Route path="/login" element={<LoginPage />} />
@@ -57,7 +62,9 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          {/* Remove the redirect from root since we have a landing page now */}
+          {/* <Route path="/" element={<Navigate to="/dashboard" replace />} /> */}
+          
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/vehicles/*" element={<VehiclesPage />} />
           <Route path="/drivers/*" element={<DriversPage />} />
@@ -75,7 +82,7 @@ function App() {
         </Route>
 
         {/* 404 */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster />
     </>
