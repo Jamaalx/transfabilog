@@ -1,6 +1,7 @@
 const xlsx = require('xlsx');
 const { supabaseAdmin: supabase } = require('../config/supabase');
 const bnrService = require('./bnrExchangeService');
+const logger = require('../utils/logger');
 
 /**
  * DKV Excel Column Mappings
@@ -55,7 +56,7 @@ async function parseDKVExcel(fileBuffer, mimeType) {
     const commaCount = (firstLine.match(/,/g) || []).length;
     const delimiter = semicolonCount > commaCount ? ';' : ',';
 
-    console.log(`Detected CSV delimiter: "${delimiter}" (semicolons: ${semicolonCount}, commas: ${commaCount})`);
+    logger.debug('Detected CSV delimiter', { delimiter, semicolonCount, commaCount });
 
     // Parse CSV with detected delimiter
     workbook = xlsx.read(csvText, {
@@ -111,7 +112,7 @@ async function parseDKVExcel(fileBuffer, mimeType) {
             trimmedHeader.includes(variantLower) ||
             normalizedHeader.includes(normalizedVariant)) {
           columnMap[key] = index;
-          console.log(`DKV: Mapped column "${header}" -> ${key} (index ${index})`);
+          logger.debug('DKV: Mapped column', { header, key, index });
           matched = true;
           break;
         }
@@ -121,8 +122,7 @@ async function parseDKVExcel(fileBuffer, mimeType) {
   });
 
   // Log found columns for debugging
-  console.log('DKV Column mapping:', Object.keys(columnMap).join(', '));
-  console.log('Headers found:', headers.slice(0, 25).join(' | '));
+  logger.debug('DKV Column mapping', { columns: Object.keys(columnMap), headers: headers.slice(0, 25) });
 
   // Validate required columns exist
   const requiredColumns = ['TRANSACTION_TIME', 'VEHICLE_REGISTRATION', 'QUANTITY', 'NET_PURCHASE_VALUE'];
@@ -156,7 +156,7 @@ async function parseDKVExcel(fileBuffer, mimeType) {
     }
 
     if (!transactionTime) {
-      console.warn(`Row ${i + 1}: Could not parse transaction time, skipping`);
+      logger.warn('DKV: Could not parse transaction time, skipping row', { row: i + 1 });
       continue;
     }
 
@@ -197,7 +197,7 @@ async function parseDKVExcel(fileBuffer, mimeType) {
       vatRate = netPurchaseValue > 0
         ? Math.round((calculatedVatAmount / netPurchaseValue) * 10000) / 100
         : 0;
-      console.log(`DKV Row: VAT calculated from Gross-Net: ${calculatedVatAmount} (rate: ${vatRate}%)`);
+      // VAT calculated from Gross-Net
     }
     // Strategy 2: Use VAT from file directly
     else if (vatAmountFromFile && vatAmountFromFile > 0) {
@@ -209,14 +209,14 @@ async function parseDKVExcel(fileBuffer, mimeType) {
       if (!effectiveGrossValue && netPurchaseValue) {
         effectiveGrossValue = netPurchaseValue + calculatedVatAmount;
       }
-      console.log(`DKV Row: VAT from file: ${calculatedVatAmount} (rate: ${vatRate}%)`);
+      // VAT from file
     }
     // Strategy 3: Calculate VAT using country's standard rate if we have Net but no Gross/VAT
     else if (netPurchaseValue && vatInfo.rate > 0 && !grossValue && !vatAmountFromFile) {
       calculatedVatAmount = Math.round((netPurchaseValue * vatInfo.rate / 100) * 100) / 100;
       vatRate = vatInfo.rate;
       effectiveGrossValue = netPurchaseValue + calculatedVatAmount;
-      console.log(`DKV Row: VAT calculated using country rate (${vatInfo.rate}%): ${calculatedVatAmount}`);
+      // VAT calculated using country rate
     }
     // Strategy 4: Check if values might be swapped (gross < net indicates data issue)
     else if (grossValue && netPurchaseValue && grossValue < netPurchaseValue) {
@@ -226,7 +226,7 @@ async function parseDKVExcel(fileBuffer, mimeType) {
       vatRate = grossValue > 0
         ? Math.round((calculatedVatAmount / grossValue) * 10000) / 100
         : 0;
-      console.log(`DKV Row: Values possibly swapped, recalculated VAT: ${calculatedVatAmount}`);
+      // Values possibly swapped, recalculated VAT
     }
 
     // Use effective gross value for subsequent calculations
@@ -473,7 +473,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
     .lte('transaction_time', parsed.metadata.period_end + 'T23:59:59');
 
   if (existingError) {
-    console.warn('Could not check for existing transactions:', existingError.message);
+    logger.warn('Could not check for existing transactions', { error: existingError.message });
   }
 
   // Create a Set of existing transaction keys for fast lookup
@@ -493,7 +493,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
 
   const duplicatesSkipped = parsed.transactions.length - newTransactions.length;
   if (duplicatesSkipped > 0) {
-    console.log(`DKV: Skipping ${duplicatesSkipped} duplicate transactions`);
+    logger.info(`DKV: Skipping ${duplicatesSkipped} duplicate transactions`);
   }
 
   if (newTransactions.length === 0) {
@@ -527,7 +527,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
     });
   }
 
-  console.log('Truck map keys:', [...truckMap.keys()]);
+  logger.debug('Truck map keys', { keys: [...truckMap.keys()] });
 
   // Create import batch
   const { data: batch, error: batchError } = await supabase
@@ -580,7 +580,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
           const keyNorm = createMatchKey(key);
           if (matchKey.includes(keyNorm) || keyNorm.includes(matchKey)) {
             truckId = id;
-            console.log(`Fuzzy matched: "${tx.vehicle_registration}" -> "${key}"`);
+            logger.debug('Fuzzy matched vehicle', { from: tx.vehicle_registration, to: key });
             break;
           }
         }
@@ -618,7 +618,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
       .insert(chunk);
 
     if (insertError) {
-      console.error('Error inserting transactions chunk:', insertError);
+      logger.error('Error inserting transactions chunk', { error: insertError.message });
       // Continue with next chunk, don't fail entire import
     }
   }
@@ -634,7 +634,7 @@ async function importDKVTransactions(fileBuffer, companyId, userId, documentId, 
     .eq('id', batch.id);
 
   if (updateError) {
-    console.warn('Failed to update batch status:', updateError);
+    logger.warn('Failed to update batch status', { error: updateError.message });
   }
 
   return {

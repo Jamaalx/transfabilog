@@ -3,6 +3,7 @@ const multer = require('multer');
 const { body, query, param, validationResult } = require('express-validator');
 const { supabaseAdmin: supabase } = require('../config/supabase');
 const { authenticate, authorize, requireAdminDb } = require('../middleware/auth');
+const logger = require('../utils/logger');
 const {
   importDKVTransactions,
   matchDKVTransaction,
@@ -129,11 +130,7 @@ router.get(
       const missingInFinal = tempCols.filter(col => !finalCols.includes(col) && col !== 'id' && col !== 'batch_id');
       const missingInTemp = finalCols.filter(col => !tempCols.includes(col) && col !== 'id' && col !== 'batch_id' && col !== 'transaction_id');
 
-      console.log(`[DEBUG-SCHEMA] Provider: ${provider}`);
-      console.log(`[DEBUG-SCHEMA] Temp table: ${tempTables.transactions}, columns:`, tempCols.length);
-      console.log(`[DEBUG-SCHEMA] Final table: ${finalTables.transactions}, columns:`, finalCols.length);
-      console.log(`[DEBUG-SCHEMA] Missing in final:`, missingInFinal);
-      console.log(`[DEBUG-SCHEMA] Missing in temp:`, missingInTemp);
+      logger.debug('[DEBUG-SCHEMA]', { provider, tempTable: tempTables.transactions, tempCols: tempCols.length, finalTable: finalTables.transactions, finalCols: finalCols.length, missingInFinal, missingInTemp });
 
       res.json({
         provider,
@@ -156,7 +153,7 @@ router.get(
         },
       });
     } catch (error) {
-      console.error('[DEBUG-SCHEMA] Error:', error);
+      logger.error('[DEBUG-SCHEMA] Error', { error: error.message });
       next(error);
     }
   }
@@ -201,7 +198,7 @@ router.post(
         }
       }
 
-      console.log(`Importing fuel report - Provider: ${detectedProvider}, File: ${req.file.originalname}`);
+      logger.info(`Importing fuel report - Provider: ${detectedProvider}, File: ${req.file.originalname}`);
 
       let result;
       switch (detectedProvider) {
@@ -238,7 +235,7 @@ router.post(
 
       res.status(201).json(result);
     } catch (error) {
-      console.error('Fuel import error:', error);
+      logger.error('Fuel import error', { error: error.message });
       res.status(400).json({
         error: 'Import Error',
         message: error.message,
@@ -973,7 +970,7 @@ router.delete(
       const tables = getTableNames(provider);
       const statusFilter = req.query.status || 'ignored'; // Default to deleting only ignored
 
-      console.log(`[BULK-DELETE] Provider: ${provider}, Status: ${statusFilter}, Table: ${tables.transactions}, CompanyId: ${req.companyId}`);
+      logger.debug('[BULK-DELETE]', { provider, status: statusFilter, table: tables.transactions, companyId: req.companyId });
 
       // First, count how many will be deleted
       let countQuery = supabase
@@ -986,7 +983,7 @@ router.delete(
       }
 
       const { count: toDeleteCount, error: countError } = await countQuery;
-      console.log(`[BULK-DELETE] Found ${toDeleteCount} transactions to delete, error: ${countError?.message || 'none'}`);
+      logger.debug('[BULK-DELETE] Count result', { toDeleteCount, error: countError?.message });
 
       if (toDeleteCount === 0) {
         return res.json({
@@ -1009,7 +1006,7 @@ router.delete(
 
       const { data, error } = await deleteQuery.select('id');
 
-      console.log(`[BULK-DELETE] Deleted ${data?.length || 0} rows, error: ${error?.message || 'none'}`);
+      logger.debug('[BULK-DELETE] Delete result', { deletedCount: data?.length || 0, error: error?.message });
 
       if (error) throw error;
 
@@ -1702,13 +1699,12 @@ router.post(
       const tempTables = getTempTableNames(provider);
       const finalTables = getTableNames(provider);
 
-      console.log(`[DKV-APPROVE] Starting approval for ${req.body.transaction_ids.length} transactions`);
-      console.log(`[DKV-APPROVE] Provider: ${provider}, Temp: ${tempTables.transactions}, Final: ${finalTables.transactions}`);
+      logger.debug('[DKV-APPROVE] Starting approval', { count: req.body.transaction_ids.length, provider, tempTable: tempTables.transactions, finalTable: finalTables.transactions });
 
       const results = { approved: [], failed: [] };
 
       for (const txId of req.body.transaction_ids) {
-        console.log(`[DKV-APPROVE] Processing txId: ${txId}`);
+        logger.debug('[DKV-APPROVE] Processing', { txId });
         try {
           // Get transaction from temp table
           const { data: tempTx, error: fetchError } = await supabase
@@ -1719,15 +1715,15 @@ router.post(
             .single();
 
           if (fetchError || !tempTx) {
-            console.log(`[DKV-APPROVE] Not found in staging: ${txId}, error:`, fetchError);
+            logger.debug('[DKV-APPROVE] Not found in staging', { txId, error: fetchError?.message });
             results.failed.push({ id: txId, error: 'Not found in staging' });
             continue;
           }
 
-          console.log(`[DKV-APPROVE] Found tempTx: vehicle=${tempTx.vehicle_registration}, truck_id=${tempTx.truck_id}`);
+          logger.debug('[DKV-APPROVE] Found temp transaction', { txId, vehicle: tempTx.vehicle_registration, truckId: tempTx.truck_id });
 
           if (!tempTx.truck_id) {
-            console.log(`[DKV-APPROVE] No truck assigned for txId: ${txId}`);
+            logger.debug('[DKV-APPROVE] No truck assigned', { txId });
             results.failed.push({ id: txId, error: 'No truck assigned' });
             continue;
           }
@@ -1747,7 +1743,7 @@ router.post(
           const amountEur = tempTx.gross_amount_eur || tempTx.gross_value_eur || tempTx.gross_amount || tempTx.payment_value_eur || tempTx.net_amount_eur || tempTx.net_purchase_value_eur || tempTx.net_amount || 0;
           const transactionDate = tempTx.transaction_time || tempTx.transaction_date;
 
-          console.log(`[DKV-APPROVE] Creating expense: category=${category}, amount=${amountEur}, date=${transactionDate}`);
+          logger.debug('[DKV-APPROVE] Creating expense', { txId, category, amount: amountEur, date: transactionDate });
 
           // Create expense in transactions table
           const { data: expense, error: expenseError } = await supabase
@@ -1768,12 +1764,12 @@ router.post(
             .single();
 
           if (expenseError) {
-            console.error(`[DKV-APPROVE] Failed to create expense for ${txId}:`, expenseError);
+            logger.error('[DKV-APPROVE] Failed to create expense', { txId, error: expenseError.message });
             results.failed.push({ id: txId, error: expenseError.message });
             continue;
           }
 
-          console.log(`[DKV-APPROVE] Expense created: ${expense.id}`);
+          logger.debug('[DKV-APPROVE] Expense created', { txId, expenseId: expense.id });
 
           // Copy to final table with expense reference
           const finalData = { ...tempTx };
@@ -1782,9 +1778,7 @@ router.post(
           finalData.status = 'created_expense';
           finalData.expense_id = expense.id; // All providers use expense_id consistently
 
-          // Log the columns we're trying to insert
-          console.log(`[DKV-APPROVE] Inserting to ${finalTables.transactions}, columns:`, Object.keys(finalData).join(', '));
-          console.log(`[DKV-APPROVE] finalData sample: company_id=${finalData.company_id}, expense_id=${finalData.expense_id}, status=${finalData.status}`);
+          logger.debug('[DKV-APPROVE] Inserting to final table', { txId, table: finalTables.transactions, companyId: finalData.company_id, expenseId: finalData.expense_id });
 
           const { error: insertError } = await supabase
             .from(finalTables.transactions)
@@ -1792,14 +1786,13 @@ router.post(
 
           if (insertError) {
             // Rollback expense
-            console.error(`[DKV-APPROVE] Failed to insert to final table ${finalTables.transactions}:`, insertError);
-            console.error(`[DKV-APPROVE] Insert error details:`, JSON.stringify(insertError, null, 2));
+            logger.error('[DKV-APPROVE] Failed to insert to final table', { txId, table: finalTables.transactions, error: insertError.message, details: insertError });
             await supabase.from('transactions').delete().eq('id', expense.id);
             results.failed.push({ id: txId, error: insertError.message });
             continue;
           }
 
-          console.log(`[DKV-APPROVE] Successfully inserted to final table`);
+          logger.debug('[DKV-APPROVE] Successfully inserted to final table', { txId });
 
           // Delete from temp table - use select to verify delete worked
           const { data: deletedRows, error: deleteError } = await supabase
@@ -1810,24 +1803,24 @@ router.post(
             .select('id');
 
           if (deleteError) {
-            console.error('Failed to delete from temp:', deleteError);
+            logger.error('Failed to delete from temp table', { txId, error: deleteError.message });
           } else if (!deletedRows || deletedRows.length === 0) {
-            console.warn(`Delete from temp table returned no rows for txId: ${txId}, table: ${tempTables.transactions}`);
+            logger.warn('Delete from temp table returned no rows', { txId, table: tempTables.transactions });
           } else {
-            console.log(`Successfully deleted txId: ${txId} from ${tempTables.transactions}`);
+            logger.debug('Successfully deleted from temp table', { txId, table: tempTables.transactions });
           }
 
           results.approved.push({ id: txId, expense_id: expense.id });
-          console.log(`[DKV-APPROVE] Transaction ${txId} approved successfully`);
+          logger.debug('[DKV-APPROVE] Transaction approved successfully', { txId });
         } catch (err) {
-          console.error(`[DKV-APPROVE] Exception for ${txId}:`, err.message, err.stack);
+          logger.error('[DKV-APPROVE] Exception during approval', { txId, error: err.message, stack: err.stack });
           results.failed.push({ id: txId, error: err.message });
         }
       }
 
-      console.log(`[DKV-APPROVE] FINAL RESULTS: approved=${results.approved.length}, failed=${results.failed.length}`);
+      logger.info('[DKV-APPROVE] FINAL RESULTS', { approved: results.approved.length, failed: results.failed.length });
       if (results.failed.length > 0) {
-        console.log(`[DKV-APPROVE] Failed transactions:`, JSON.stringify(results.failed, null, 2));
+        logger.warn('[DKV-APPROVE] Failed transactions', { failed: results.failed });
       }
 
       res.json({
@@ -1837,7 +1830,7 @@ router.post(
         results,
       });
     } catch (error) {
-      console.error(`[DKV-APPROVE] Route error:`, error);
+      logger.error('[DKV-APPROVE] Route error', { error: error.message });
       next(error);
     }
   }

@@ -1,6 +1,7 @@
 const pdfParse = require('pdf-parse');
 const { supabaseAdmin: supabase } = require('../config/supabase');
 const bnrService = require('./bnrExchangeService');
+const logger = require('../utils/logger');
 
 /**
  * VERAG Maut Report PDF Parser
@@ -256,36 +257,22 @@ async function parseVeragPdf(fileBuffer) {
   const pdfData = await pdfParse(fileBuffer);
   const text = pdfData.text;
 
-  // Debug: Log first 3000 characters to understand PDF structure
-  console.log('=== VERAG PDF DEBUG ===');
-  console.log('PDF Text (first 3000 chars):', text.substring(0, 3000));
-  console.log('=== END PDF DEBUG ===');
-
   // Split into lines and clean up
   const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
-
-  // Debug: Log first 50 lines
-  console.log('=== VERAG PDF LINES ===');
-  lines.slice(0, 50).forEach((line, i) => console.log(`Line ${i}: ${line}`));
-  console.log('=== END PDF LINES ===');
 
   // Detect PDF type
   const isMautReport = text.includes('MAUT REPORT') || text.includes('LKW-Kennzeichen');
   const isZusammenfassung = text.includes('ZUSAMMENFASSUNG') || text.includes('Zusammenfassung');
   const hasFuelDetailLines = /\d{2}\/\d{2}\/\d{2}\s+\d{4}/.test(text); // DD/MM/YY HHMM format
 
-  console.log('=== PDF Type Detection ===');
-  console.log('isMautReport:', isMautReport);
-  console.log('isZusammenfassung:', isZusammenfassung);
-  console.log('hasFuelDetailLines:', hasFuelDetailLines);
-  console.log('=== END PDF Type Detection ===');
+  logger.debug('VERAG PDF Type Detection', { isMautReport, isZusammenfassung, hasFuelDetailLines });
 
   // Try fuel summary with detailed transactions first if detected
   if (isZusammenfassung || hasFuelDetailLines) {
-    console.log('Trying fuel summary format with detailed transactions...');
+    logger.debug('Trying fuel summary format with detailed transactions...');
     const fuelResult = parseFuelSummaryFormat(lines, text);
     if (fuelResult.transactions.length > 0) {
-      console.log(`Found ${fuelResult.transactions.length} fuel transactions`);
+      logger.debug(`Found ${fuelResult.transactions.length} fuel transactions`);
       return {
         transactions: fuelResult.transactions,
         metadata: {
@@ -308,10 +295,10 @@ async function parseVeragPdf(fileBuffer) {
 
   // Try MAUT REPORT format
   if (isMautReport) {
-    console.log('Trying MAUT REPORT format...');
+    logger.debug('Trying MAUT REPORT format...');
     const mautResult = parseMautReportFormat(lines, text);
     if (mautResult.transactions.length > 0) {
-      console.log(`Found ${mautResult.transactions.length} MAUT transactions`);
+      logger.debug(`Found ${mautResult.transactions.length} MAUT transactions`);
       return {
         transactions: mautResult.transactions,
         metadata: {
@@ -333,7 +320,7 @@ async function parseVeragPdf(fileBuffer) {
   }
 
   // Fallback: try generic invoice format
-  console.log('Trying generic invoice format...');
+  logger.debug('Trying generic invoice format...');
   const invoiceResult = parseInvoiceFormat(lines, text);
   if (invoiceResult.transactions.length > 0) {
     return {
@@ -835,9 +822,7 @@ function parseFuelSummaryFormat(lines, fullText) {
     }
   }
 
-  console.log('=== Vehicle mapping from Zwischensumme ===');
-  console.log('Card to Vehicle map:', Object.fromEntries(cardToVehicle));
-  console.log('=== END Vehicle mapping ===');
+  logger.debug('Vehicle mapping from Zwischensumme', { cardToVehicle: Object.fromEntries(cardToVehicle) });
 
   // Parse detailed transaction lines - multiple formats exist:
   // Format 1: DD/MM/YY HHMM CardCode InternalCode 0 Product Station Currency Price Discount NetPrice Rate NetPriceEUR Qty Rate NetAmtEUR TicketNr
@@ -1140,21 +1125,21 @@ function parseFuelSummaryFormat(lines, fullText) {
         // These transactions are typically already in EUR and already counted in the main section
         // But we may need them if the main section parsing missed them
         // For now, log them for debugging
-        console.log(`[COUNTRY_INVOICE] ${transactionDate.toISOString().split('T')[0]} | ${productNormalized} | ${station.trim()} | Net: ${netAmount} | VAT%: ${vat}`);
+        logger.debug('[COUNTRY_INVOICE]', { date: transactionDate.toISOString().split('T')[0], product: productNormalized, station: station.trim(), net: netAmount, vatRate: vat });
       }
     }
   }
 
   // If no detailed transactions found, fall back to summary parsing
   if (transactions.length === 0) {
-    console.log('No detailed transactions found, trying summary parsing...');
+    logger.debug('No detailed transactions found, trying summary parsing...');
     return parseFuelSummaryOnly(lines, fullText, reportDate, companyCode);
   }
 
   // Apply VAT from summary section to detailed transactions
   // Extract VAT rates AND amounts per country from summary
   const vatRatesByCountry = extractVatRatesFromSummary(lines);
-  console.log('VAT rates by country:', vatRatesByCountry);
+  logger.debug('VAT rates by country', vatRatesByCountry);
 
   // Create a mapping from country code to VAT info
   const vatRatesByCode = {};
@@ -1164,7 +1149,7 @@ function parseFuelSummaryFormat(lines, fullText) {
       vatRatesByCode[code] = vatInfo;
     }
   }
-  console.log('VAT rates by code:', vatRatesByCode);
+  logger.debug('VAT rates by code', vatRatesByCode);
 
   // Group transactions by country to distribute VAT proportionally
   const txByCountry = {};
@@ -1458,10 +1443,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
   const parsed = await parseVeragPdf(fileBuffer);
 
   if (parsed.transactions.length === 0) {
-    console.log('=== VERAG PARSING FAILED ===');
-    console.log('Metadata extracted:', JSON.stringify(parsed.metadata, null, 2));
-    console.log('File name:', fileName);
-    console.log('=== END VERAG PARSING FAILED ===');
+    logger.warn('VERAG parsing failed - no transactions found', { metadata: parsed.metadata, fileName });
     throw new Error('No transactions found in VERAG PDF. Please check the PDF format. Expected: MAUT REPORT or invoice with toll transactions (date + amounts). Check server logs for debug output.');
   }
 
@@ -1622,7 +1604,7 @@ async function importVeragTransactions(fileBuffer, companyId, userId, documentId
     .select('id', { count: 'exact', head: true })
     .eq('batch_id', batch.id);
 
-  console.log(`VERAG Import: Expected ${transactionsToInsert.length}, Actually inserted ${actualCount}`);
+  logger.info(`VERAG Import: Expected ${transactionsToInsert.length}, Actually inserted ${actualCount}`);
 
   // Update batch status with actual counts
   await supabase
