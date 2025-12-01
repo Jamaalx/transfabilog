@@ -4,8 +4,7 @@
   "description": "Floteris - Fleet Management Platform Backend",
   "private": true,
   "scripts": {
-    "start": "cd backend && npm start",
-    "postinstall": "cd backend && npm install"
+    "start": "cd backend && npm start"
   },
   "engines": {
     "node": ">=20.0.0"
