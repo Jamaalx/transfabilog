@@ -177,9 +177,8 @@ export default function LandingPage() {
                 </Button>
                 <Button
                   size="lg"
-                  variant="outline"
                   onClick={() => scrollToSection('roi')}
-                  className="h-12 md:h-14 px-6 md:px-8 text-base md:text-lg border-slate-500 text-white hover:bg-white/10"
+                  className="h-12 md:h-14 px-6 md:px-8 text-base md:text-lg bg-transparent border-2 border-slate-400 text-white hover:bg-white/10 hover:border-white"
                 >
                   <Calculator className="mr-2 h-4 w-4 md:h-5 md:w-5" />
                   Calculează ROI
