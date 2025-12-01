@@ -24,7 +24,8 @@ import {
   Target,
   Lock,
   Server,
-  Building2
+  Building2,
+  Loader2
 } from 'lucide-react'
 
 // Animated counter hook
@@ -76,6 +77,8 @@ export default function LandingPage() {
   const navigate = useNavigate()
   const [vehicleCount, setVehicleCount] = useState(10)
   const [hoursPerWeek, setHoursPerWeek] = useState(5)
+  const [formResult, setFormResult] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [formMessage, setFormMessage] = useState('')
 
   // Stats counters
   const stat1 = useCountUp(127, 2000)
@@ -943,24 +946,53 @@ export default function LandingPage() {
               </div>
 
               <div className="bg-white rounded-xl md:rounded-2xl p-5 md:p-8 shadow-2xl">
+                {formResult === 'success' ? (
+                  <div className="text-center py-8">
+                    <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Mulțumim pentru mesaj!</h3>
+                    <p className="text-slate-600 mb-4">Te vom contacta în maximum 24 de ore.</p>
+                    <Button
+                      onClick={() => {
+                        setFormResult('idle')
+                        setFormMessage('')
+                      }}
+                      variant="outline"
+                    >
+                      Trimite alt mesaj
+                    </Button>
+                  </div>
+                ) : (
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault()
+                    setFormResult('loading')
+                    setFormMessage('')
+
                     const formData = new FormData(e.currentTarget)
-                    const data = {
-                      nume: formData.get('nume'),
-                      email: formData.get('email'),
-                      telefon: formData.get('telefon'),
-                      companie: formData.get('companie'),
-                      vehicule: formData.get('vehicule'),
-                      mesaj: formData.get('mesaj')
+                    formData.append('access_key', '25f794c7-7701-4a08-b541-fe2b8999f78e')
+                    formData.append('subject', `Demo Request - ${formData.get('companie')}`)
+                    formData.append('from_name', 'Floteris Demo Form')
+
+                    try {
+                      const response = await fetch('https://api.web3forms.com/submit', {
+                        method: 'POST',
+                        body: formData
+                      })
+
+                      const data = await response.json()
+
+                      if (data.success) {
+                        setFormResult('success')
+                        setFormMessage('Formularul a fost trimis cu succes!')
+                        ;(e.target as HTMLFormElement).reset()
+                      } else {
+                        setFormResult('error')
+                        setFormMessage(data.message || 'A apărut o eroare. Te rugăm să încerci din nou.')
+                      }
+                    } catch {
+                      setFormResult('error')
+                      setFormMessage('A apărut o eroare de conexiune. Te rugăm să încerci din nou.')
                     }
-                    // Send email via mailto as fallback
-                    const subject = encodeURIComponent(`Demo Request - ${data.companie}`)
-                    const body = encodeURIComponent(
-                      `Nume: ${data.nume}\nEmail: ${data.email}\nTelefon: ${data.telefon}\nCompanie: ${data.companie}\nNumăr vehicule: ${data.vehicule}\n\nMesaj:\n${data.mesaj || 'N/A'}`
-                    )
-                    window.location.href = `mailto:contact@zed-zen.com?subject=${subject}&body=${body}`
                   }}
                   className="space-y-4"
                 >
@@ -1034,12 +1066,28 @@ export default function LandingPage() {
                     />
                   </div>
 
+                  {formResult === 'error' && formMessage && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                      {formMessage}
+                    </div>
+                  )}
+
                   <Button
                     type="submit"
-                    className="w-full h-12 md:h-14 text-base md:text-lg bg-blue-600 hover:bg-blue-700 font-semibold"
+                    disabled={formResult === 'loading'}
+                    className="w-full h-12 md:h-14 text-base md:text-lg bg-blue-600 hover:bg-blue-700 font-semibold disabled:opacity-70"
                   >
-                    Solicită Demo Gratuit
-                    <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
+                    {formResult === 'loading' ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 md:h-5 md:w-5 animate-spin" />
+                        Se trimite...
+                      </>
+                    ) : (
+                      <>
+                        Solicită Demo Gratuit
+                        <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
+                      </>
+                    )}
                   </Button>
 
                   <p className="text-xs text-slate-500 text-center">
@@ -1047,6 +1095,7 @@ export default function LandingPage() {
                     <a href="/privacy" className="text-blue-600 hover:underline">Politica de Confidențialitate</a>
                   </p>
                 </form>
+                )}
               </div>
             </div>
           </div>
