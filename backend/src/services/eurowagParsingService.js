@@ -1,6 +1,7 @@
 const xlsx = require('xlsx');
 const { supabaseAdmin: supabase } = require('../config/supabase');
 const bnrService = require('./bnrExchangeService');
+const logger = require('../utils/logger');
 
 /**
  * EUROWAG Excel Column Mappings
@@ -106,7 +107,7 @@ async function parseEurowagExcel(fileBuffer) {
 
   const headers = rawData[0];
 
-  console.log('EUROWAG: Found headers:', headers);
+  logger.debug('EUROWAG: Found headers', { headers: headers.slice(0, 30) });
 
   // Map column indices - now supports arrays of possible names
   const columnMap = {};
@@ -132,7 +133,7 @@ async function parseEurowagExcel(fileBuffer) {
             trimmedHeader.includes(label.toLowerCase()) ||
             normalizedHeader.includes(normalizedLabel)) {
           columnMap[key] = index;
-          console.log(`EUROWAG: Mapped column "${header}" -> ${key} (index ${index})`);
+          logger.debug('EUROWAG: Mapped column', { header, key, index });
           matched = true;
           break;
         }
@@ -142,14 +143,13 @@ async function parseEurowagExcel(fileBuffer) {
     }
   });
 
-  console.log('EUROWAG: Column mapping result:', columnMap);
+  logger.debug('EUROWAG: Column mapping result', { columnMap });
 
   // Validate required columns
   const requiredColumns = ['DATETIME', 'REGISTRATION', 'NET_AMOUNT'];
   const missingColumns = requiredColumns.filter(col => columnMap[col] === undefined);
   if (missingColumns.length > 0) {
-    console.error('EUROWAG: Missing columns. Headers found:', headers);
-    console.error('EUROWAG: Column map:', columnMap);
+    logger.error('EUROWAG: Missing columns', { missingColumns, headers, columnMap });
     throw new Error(`Missing required columns: ${missingColumns.join(', ')}. Found headers: ${headers.filter(h => h).join(', ')}`);
   }
 
@@ -172,7 +172,7 @@ async function parseEurowagExcel(fileBuffer) {
     }
 
     if (!transactionTime) {
-      console.warn(`EUROWAG Row ${i + 1}: Could not parse date, skipping`);
+      logger.warn('EUROWAG: Could not parse date, skipping row', { row: i + 1 });
       continue;
     }
 
@@ -314,7 +314,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
     .lte('transaction_time', parsed.metadata.period_end + 'T23:59:59');
 
   if (existingError) {
-    console.warn('Could not check for existing transactions:', existingError.message);
+    logger.warn('Could not check for existing transactions', { error: existingError.message });
   }
 
   // Create a Set of existing transaction keys for fast lookup
@@ -334,7 +334,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
 
   const duplicatesSkipped = parsed.transactions.length - newTransactions.length;
   if (duplicatesSkipped > 0) {
-    console.log(`EUROWAG: Skipping ${duplicatesSkipped} duplicate transactions`);
+    logger.info(`EUROWAG: Skipping ${duplicatesSkipped} duplicate transactions`);
   }
 
   if (newTransactions.length === 0) {
@@ -476,7 +476,7 @@ async function importEurowagTransactions(fileBuffer, companyId, userId, document
       .insert(chunk);
 
     if (insertError) {
-      console.error('Error inserting EUROWAG transactions chunk:', insertError);
+      logger.error('Error inserting EUROWAG transactions chunk', { error: insertError.message });
     }
   }
 
