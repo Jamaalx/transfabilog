@@ -1,19 +1,11 @@
 {
   "name": "floteris",
   "version": "1.0.0",
-  "description": "Floteris - Fleet Management Platform (Monorepo)",
+  "description": "Floteris - Fleet Management Platform Backend",
   "private": true,
-  "workspaces": [
-    "backend",
-    "frontend"
-  ],
   "scripts": {
-    "start": "npm start --workspace=backend",
-    "build": "npm run build --workspace=frontend",
-    "dev": "npm run dev --workspace=backend",
-    "dev:frontend": "npm run dev --workspace=frontend",
-    "install:backend": "npm install --workspace=backend",
-    "install:frontend": "npm install --workspace=frontend"
+    "start": "cd backend && npm start",
+    "postinstall": "cd backend && npm install"
   },
   "engines": {
     "node": ">=20.0.0"
