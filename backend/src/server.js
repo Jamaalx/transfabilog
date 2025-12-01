@@ -6,6 +6,8 @@ const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
+const fs = require('fs');
 
 const logger = require('./utils/logger');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
@@ -26,8 +28,24 @@ const dkvRoutes = require('./routes/dkv');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Security middleware
-app.use(helmet());
+// Determine if we're serving the frontend
+const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+const serveFrontend = fs.existsSync(frontendDistPath);
+
+// Security middleware with relaxed CSP for frontend
+app.use(helmet({
+  contentSecurityPolicy: serveFrontend ? {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "blob:", "https:"],
+      connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co"],
+    }
+  } : undefined,
+  crossOriginEmbedderPolicy: false,
+}));
 
 // CORS configuration
 app.use(
@@ -105,7 +123,35 @@ app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/uploaded-documents', uploadedDocumentsRoutes);
 app.use('/api/v1/dkv', dkvRoutes);
 
-// Error handling
+// Serve frontend static files in production
+if (serveFrontend) {
+  logger.info(`Serving frontend from ${frontendDistPath}`);
+
+  // Serve static files
+  app.use(express.static(frontendDistPath, {
+    maxAge: '1d',
+    etag: true,
+  }));
+
+  // SPA catch-all route - serve index.html for all non-API routes
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api/') || req.path === '/health') {
+      return next();
+    }
+
+    const indexPath = path.join(frontendDistPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      next();
+    }
+  });
+} else {
+  logger.info('Frontend dist not found, serving API only');
+}
+
+// Error handling (only for API routes when frontend is served)
 app.use(notFoundHandler);
 app.use(errorHandler);
 

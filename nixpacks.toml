@@ -1,11 +1,19 @@
 # Railway/Nixpacks configuration for Floteris
-# This monorepo deploys the backend API by default
+# This deploys both frontend and backend as a unified app
 
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["cd backend && npm install"]
+cmds = [
+  "cd frontend && npm install",
+  "cd backend && npm install"
+]
+
+[phases.build]
+cmds = [
+  "cd frontend && npm run build"
+]
 
 [start]
 cmd = "cd backend && npm start"
