@@ -32,18 +32,9 @@ const PORT = process.env.PORT || 3001;
 const frontendDistPath = path.join(__dirname, '../../frontend/dist');
 const serveFrontend = fs.existsSync(frontendDistPath);
 
-// Security middleware with relaxed CSP for frontend
+// Security middleware - disable CSP when serving frontend to avoid blocking Supabase
 app.use(helmet({
-  contentSecurityPolicy: serveFrontend ? {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "blob:", "https:"],
-      connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co"],
-    }
-  } : undefined,
+  contentSecurityPolicy: false, // Disable CSP - Supabase requires dynamic connections
   crossOriginEmbedderPolicy: false,
 }));
 
