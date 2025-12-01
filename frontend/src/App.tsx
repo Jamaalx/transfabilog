@@ -23,6 +23,9 @@ import DKVPage from '@/pages/dkv/DKVPage'
 import EurowagPage from '@/pages/eurowag/EurowagPage'
 import VeragPage from '@/pages/verag/VeragPage'
 import HelpPage from '@/pages/help/HelpPage'
+import TermsPage from '@/pages/TermsPage'
+import PrivacyPage from '@/pages/PrivacyPage'
+import GDPRPage from '@/pages/GDPRPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore()
@@ -48,6 +51,11 @@ function App() {
       <Routes>
         {/* Public Route - Landing Page */}
         <Route path="/" element={<LandingPage />} />
+
+        {/* Public Legal Pages */}
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/gdpr" element={<GDPRPage />} />
 
         {/* Auth Routes */}
         <Route element={<AuthLayout />}>

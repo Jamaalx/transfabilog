@@ -15,7 +15,6 @@ import {
   Users,
   TrendingUp,
   Shield,
-  Award,
   Phone,
   Mail,
   MapPin,
@@ -138,7 +137,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section - B2B Focused */}
-      <section className="relative pt-16 pb-24 overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
+      <section className="relative pt-10 pb-16 md:pt-16 md:pb-24 overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute inset-0" style={{
@@ -147,58 +146,58 @@ export default function LandingPage() {
           }}></div>
         </div>
 
-        <div className="container mx-auto px-4 relative">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+        <div className="container mx-auto px-3 sm:px-4 relative">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
             <div className="text-left">
-              <Badge className="mb-6 px-4 py-2 bg-blue-500/20 text-blue-300 border-blue-400/30 hover:bg-blue-500/30">
+              <Badge className="mb-4 md:mb-6 px-3 py-1.5 md:px-4 md:py-2 bg-blue-500/20 text-blue-300 border-blue-400/30 hover:bg-blue-500/30 text-xs md:text-sm">
                 <Zap className="w-3 h-3 mr-1" />
                 Platforma #1 pentru flote din România
               </Badge>
 
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white mb-6 leading-tight">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white mb-4 md:mb-6 leading-tight">
                 Reduceți costurile flotei cu{' '}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
                   până la 30%
                 </span>
               </h1>
 
-              <p className="text-lg text-slate-300 mb-8 leading-relaxed max-w-xl">
+              <p className="text-base md:text-lg text-slate-300 mb-6 md:mb-8 leading-relaxed max-w-xl">
                 Automatizați procesarea documentelor, importul de carburant și rapoartele de profitabilitate.
                 Soluția preferată de companiile de transport din România.
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-4 mb-8">
+              <div className="flex flex-col sm:flex-row gap-3 md:gap-4 mb-6 md:mb-8">
                 <Button
                   size="lg"
                   onClick={() => scrollToSection('demo')}
-                  className="h-14 px-8 text-lg bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/30 transition-all hover:scale-105"
+                  className="h-12 md:h-14 px-6 md:px-8 text-base md:text-lg bg-blue-600 hover:bg-blue-500 shadow-lg shadow-blue-500/30 transition-all hover:scale-105"
                 >
                   Solicită Demo Gratuit
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
                 </Button>
                 <Button
                   size="lg"
                   variant="outline"
                   onClick={() => scrollToSection('roi')}
-                  className="h-14 px-8 text-lg border-slate-500 text-white hover:bg-white/10"
+                  className="h-12 md:h-14 px-6 md:px-8 text-base md:text-lg border-slate-500 text-white hover:bg-white/10"
                 >
-                  <Calculator className="mr-2 h-5 w-5" />
+                  <Calculator className="mr-2 h-4 w-4 md:h-5 md:w-5" />
                   Calculează ROI
                 </Button>
               </div>
 
               {/* Trust Indicators */}
-              <div className="flex flex-wrap items-center gap-6 text-sm text-slate-400">
+              <div className="flex flex-wrap items-center gap-4 md:gap-6 text-xs md:text-sm text-slate-400">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-400" />
+                  <CheckCircle2 className="h-3 w-3 md:h-4 md:w-4 text-green-400" />
                   <span>Setup în 24h</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-400" />
+                  <CheckCircle2 className="h-3 w-3 md:h-4 md:w-4 text-green-400" />
                   <span>Fără contract minim</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-400" />
+                  <CheckCircle2 className="h-3 w-3 md:h-4 md:w-4 text-green-400" />
                   <span>GDPR Compliant</span>
                 </div>
               </div>
@@ -239,30 +238,18 @@ export default function LandingPage() {
                   </div>
                 </div>
               </div>
-              {/* Floating notification */}
-              <div className="absolute -right-4 top-20 bg-white rounded-lg shadow-xl p-4 border animate-pulse">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-slate-900">Document procesat</div>
-                    <div className="text-xs text-slate-500">Factura DKV - 2.3s</div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Integrations Partners */}
-      <section className="py-12 bg-slate-50 border-b">
-        <div className="container mx-auto px-4">
-          <p className="text-center text-sm text-slate-500 mb-8 font-medium">
+      <section className="py-8 md:py-12 bg-slate-50 border-b overflow-hidden">
+        <div className="container mx-auto px-3 sm:px-4">
+          <p className="text-center text-xs md:text-sm text-slate-500 mb-6 md:mb-8 font-medium">
             INTEGRĂRI DISPONIBILE CU PRINCIPALII FURNIZORI
           </p>
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-12">
+          <div className="flex flex-wrap justify-center items-center gap-3 sm:gap-4 md:gap-8">
             {[
               { name: 'DKV', color: 'text-slate-700' },
               { name: 'Eurowag', color: 'text-blue-600' },
@@ -271,9 +258,9 @@ export default function LandingPage() {
               { name: 'OMV', color: 'text-blue-800' },
               { name: 'Petrom', color: 'text-red-600' }
             ].map((partner, idx) => (
-              <div key={idx} className="flex items-center gap-2 px-6 py-3 bg-white rounded-lg border shadow-sm">
-                <Fuel className="h-5 w-5 text-slate-400" />
-                <span className={`text-lg font-bold ${partner.color}`}>{partner.name}</span>
+              <div key={idx} className="flex items-center gap-1.5 md:gap-2 px-3 py-2 md:px-6 md:py-3 bg-white rounded-lg border shadow-sm">
+                <Fuel className="h-4 w-4 md:h-5 md:w-5 text-slate-400" />
+                <span className={`text-sm md:text-lg font-bold ${partner.color}`}>{partner.name}</span>
               </div>
             ))}
           </div>
@@ -281,52 +268,52 @@ export default function LandingPage() {
       </section>
 
       {/* Platform Stats */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+      <section className="py-10 md:py-16 bg-white">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8">
             <div className="text-center" ref={stat1.ref}>
-              <div className="text-4xl md:text-5xl font-bold text-blue-600 mb-2">99%</div>
-              <div className="text-slate-600 font-medium">Acuratețe AI Documente</div>
+              <div className="text-3xl md:text-5xl font-bold text-blue-600 mb-1 md:mb-2">99%</div>
+              <div className="text-xs md:text-base text-slate-600 font-medium">Acuratețe AI Documente</div>
             </div>
             <div className="text-center" ref={stat2.ref}>
-              <div className="text-4xl md:text-5xl font-bold text-blue-600 mb-2">2.3s</div>
-              <div className="text-slate-600 font-medium">Timp Mediu Procesare</div>
+              <div className="text-3xl md:text-5xl font-bold text-blue-600 mb-1 md:mb-2">2.3s</div>
+              <div className="text-xs md:text-base text-slate-600 font-medium">Timp Mediu Procesare</div>
             </div>
             <div className="text-center" ref={stat3.ref}>
-              <div className="text-4xl md:text-5xl font-bold text-blue-600 mb-2">24/7</div>
-              <div className="text-slate-600 font-medium">Disponibilitate Platformă</div>
+              <div className="text-3xl md:text-5xl font-bold text-blue-600 mb-1 md:mb-2">24/7</div>
+              <div className="text-xs md:text-base text-slate-600 font-medium">Disponibilitate Platformă</div>
             </div>
             <div className="text-center" ref={stat4.ref}>
-              <div className="text-4xl md:text-5xl font-bold text-blue-600 mb-2">GDPR</div>
-              <div className="text-slate-600 font-medium">Date Securizate în UE</div>
+              <div className="text-3xl md:text-5xl font-bold text-blue-600 mb-1 md:mb-2">GDPR</div>
+              <div className="text-xs md:text-base text-slate-600 font-medium">Date Securizate în UE</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="py-24 bg-slate-50 scroll-mt-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4">Funcționalități</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Tot ce aveți nevoie într-o singură platformă</h2>
-            <p className="text-slate-500 text-lg max-w-2xl mx-auto">
+      <section id="features" className="py-16 md:py-24 bg-slate-50 scroll-mt-20">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="text-center mb-10 md:mb-16">
+            <Badge variant="outline" className="mb-3 md:mb-4">Funcționalități</Badge>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-3 md:mb-4">Tot ce aveți nevoie într-o singură platformă</h2>
+            <p className="text-slate-500 text-sm md:text-lg max-w-2xl mx-auto px-2">
               De la procesarea automată a documentelor la rapoarte de profitabilitate în timp real.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8">
             {/* Feature 1 - AI */}
             <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
-              <CardContent className="p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Brain className="h-7 w-7 text-white" />
+              <CardContent className="p-5 md:p-8">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
+                  <Brain className="h-6 w-6 md:h-7 md:w-7 text-white" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">Procesare AI Documente</h3>
-                <p className="text-slate-600 mb-6">
+                <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">Procesare AI Documente</h3>
+                <p className="text-sm md:text-base text-slate-600 mb-4 md:mb-6">
                   Încărcați facturi, CMR-uri sau polițe. AI-ul extrage datele în secunde cu 99% acuratețe.
                 </p>
-                <div className="bg-slate-50 p-4 rounded-xl">
+                <div className="bg-slate-50 p-3 md:p-4 rounded-lg md:rounded-xl">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm text-slate-600">Timp procesare</span>
                     <Badge className="bg-green-100 text-green-700 hover:bg-green-100">~2.3 secunde</Badge>
@@ -341,12 +328,12 @@ export default function LandingPage() {
 
             {/* Feature 2 - Fuel */}
             <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
-              <CardContent className="p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Fuel className="h-7 w-7 text-white" />
+              <CardContent className="p-5 md:p-8">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
+                  <Fuel className="h-6 w-6 md:h-7 md:w-7 text-white" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">Import Automat Carburant</h3>
-                <p className="text-slate-600 mb-6">
+                <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">Import Automat Carburant</h3>
+                <p className="text-sm md:text-base text-slate-600 mb-4 md:mb-6">
                   Import direct din DKV, Eurowag, Verag și Shell. Detectare automată dubluri și calcul cost/km.
                 </p>
                 <div className="grid grid-cols-2 gap-2">
@@ -360,12 +347,12 @@ export default function LandingPage() {
 
             {/* Feature 3 - Analytics */}
             <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
-              <CardContent className="p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <BarChart3 className="h-7 w-7 text-white" />
+              <CardContent className="p-5 md:p-8">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
+                  <BarChart3 className="h-6 w-6 md:h-7 md:w-7 text-white" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">Analiză Profitabilitate</h3>
-                <p className="text-slate-600 mb-6">
+                <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">Analiză Profitabilitate</h3>
+                <p className="text-sm md:text-base text-slate-600 mb-4 md:mb-6">
                   Profit per vehicul, șofer sau rută. Identificați pierderile înainte să devină probleme.
                 </p>
                 <div className="flex items-end gap-1 h-20 p-2 bg-slate-50 rounded-xl">
@@ -382,12 +369,12 @@ export default function LandingPage() {
 
             {/* Feature 4 - Alerts */}
             <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
-              <CardContent className="p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <ShieldCheck className="h-7 w-7 text-white" />
+              <CardContent className="p-5 md:p-8">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
+                  <ShieldCheck className="h-6 w-6 md:h-7 md:w-7 text-white" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">Alerte Documente</h3>
-                <p className="text-slate-600 mb-6">
+                <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">Alerte Documente</h3>
+                <p className="text-sm md:text-base text-slate-600 mb-4 md:mb-6">
                   Notificări automate pentru ITP, RCA, licențe și atestate. Evitați amenzile și întârzierile.
                 </p>
                 <div className="space-y-2">
@@ -405,12 +392,12 @@ export default function LandingPage() {
 
             {/* Feature 5 - Drivers */}
             <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
-              <CardContent className="p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Users className="h-7 w-7 text-white" />
+              <CardContent className="p-5 md:p-8">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
+                  <Users className="h-6 w-6 md:h-7 md:w-7 text-white" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">Gestiune Șoferi</h3>
-                <p className="text-slate-600 mb-6">
+                <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">Gestiune Șoferi</h3>
+                <p className="text-sm md:text-base text-slate-600 mb-4 md:mb-6">
                   Evidență completă: permise, fișe medicale, atestate, diurnă și performanță.
                 </p>
                 <div className="flex -space-x-2">
@@ -431,15 +418,15 @@ export default function LandingPage() {
 
             {/* Feature 6 - AI Chat */}
             <Card className="border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white group">
-              <CardContent className="p-8">
-                <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Zap className="h-7 w-7 text-white" />
+              <CardContent className="p-5 md:p-8">
+                <div className="w-12 h-12 md:w-14 md:h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-6 group-hover:scale-110 transition-transform">
+                  <Zap className="h-6 w-6 md:h-7 md:w-7 text-white" />
                 </div>
-                <h3 className="text-xl font-bold mb-3">AI Assistant</h3>
-                <p className="text-slate-600 mb-6">
+                <h3 className="text-lg md:text-xl font-bold mb-2 md:mb-3">AI Assistant</h3>
+                <p className="text-sm md:text-base text-slate-600 mb-4 md:mb-6">
                   Întrebați datele în limbaj natural: "Care camion a consumat cel mai mult luna trecută?"
                 </p>
-                <div className="bg-slate-50 p-4 rounded-xl">
+                <div className="bg-slate-50 p-3 md:p-4 rounded-lg md:rounded-xl">
                   <div className="flex items-start gap-3">
                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
                       <Brain className="h-4 w-4 text-blue-600" />
@@ -456,23 +443,23 @@ export default function LandingPage() {
       </section>
 
       {/* ROI Calculator */}
-      <section id="roi" className="py-24 bg-gradient-to-br from-blue-900 via-slate-900 to-slate-800 scroll-mt-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <Badge className="mb-4 bg-blue-500/20 text-blue-300 border-blue-400/30">Calculator ROI</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+      <section id="roi" className="py-16 md:py-24 bg-gradient-to-br from-blue-900 via-slate-900 to-slate-800 scroll-mt-20">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="text-center mb-8 md:mb-12">
+            <Badge className="mb-3 md:mb-4 bg-blue-500/20 text-blue-300 border-blue-400/30">Calculator ROI</Badge>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-white mb-3 md:mb-4">
               Calculați Economiile cu Floteris
             </h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+            <p className="text-slate-400 text-sm md:text-lg max-w-2xl mx-auto px-2">
               Vedeți cât puteți economisi eliminând munca manuală și optimizând operațiunile.
             </p>
           </div>
 
           <div className="max-w-4xl mx-auto">
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid md:grid-cols-2 gap-4 md:gap-8">
               {/* Inputs */}
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
-                <h3 className="text-lg font-semibold text-white mb-6">Parametri Flotă</h3>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl md:rounded-2xl p-5 md:p-8 border border-white/20">
+                <h3 className="text-base md:text-lg font-semibold text-white mb-4 md:mb-6">Parametri Flotă</h3>
 
                 <div className="space-y-6">
                   <div>
@@ -527,8 +514,8 @@ export default function LandingPage() {
               </div>
 
               {/* Results */}
-              <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-8 shadow-xl">
-                <h3 className="text-lg font-semibold text-white mb-6">Economii Estimate Anual</h3>
+              <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl md:rounded-2xl p-5 md:p-8 shadow-xl">
+                <h3 className="text-base md:text-lg font-semibold text-white mb-4 md:mb-6">Economii Estimate Anual</h3>
 
                 <div className="space-y-4">
                   <div className="bg-white/20 rounded-xl p-4">
@@ -654,60 +641,32 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="py-24 bg-slate-50 scroll-mt-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4">Prețuri</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Prețuri Transparente, Fără Surprize</h2>
-            <p className="text-slate-500 text-lg">
+      <section id="pricing" className="py-16 md:py-24 bg-slate-50 scroll-mt-20">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="text-center mb-10 md:mb-16">
+            <Badge variant="outline" className="mb-3 md:mb-4">Prețuri</Badge>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-3 md:mb-4">Prețuri Transparente, Fără Surprize</h2>
+            <p className="text-slate-500 text-sm md:text-lg px-2">
               Fără contracte pe termen lung. Fără costuri ascunse. Anulați oricând.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {/* Starter */}
-            <Card className="relative border-2 hover:border-slate-300 transition-colors">
-              <CardContent className="p-8">
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">Starter</h3>
-                <div className="flex items-baseline mb-4">
-                  <span className="text-4xl font-bold">€0</span>
-                  <span className="ml-2 text-slate-500">/lună</span>
-                </div>
-                <p className="text-slate-500 mb-6">Perfect pentru flote mici, 1-2 vehicule.</p>
-                <ul className="space-y-3 mb-8">
-                  {[
-                    'Până la 2 vehicule',
-                    'Management documente',
-                    'Alerte expirare',
-                    'Suport email',
-                  ].map((item) => (
-                    <li key={item} className="flex items-center gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-                      <span className="text-slate-600">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Button variant="outline" className="w-full" onClick={() => navigate('/login')}>
-                  Începe Gratuit
-                </Button>
-              </CardContent>
-            </Card>
-
+          <div className="grid md:grid-cols-2 gap-4 md:gap-8 max-w-4xl mx-auto">
             {/* Pro - Featured */}
-            <Card className="relative border-2 border-blue-600 shadow-xl scale-105">
+            <Card className="relative border-2 border-blue-600 shadow-xl">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                <Badge className="bg-blue-600 hover:bg-blue-600 text-white px-4 py-1">
+                <Badge className="bg-blue-600 hover:bg-blue-600 text-white px-3 md:px-4 py-1 text-xs md:text-sm">
                   Cel mai popular
                 </Badge>
               </div>
-              <CardContent className="p-8">
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">Professional</h3>
-                <div className="flex items-baseline mb-4">
-                  <span className="text-4xl font-bold">€12</span>
-                  <span className="ml-2 text-slate-500">/vehicul/lună</span>
+              <CardContent className="p-5 md:p-8 pt-6 md:pt-8">
+                <h3 className="text-base md:text-lg font-semibold text-slate-900 mb-2">Professional</h3>
+                <div className="flex items-baseline mb-3 md:mb-4">
+                  <span className="text-3xl md:text-4xl font-bold">€12</span>
+                  <span className="ml-2 text-slate-500 text-sm md:text-base">/vehicul/lună</span>
                 </div>
-                <p className="text-slate-500 mb-6">Pentru flote în creștere care vor eficiență.</p>
-                <ul className="space-y-3 mb-8">
+                <p className="text-slate-500 text-sm md:text-base mb-4 md:mb-6">Pentru flote în creștere care vor eficiență.</p>
+                <ul className="space-y-2 md:space-y-3 mb-6 md:mb-8">
                   {[
                     'Vehicule nelimitate',
                     'AI Document Processing',
@@ -717,28 +676,28 @@ export default function LandingPage() {
                     'Suport prioritar 24/7',
                     'Export date nelimitat',
                   ].map((item) => (
-                    <li key={item} className="flex items-center gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0" />
-                      <span className="text-slate-600">{item}</span>
+                    <li key={item} className="flex items-center gap-2 md:gap-3">
+                      <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5 text-blue-600 shrink-0" />
+                      <span className="text-slate-600 text-sm md:text-base">{item}</span>
                     </li>
                   ))}
                 </ul>
-                <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => navigate('/login')}>
+                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-sm md:text-base" onClick={() => navigate('/login')}>
                   Încearcă 14 Zile Gratuit
                 </Button>
-                <p className="text-center text-xs text-slate-500 mt-3">Nu necesită card de credit</p>
+                <p className="text-center text-xs text-slate-500 mt-2 md:mt-3">Nu necesită card de credit</p>
               </CardContent>
             </Card>
 
             {/* Enterprise */}
             <Card className="relative border-2 hover:border-slate-300 transition-colors bg-slate-900 text-white">
-              <CardContent className="p-8">
-                <h3 className="text-lg font-semibold mb-2">Enterprise</h3>
-                <div className="flex items-baseline mb-4">
-                  <span className="text-4xl font-bold">Custom</span>
+              <CardContent className="p-5 md:p-8">
+                <h3 className="text-base md:text-lg font-semibold mb-2">Enterprise</h3>
+                <div className="flex items-baseline mb-3 md:mb-4">
+                  <span className="text-3xl md:text-4xl font-bold">Custom</span>
                 </div>
-                <p className="text-slate-400 mb-6">Pentru flote mari cu nevoi specifice.</p>
-                <ul className="space-y-3 mb-8">
+                <p className="text-slate-400 text-sm md:text-base mb-4 md:mb-6">Pentru flote mari cu nevoi specifice.</p>
+                <ul className="space-y-2 md:space-y-3 mb-6 md:mb-8">
                   {[
                     'Tot ce include Pro',
                     'API Access complet',
@@ -748,13 +707,13 @@ export default function LandingPage() {
                     'Account manager dedicat',
                     'White-labeling disponibil',
                   ].map((item) => (
-                    <li key={item} className="flex items-center gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-blue-400 shrink-0" />
-                      <span className="text-slate-300">{item}</span>
+                    <li key={item} className="flex items-center gap-2 md:gap-3">
+                      <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5 text-blue-400 shrink-0" />
+                      <span className="text-slate-300 text-sm md:text-base">{item}</span>
                     </li>
                   ))}
                 </ul>
-                <Button variant="outline" className="w-full border-white text-white hover:bg-white hover:text-slate-900">
+                <Button variant="outline" className="w-full border-white text-white hover:bg-white hover:text-slate-900 text-sm md:text-base">
                   Contactează Vânzări
                 </Button>
               </CardContent>
@@ -764,17 +723,17 @@ export default function LandingPage() {
       </section>
 
       {/* Benefits / Results You Can Achieve */}
-      <section id="testimonials" className="py-24 bg-white scroll-mt-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4">Rezultate</Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Ce Poți Obține cu Floteris</h2>
-            <p className="text-slate-500 text-lg">
+      <section id="testimonials" className="py-16 md:py-24 bg-white scroll-mt-20">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="text-center mb-10 md:mb-16">
+            <Badge variant="outline" className="mb-3 md:mb-4">Rezultate</Badge>
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold mb-3 md:mb-4">Ce Poți Obține cu Floteris</h2>
+            <p className="text-slate-500 text-sm md:text-lg px-2">
               Rezultate bazate pe eficiența automatizării și eliminarea muncii manuale
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 max-w-6xl mx-auto">
             {[
               {
                 icon: Timer,
@@ -802,32 +761,32 @@ export default function LandingPage() {
               }
             ].map((benefit, idx) => (
               <Card key={idx} className="border-none shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                <CardContent className="p-8 text-center">
-                  <div className={`w-16 h-16 bg-gradient-to-br ${benefit.color} rounded-2xl flex items-center justify-center mx-auto mb-6`}>
-                    <benefit.icon className="h-8 w-8 text-white" />
+                <CardContent className="p-5 md:p-8 text-center">
+                  <div className={`w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br ${benefit.color} rounded-xl md:rounded-2xl flex items-center justify-center mx-auto mb-4 md:mb-6`}>
+                    <benefit.icon className="h-6 w-6 md:h-8 md:w-8 text-white" />
                   </div>
 
-                  <h3 className="text-xl font-bold mb-2">{benefit.title}</h3>
+                  <h3 className="text-lg md:text-xl font-bold mb-2">{benefit.title}</h3>
 
-                  <div className="mb-4">
-                    <div className="text-4xl font-bold text-slate-900">{benefit.metric}</div>
-                    <div className="text-sm text-slate-500">{benefit.metricLabel}</div>
+                  <div className="mb-3 md:mb-4">
+                    <div className="text-3xl md:text-4xl font-bold text-slate-900">{benefit.metric}</div>
+                    <div className="text-xs md:text-sm text-slate-500">{benefit.metricLabel}</div>
                   </div>
 
-                  <p className="text-slate-600 leading-relaxed">{benefit.description}</p>
+                  <p className="text-sm md:text-base text-slate-600 leading-relaxed">{benefit.description}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
 
           {/* Early Adopter CTA */}
-          <div className="mt-16 text-center">
-            <div className="inline-block bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-8 border border-blue-100">
-              <h3 className="text-xl font-bold mb-2">Fii printre primii utilizatori</h3>
-              <p className="text-slate-600 mb-4">
+          <div className="mt-10 md:mt-16 text-center px-2">
+            <div className="inline-block bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl md:rounded-2xl p-5 md:p-8 border border-blue-100">
+              <h3 className="text-lg md:text-xl font-bold mb-2">Fii printre primii utilizatori</h3>
+              <p className="text-sm md:text-base text-slate-600 mb-4">
                 Înscrie-te acum și primește 3 luni gratuit + onboarding personalizat
               </p>
-              <Button onClick={() => scrollToSection('demo')} className="bg-blue-600 hover:bg-blue-700">
+              <Button onClick={() => scrollToSection('demo')} className="bg-blue-600 hover:bg-blue-700 text-sm md:text-base">
                 Solicită Acces Early Adopter
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -837,40 +796,33 @@ export default function LandingPage() {
       </section>
 
       {/* Security & Compliance */}
-      <section className="py-16 bg-slate-50 border-y">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h3 className="text-xl font-semibold mb-2">Securitate și Conformitate de Nivel Enterprise</h3>
-            <p className="text-slate-500">Datele voastre sunt protejate conform celor mai înalte standarde.</p>
+      <section className="py-10 md:py-16 bg-slate-50 border-y">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="text-center mb-8 md:mb-12">
+            <h3 className="text-lg md:text-xl font-semibold mb-2">Securitate și Conformitate de Nivel Enterprise</h3>
+            <p className="text-sm md:text-base text-slate-500">Datele voastre sunt protejate conform celor mai înalte standarde.</p>
           </div>
 
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16">
-            <div className="flex items-center gap-3 p-4">
-              <Shield className="h-10 w-10 text-green-600" />
+          <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-8 md:gap-16">
+            <div className="flex items-center gap-2 md:gap-3 p-2 md:p-4">
+              <Shield className="h-8 w-8 md:h-10 md:w-10 text-green-600" />
               <div>
-                <div className="font-semibold">GDPR Compliant</div>
-                <div className="text-sm text-slate-500">Date stocate în UE</div>
+                <div className="font-semibold text-sm md:text-base">GDPR Compliant</div>
+                <div className="text-xs md:text-sm text-slate-500">Date stocate în UE</div>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-4">
-              <Lock className="h-10 w-10 text-blue-600" />
+            <div className="flex items-center gap-2 md:gap-3 p-2 md:p-4">
+              <Lock className="h-8 w-8 md:h-10 md:w-10 text-blue-600" />
               <div>
-                <div className="font-semibold">SSL/TLS Encryption</div>
-                <div className="text-sm text-slate-500">Criptare 256-bit</div>
+                <div className="font-semibold text-sm md:text-base">SSL/TLS Encryption</div>
+                <div className="text-xs md:text-sm text-slate-500">Criptare 256-bit</div>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-4">
-              <Server className="h-10 w-10 text-purple-600" />
+            <div className="flex items-center gap-2 md:gap-3 p-2 md:p-4">
+              <Server className="h-8 w-8 md:h-10 md:w-10 text-purple-600" />
               <div>
-                <div className="font-semibold">99.9% Uptime SLA</div>
-                <div className="text-sm text-slate-500">Disponibilitate garantată</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-4">
-              <Award className="h-10 w-10 text-orange-600" />
-              <div>
-                <div className="font-semibold">ISO 27001</div>
-                <div className="text-sm text-slate-500">Securitate informații</div>
+                <div className="font-semibold text-sm md:text-base">99.9% Uptime</div>
+                <div className="text-xs md:text-sm text-slate-500">Disponibilitate garantată</div>
               </div>
             </div>
           </div>
@@ -878,12 +830,12 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="py-24 bg-white scroll-mt-20">
-        <div className="container mx-auto px-4 max-w-3xl">
-          <div className="text-center mb-12">
-            <Badge variant="outline" className="mb-4">FAQ</Badge>
-            <h2 className="text-3xl font-bold mb-4">Întrebări Frecvente</h2>
-            <p className="text-slate-500">Tot ce trebuie să știți despre Floteris.</p>
+      <section id="faq" className="py-16 md:py-24 bg-white scroll-mt-20">
+        <div className="container mx-auto px-3 sm:px-4 max-w-3xl">
+          <div className="text-center mb-8 md:mb-12">
+            <Badge variant="outline" className="mb-3 md:mb-4">FAQ</Badge>
+            <h2 className="text-2xl md:text-3xl font-bold mb-3 md:mb-4">Întrebări Frecvente</h2>
+            <p className="text-sm md:text-base text-slate-500">Tot ce trebuie să știți despre Floteris.</p>
           </div>
 
           <Accordion type="single" collapsible className="w-full">
@@ -926,7 +878,7 @@ export default function LandingPage() {
               <AccordionContent className="pb-4 text-slate-600">
                 Absolut. Folosim criptare SSL/TLS pentru transferuri și AES-256 pentru stocare. Datele
                 sunt stocate în centre de date din UE, conform GDPR. Efectuăm backup-uri zilnice și
-                avem proceduri de disaster recovery testate regulat. Suntem în proces de certificare ISO 27001.
+                avem proceduri de disaster recovery testate regulat.
               </AccordionContent>
             </AccordionItem>
 
@@ -944,53 +896,151 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Demo Request / CTA */}
-      <section id="demo" className="py-24 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 scroll-mt-20">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
-              Gata să Transformați Managementul Flotei?
-            </h2>
-            <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-              Programați o demonstrație personalizată și vedeți cum Floteris poate reduce costurile
-              și elimina munca manuală din operațiunile voastre.
-            </p>
+      {/* Demo Request Form */}
+      <section id="demo" className="py-16 md:py-24 bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 scroll-mt-20">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="max-w-5xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+              <div className="text-left">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-4 md:mb-6">
+                  Solicită Demo Gratuit
+                </h2>
+                <p className="text-base md:text-lg text-blue-100 mb-6 md:mb-8">
+                  Completează formularul și te vom contacta în maximum 24 de ore pentru a programa
+                  o demonstrație personalizată a platformei Floteris.
+                </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
-              <Button
-                size="lg"
-                onClick={() => navigate('/login')}
-                className="h-14 px-8 text-lg bg-white text-blue-700 hover:bg-blue-50 shadow-lg font-semibold"
-              >
-                Începe Trial Gratuit
-                <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="h-14 px-8 text-lg border-2 border-white text-white hover:bg-white/10"
-              >
-                <Phone className="mr-2 h-5 w-5" />
-                Sună: +40 XXX XXX XXX
-              </Button>
-            </div>
+                <div className="space-y-3 md:space-y-4 text-blue-100 text-sm md:text-base">
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5 text-green-400 shrink-0" />
+                    <span>Demo personalizat pentru nevoile tale</span>
+                  </div>
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5 text-green-400 shrink-0" />
+                    <span>Fără obligații, fără costuri</span>
+                  </div>
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5 text-green-400 shrink-0" />
+                    <span>Răspuns în maximum 24h</span>
+                  </div>
+                </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-blue-200">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>14 zile gratuit</span>
+                <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t border-white/20">
+                  <p className="text-blue-200 text-xs md:text-sm mb-2">Sau sună direct:</p>
+                  <a
+                    href="tel:+40757314021"
+                    className="text-xl md:text-2xl font-bold text-white hover:text-blue-200 transition-colors"
+                  >
+                    +40 757 314 021
+                  </a>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Fără card de credit</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Setup în 24h</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Anulați oricând</span>
+
+              <div className="bg-white rounded-xl md:rounded-2xl p-5 md:p-8 shadow-2xl">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    const formData = new FormData(e.currentTarget)
+                    const data = {
+                      nume: formData.get('nume'),
+                      email: formData.get('email'),
+                      telefon: formData.get('telefon'),
+                      companie: formData.get('companie'),
+                      vehicule: formData.get('vehicule'),
+                      mesaj: formData.get('mesaj')
+                    }
+                    // Send email via mailto as fallback
+                    const subject = encodeURIComponent(`Demo Request - ${data.companie}`)
+                    const body = encodeURIComponent(
+                      `Nume: ${data.nume}\nEmail: ${data.email}\nTelefon: ${data.telefon}\nCompanie: ${data.companie}\nNumăr vehicule: ${data.vehicule}\n\nMesaj:\n${data.mesaj || 'N/A'}`
+                    )
+                    window.location.href = `mailto:contact@zed-zen.com?subject=${subject}&body=${body}`
+                  }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">Nume complet *</label>
+                    <input
+                      type="text"
+                      name="nume"
+                      required
+                      className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm md:text-base"
+                      placeholder="Ion Popescu"
+                    />
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3 md:gap-4">
+                    <div>
+                      <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">Email *</label>
+                      <input
+                        type="email"
+                        name="email"
+                        required
+                        className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm md:text-base"
+                        placeholder="email@companie.ro"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">Telefon *</label>
+                      <input
+                        type="tel"
+                        name="telefon"
+                        required
+                        className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm md:text-base"
+                        placeholder="+40 7XX XXX XXX"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3 md:gap-4">
+                    <div>
+                      <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">Companie *</label>
+                      <input
+                        type="text"
+                        name="companie"
+                        required
+                        className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm md:text-base"
+                        placeholder="Numele companiei"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">Nr. vehicule</label>
+                      <select
+                        name="vehicule"
+                        className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-sm md:text-base"
+                      >
+                        <option value="1-5">1-5 vehicule</option>
+                        <option value="6-15">6-15 vehicule</option>
+                        <option value="16-30">16-30 vehicule</option>
+                        <option value="31-50">31-50 vehicule</option>
+                        <option value="50+">50+ vehicule</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs md:text-sm font-medium text-slate-700 mb-1">Mesaj (opțional)</label>
+                    <textarea
+                      name="mesaj"
+                      rows={3}
+                      className="w-full px-3 md:px-4 py-2.5 md:py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none text-sm md:text-base"
+                      placeholder="Spune-ne mai multe despre nevoile tale..."
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 md:h-14 text-base md:text-lg bg-blue-600 hover:bg-blue-700 font-semibold"
+                  >
+                    Solicită Demo Gratuit
+                    <ArrowRight className="ml-2 h-4 w-4 md:h-5 md:w-5" />
+                  </Button>
+
+                  <p className="text-xs text-slate-500 text-center">
+                    Prin trimiterea formularului, ești de acord cu{' '}
+                    <a href="/privacy" className="text-blue-600 hover:underline">Politica de Confidențialitate</a>
+                  </p>
+                </form>
               </div>
             </div>
           </div>
@@ -998,16 +1048,19 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-slate-900 text-slate-400 py-16">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-12 mb-12">
+      <footer className="bg-slate-900 text-slate-400 py-10 md:py-16">
+        <div className="container mx-auto px-3 sm:px-4">
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-8 md:gap-12 mb-8 md:mb-12">
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <img src="/logo.webp" alt="Floteris" className="h-8 w-8 brightness-0 invert" />
                 <span className="text-xl font-bold text-white">Floteris</span>
               </div>
               <p className="text-sm mb-4">
-                Platforma de management a flotei preferată de companiile de transport din România.
+                Platforma de management a flotei pentru companiile de transport din România.
+              </p>
+              <p className="text-xs text-slate-500 mb-2">
+                Operat de FORTITUDO VINCIT SRL
               </p>
               <div className="flex items-center gap-2 text-sm">
                 <MapPin className="h-4 w-4" />
@@ -1021,17 +1074,6 @@ export default function LandingPage() {
                 <li><button onClick={() => scrollToSection('features')} className="hover:text-white transition-colors">Funcționalități</button></li>
                 <li><button onClick={() => scrollToSection('pricing')} className="hover:text-white transition-colors">Prețuri</button></li>
                 <li><button onClick={() => scrollToSection('roi')} className="hover:text-white transition-colors">Calculator ROI</button></li>
-                <li><a href="#" className="hover:text-white transition-colors">Integrări</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-white font-semibold mb-4">Companie</h4>
-              <ul className="space-y-2 text-sm">
-                <li><a href="#" className="hover:text-white transition-colors">Despre Noi</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Cariere</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact</a></li>
               </ul>
             </div>
 
@@ -1040,24 +1082,24 @@ export default function LandingPage() {
               <ul className="space-y-3 text-sm">
                 <li className="flex items-center gap-2">
                   <Mail className="h-4 w-4" />
-                  <a href="mailto:contact@floteris.ro" className="hover:text-white transition-colors">contact@floteris.ro</a>
+                  <a href="mailto:contact@zed-zen.com" className="hover:text-white transition-colors">contact@zed-zen.com</a>
                 </li>
                 <li className="flex items-center gap-2">
                   <Phone className="h-4 w-4" />
-                  <span>+40 XXX XXX XXX</span>
+                  <a href="tel:+40757314021" className="hover:text-white transition-colors">+40 757 314 021</a>
                 </li>
               </ul>
             </div>
           </div>
 
-          <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="text-sm">
-              © 2025 Floteris. Toate drepturile rezervate.
+          <div className="border-t border-slate-800 pt-6 md:pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="text-xs md:text-sm text-center md:text-left">
+              © 2025 FORTITUDO VINCIT SRL. Toate drepturile rezervate.
             </div>
-            <div className="flex gap-6 text-sm">
-              <a href="#" className="hover:text-white transition-colors">Termeni și Condiții</a>
-              <a href="#" className="hover:text-white transition-colors">Politica de Confidențialitate</a>
-              <a href="#" className="hover:text-white transition-colors">GDPR</a>
+            <div className="flex flex-wrap justify-center gap-4 md:gap-6 text-xs md:text-sm">
+              <a href="/terms" className="hover:text-white transition-colors">Termeni și Condiții</a>
+              <a href="/privacy" className="hover:text-white transition-colors">Politica de Confidențialitate</a>
+              <a href="/gdpr" className="hover:text-white transition-colors">GDPR</a>
             </div>
           </div>
         </div>
