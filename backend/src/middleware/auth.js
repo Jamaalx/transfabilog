@@ -1,7 +1,21 @@
-const { supabase, supabaseAdmin, isConfigured } = require('../config/supabase');
+const { supabase, supabaseAdmin, isConfigured, isAdminConfigured } = require('../config/supabase');
 
 // Test company ID for development fallback (from TEST_CREDENTIALS.md)
 const TEST_COMPANY_ID = '11111111-1111-1111-1111-111111111111';
+
+/**
+ * Middleware to require admin database access
+ * Use this for routes that need supabaseAdmin (most data routes)
+ */
+const requireAdminDb = (req, res, next) => {
+  if (!isAdminConfigured || !supabaseAdmin) {
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Database admin access not configured. Please set SUPABASE_SERVICE_KEY environment variable.',
+    });
+  }
+  next();
+};
 
 /**
  * Authentication middleware
@@ -112,4 +126,4 @@ const authorize = (...allowedRoles) => {
   };
 };
 
-module.exports = { authenticate, authorize };
+module.exports = { authenticate, authorize, requireAdminDb };

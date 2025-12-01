@@ -1,5 +1,5 @@
 const OpenAI = require('openai');
-const { supabaseAdmin: supabase } = require('../config/supabase');
+const { supabaseAdmin: supabase, isConfigured: isSupabaseConfigured } = require('../config/supabase');
 
 // Initialize OpenAI client only if API key is available
 let openai = null;
@@ -15,6 +15,21 @@ if (process.env.OPENAI_API_KEY) {
  * Get company data summary for AI context
  */
 async function getCompanyDataSummary(companyId) {
+  // Return empty summary if Supabase is not configured
+  if (!isSupabaseConfigured || !supabase) {
+    console.warn('⚠️  Supabase not configured - returning empty data summary');
+    return {
+      fleet: { totalTrucks: 0, activeTrucks: 0, totalTrailers: 0, activeTrailers: 0, totalDrivers: 0, activeDrivers: 0 },
+      trips: { total: 0, completed: 0, active: 0, planned: 0, totalKm: 0, totalRevenue: 0, avgRevenuePerTrip: 0, avgKmPerTrip: 0 },
+      financial: { totalIncome: 0, totalExpenses: 0, profit: 0, profitMargin: 0, expensesByCategory: {} },
+      driverPerformance: [],
+      truckPerformance: [],
+      destinations: {},
+      alerts: { expiringDocuments: 0, documentsDetails: [] },
+      recentTrips: [],
+    };
+  }
+
   const today = new Date();
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

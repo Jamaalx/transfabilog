@@ -1,12 +1,13 @@
 const express = require('express');
 const { body, query, param, validationResult } = require('express-validator');
 const { supabaseAdmin: supabase } = require('../config/supabase');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize, requireAdminDb } = require('../middleware/auth');
 
 const router = express.Router();
 
-// All routes require authentication
+// All routes require authentication and admin database access
 router.use(authenticate);
+router.use(requireAdminDb);
 
 /**
  * GET /api/v1/drivers

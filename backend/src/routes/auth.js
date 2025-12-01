@@ -1,9 +1,20 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { supabaseAdmin: supabase } = require('../config/supabase');
+const { supabase, isConfigured } = require('../config/supabase');
 const { authenticate } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Middleware to check if Supabase is configured
+const requireSupabase = (req, res, next) => {
+  if (!isConfigured || !supabase) {
+    return res.status(503).json({
+      error: 'Service Unavailable',
+      message: 'Database not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.',
+    });
+  }
+  next();
+};
 
 /**
  * POST /api/v1/auth/login
@@ -11,6 +22,7 @@ const router = express.Router();
  */
 router.post(
   '/login',
+  requireSupabase,
   [
     body('email').isEmail().normalizeEmail(),
     body('password').isLength({ min: 6 }),
@@ -61,7 +73,7 @@ router.post(
  * POST /api/v1/auth/logout
  * Logout current user
  */
-router.post('/logout', authenticate, async (req, res, next) => {
+router.post('/logout', requireSupabase, authenticate, async (req, res, next) => {
   try {
     const { error } = await supabase.auth.signOut();
 
@@ -82,7 +94,7 @@ router.post('/logout', authenticate, async (req, res, next) => {
  * POST /api/v1/auth/refresh
  * Refresh access token
  */
-router.post('/refresh', async (req, res, next) => {
+router.post('/refresh', requireSupabase, async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
 
