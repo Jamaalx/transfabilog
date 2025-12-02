@@ -37,10 +37,26 @@ const DOCUMENT_TYPES = {
   ROVINIETA: 'rovinieta',
   TAHOGRAF: 'tahograf',
 
-  // HR documents
+  // HR documents - Basic
   CONTRACT_MUNCA: 'contract_munca',
   PERMIS_CONDUCERE: 'permis_conducere',
   ATESTAT: 'atestat',
+
+  // HR documents - Extended (Driver Documents)
+  CARTE_IDENTITATE: 'carte_identitate',
+  PASAPORT: 'pasaport',
+  CARD_TAHOGRAF: 'card_tahograf',
+  ATESTAT_CPC: 'atestat_cpc',
+  AVIZ_PSIHOLOGIC: 'aviz_psihologic',
+  FISA_APTITUDINI: 'fisa_aptitudini',
+  CAZIER_JUDICIAR: 'cazier_judiciar',
+  CAZIER_AUTO: 'cazier_auto',
+  SSM_INTRODUCTIV: 'ssm_introductiv',
+  SSM_PERIODIC: 'ssm_periodic',
+  PSI_INSTRUIRE: 'psi_instruire',
+  LICENTA_TRANSPORT: 'licenta_transport',
+  CERTIFICAT_ADR: 'certificat_adr',
+  CERTIFICAT_FRIGO: 'certificat_frigo',
 
   // Other
   ALTELE: 'altele',
@@ -51,7 +67,12 @@ const DOCUMENT_CATEGORIES = {
   fuel: ['raport_dkv', 'raport_eurowag', 'raport_verag', 'raport_shell', 'raport_omv'],
   transport: ['cmr', 'aviz_expeditie', 'contract_transport'],
   fleet: ['asigurare', 'itp', 'rovinieta', 'tahograf'],
-  hr: ['contract_munca', 'permis_conducere', 'atestat'],
+  hr: [
+    'contract_munca', 'permis_conducere', 'atestat', 'carte_identitate', 'pasaport',
+    'card_tahograf', 'atestat_cpc', 'aviz_psihologic', 'fisa_aptitudini',
+    'cazier_judiciar', 'cazier_auto', 'ssm_introductiv', 'ssm_periodic',
+    'psi_instruire', 'licenta_transport', 'certificat_adr', 'certificat_frigo'
+  ],
   other: ['altele'],
 };
 
@@ -213,27 +234,51 @@ async function classifyDocument(extractedText, fileName) {
   const systemPrompt = `Ești un expert în clasificarea documentelor pentru o companie de transport din România.
 Analizează textul extras din document și clasifică-l într-una din categoriile:
 
-TIPURI DOCUMENTE:
+TIPURI DOCUMENTE FINANCIARE:
 - factura_intrare: Facturi primite de la furnizori
 - factura_iesire: Facturi emise către clienți
 - extras_bancar: Extrase de cont bancar
 - bon_fiscal: Bonuri fiscale, chitanțe
+
+RAPOARTE COMBUSTIBIL:
 - raport_dkv: Rapoarte de alimentare DKV
 - raport_eurowag: Rapoarte Eurowag
 - raport_verag: Rapoarte Verag
 - raport_shell: Rapoarte Shell
 - raport_omv: Rapoarte OMV
+
+DOCUMENTE TRANSPORT:
 - cmr: Scrisori de transport internațional CMR
 - aviz_expeditie: Avize de expediție
 - contract_transport: Contracte de transport
+
+DOCUMENTE FLOTĂ:
 - asigurare: Polițe de asigurare (RCA, CASCO)
 - itp: Certificate ITP / Inspecție tehnică
 - rovinieta: Roviniete
-- tahograf: Documente tahograf
+- tahograf: Documente tahograf (atestate vehicul)
+
+DOCUMENTE HR / ȘOFERI:
 - contract_munca: Contracte de muncă
-- permis_conducere: Permise de conducere
-- atestat: Atestate profesionale
-- altele: Alte documente
+- carte_identitate: Buletin / Carte de identitate
+- pasaport: Pașaport
+- permis_conducere: Permise de conducere (cat. C, E, etc.)
+- card_tahograf: Card tahograf digital (șofer)
+- atestat_cpc: Atestat profesional CPC (Certificat Competență Profesională)
+- aviz_psihologic: Aviz psihologic pentru conducători auto
+- fisa_aptitudini: Fișă de aptitudini medicina muncii
+- cazier_judiciar: Cazier judiciar
+- cazier_auto: Cazier auto (istoric puncte penalizare)
+- ssm_introductiv: Instruire SSM introductivă (fișă)
+- ssm_periodic: Instruire SSM periodică (fișă)
+- psi_instruire: Instruire PSI (prevenire incendii)
+- licenta_transport: Copie conformă licență transport
+- certificat_adr: Certificat ADR (mărfuri periculoase)
+- certificat_frigo: Certificat FRIGO/ATP (transport frigorific)
+- atestat: Alte atestate profesionale
+
+ALTELE:
+- altele: Alte documente neîncadrate
 
 Răspunde DOAR cu un JSON valid.`;
 
@@ -541,6 +586,218 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
   "trailer_registration": "nr remorcă" sau null,
   "driver_name": "nume șofer"
 }`,
+
+    // ============================================
+    // DOCUMENTE HR / ȘOFERI - Extraction Prompts
+    // ============================================
+
+    carte_identitate: `Extrage din această carte de identitate / buletin:
+{
+  "document_number": "seria și numărul (ex: RX123456)",
+  "cnp": "CNP (13 cifre)",
+  "first_name": "prenume",
+  "last_name": "nume",
+  "birth_date": "YYYY-MM-DD",
+  "birth_place": "locul nașterii",
+  "address": "adresa completă",
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "expiry_date": "YYYY-MM-DD data expirării",
+  "issuing_authority": "emitent (ex: SPCLEP Sector 1)"
+}`,
+
+    pasaport: `Extrage din acest pașaport:
+{
+  "document_number": "număr pașaport",
+  "cnp": "CNP dacă apare",
+  "first_name": "prenume",
+  "last_name": "nume",
+  "birth_date": "YYYY-MM-DD",
+  "birth_place": "locul nașterii",
+  "nationality": "cetățenie",
+  "sex": "M sau F",
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "expiry_date": "YYYY-MM-DD data expirării",
+  "issuing_authority": "autoritatea emitentă"
+}`,
+
+    permis_conducere: `Extrage din acest permis de conducere:
+{
+  "document_number": "număr permis",
+  "cnp": "CNP",
+  "first_name": "prenume",
+  "last_name": "nume",
+  "birth_date": "YYYY-MM-DD",
+  "birth_place": "locul nașterii",
+  "categories": ["categoriile de pe permis: AM, A1, A2, A, B, C, CE, D, etc."],
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "expiry_date": "YYYY-MM-DD data expirării (a celei mai recente categorii)",
+  "category_dates": {"C": "YYYY-MM-DD", "CE": "YYYY-MM-DD"} sau null,
+  "issuing_authority": "autoritatea emitentă",
+  "restrictions": "restricții dacă există" sau null
+}`,
+
+    card_tahograf: `Extrage din acest card tahograf:
+{
+  "document_number": "număr card",
+  "card_type": "CONDUCĂTOR sau COMPANIE sau ATELIER",
+  "first_name": "prenume",
+  "last_name": "nume",
+  "birth_date": "YYYY-MM-DD",
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "expiry_date": "YYYY-MM-DD data expirării",
+  "issuing_country": "țara emitentă (RO, etc.)",
+  "issuing_authority": "autoritatea emitentă"
+}`,
+
+    atestat_cpc: `Extrage din acest atestat CPC (Certificat Competență Profesională):
+{
+  "document_number": "număr atestat/certificat",
+  "first_name": "prenume",
+  "last_name": "nume",
+  "cnp": "CNP dacă apare",
+  "certificate_type": "marfă sau persoane",
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "expiry_date": "YYYY-MM-DD data expirării",
+  "issuing_authority": "autoritatea emitentă (ARR, etc.)",
+  "training_hours": număr ore pregătire dacă apare sau null
+}`,
+
+    aviz_psihologic: `Extrage din acest aviz psihologic:
+{
+  "document_number": "număr aviz",
+  "first_name": "prenume",
+  "last_name": "nume",
+  "cnp": "CNP",
+  "result": "APT sau INAPT",
+  "purpose": "scopul avizului (conducător auto, etc.)",
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "expiry_date": "YYYY-MM-DD data expirării",
+  "psychologist_name": "numele psihologului",
+  "clinic_name": "denumirea clinicii/cabinetului"
+}`,
+
+    fisa_aptitudini: `Extrage din această fișă de aptitudini / medicina muncii:
+{
+  "document_number": "număr fișă" sau null,
+  "first_name": "prenume",
+  "last_name": "nume",
+  "cnp": "CNP",
+  "result": "APT sau INAPT sau APT CONDIȚIONAT",
+  "job_position": "funcția/postul (șofer, etc.)",
+  "issue_date": "YYYY-MM-DD data examinării",
+  "expiry_date": "YYYY-MM-DD următoarea examinare",
+  "validity_months": număr luni valabilitate sau null,
+  "doctor_name": "numele medicului",
+  "clinic_name": "denumirea clinicii/cabinetului",
+  "restrictions": "restricții medicale" sau null
+}`,
+
+    cazier_judiciar: `Extrage din acest cazier judiciar:
+{
+  "document_number": "număr certificat",
+  "first_name": "prenume",
+  "last_name": "nume",
+  "cnp": "CNP",
+  "father_name": "prenume tată",
+  "mother_name": "prenume mamă",
+  "birth_date": "YYYY-MM-DD",
+  "birth_place": "locul nașterii",
+  "result": "fără antecedente sau cu antecedente",
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "issuing_authority": "autoritatea emitentă"
+}`,
+
+    cazier_auto: `Extrage din acest cazier auto / fișă de evidență:
+{
+  "document_number": "număr document",
+  "first_name": "prenume",
+  "last_name": "nume",
+  "cnp": "CNP",
+  "license_number": "număr permis conducere",
+  "total_points": număr puncte penalizare sau 0,
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "incidents": ["lista incidente/abateri"] sau [],
+  "issuing_authority": "autoritatea emitentă"
+}`,
+
+    ssm_introductiv: `Extrage din această fișă de instruire SSM introductivă:
+{
+  "document_number": "număr fișă" sau null,
+  "first_name": "prenume angajat",
+  "last_name": "nume angajat",
+  "cnp": "CNP",
+  "job_position": "funcția",
+  "training_date": "YYYY-MM-DD data instruirii",
+  "trainer_name": "numele persoanei care a efectuat instruirea",
+  "duration_hours": număr ore sau null,
+  "company_name": "denumirea firmei"
+}`,
+
+    ssm_periodic: `Extrage din această fișă de instruire SSM periodică:
+{
+  "document_number": "număr fișă" sau null,
+  "first_name": "prenume angajat",
+  "last_name": "nume angajat",
+  "cnp": "CNP",
+  "job_position": "funcția",
+  "training_date": "YYYY-MM-DD data instruirii",
+  "expiry_date": "YYYY-MM-DD următoarea instruire (6 luni de la training_date)",
+  "trainer_name": "numele persoanei care a efectuat instruirea",
+  "topics": ["teme abordate"] sau null,
+  "company_name": "denumirea firmei"
+}`,
+
+    psi_instruire: `Extrage din această fișă de instruire PSI:
+{
+  "document_number": "număr fișă" sau null,
+  "first_name": "prenume angajat",
+  "last_name": "nume angajat",
+  "cnp": "CNP",
+  "job_position": "funcția",
+  "training_date": "YYYY-MM-DD data instruirii",
+  "expiry_date": "YYYY-MM-DD următoarea instruire",
+  "trainer_name": "numele persoanei care a efectuat instruirea",
+  "company_name": "denumirea firmei"
+}`,
+
+    licenta_transport: `Extrage din această copie conformă / licență de transport:
+{
+  "document_number": "număr licență/copie conformă",
+  "company_name": "denumirea firmei titulare",
+  "company_cui": "CUI firmă",
+  "transport_type": "marfă sau persoane",
+  "vehicle_registration": "număr înmatriculare vehicul" sau null,
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "expiry_date": "YYYY-MM-DD data expirării",
+  "issuing_authority": "autoritatea emitentă (ARR)"
+}`,
+
+    certificat_adr: `Extrage din acest certificat ADR:
+{
+  "document_number": "număr certificat",
+  "first_name": "prenume",
+  "last_name": "nume",
+  "birth_date": "YYYY-MM-DD",
+  "adr_classes": ["clasele ADR: 1, 2, 3, 4.1, 4.2, 4.3, 5.1, 5.2, 6.1, 6.2, 7, 8, 9"] sau [],
+  "specializations": ["cisterne, explozivi, radioactive"] sau [],
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "expiry_date": "YYYY-MM-DD data expirării",
+  "issuing_country": "țara emitentă",
+  "issuing_authority": "autoritatea emitentă"
+}`,
+
+    certificat_frigo: `Extrage din acest certificat ATP/FRIGO:
+{
+  "document_number": "număr certificat",
+  "vehicle_registration": "număr înmatriculare vehicul",
+  "vehicle_type": "tip vehicul (semiremorcă, camion, etc.)",
+  "atp_class": "clasa ATP (FRC, FNA, etc.)",
+  "temperature_range": "interval temperatură (ex: -20°C la +12°C)",
+  "issue_date": "YYYY-MM-DD data eliberării",
+  "expiry_date": "YYYY-MM-DD data expirării",
+  "issuing_authority": "autoritatea emitentă (RAR)"
+}`,
+
     default: `Extrage informațiile relevante:
 {
   "document_number": "număr document dacă există",
