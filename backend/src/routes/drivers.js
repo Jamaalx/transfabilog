@@ -319,4 +319,188 @@ router.get('/:id/documents', param('id').isUUID(), async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/v1/drivers/:id/document-status
+ * Get comprehensive document status for a driver with alerts and missing documents
+ */
+router.get('/:id/document-status', param('id').isUUID(), async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const {
+      DRIVER_DOCUMENT_TYPES,
+      getDriverDocumentStatus,
+      getDocumentTypesByCategory,
+    } = require('../config/driverDocumentTypes');
+
+    // Get driver with profile flags
+    const { data: driver, error: driverError } = await supabase
+      .from('drivers')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('company_id', req.companyId)
+      .single();
+
+    if (driverError || !driver) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Driver not found',
+      });
+    }
+
+    // Get driver documents
+    const { data: documents, error: docError } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('entity_type', 'driver')
+      .eq('entity_id', req.params.id)
+      .order('created_at', { ascending: false });
+
+    if (docError) throw docError;
+
+    // Build driver profile for conditional requirements
+    const driverProfile = {
+      hasInternationalRoutes: driver.has_international_routes || false,
+      hasADR: driver.has_adr || false,
+      hasFrigo: driver.has_frigo || false,
+    };
+
+    // Get document status with alerts
+    const status = getDriverDocumentStatus(documents || [], driverProfile);
+
+    res.json({
+      driver: {
+        id: driver.id,
+        name: `${driver.first_name} ${driver.last_name}`,
+        status: driver.status,
+      },
+      documentStatus: status,
+      documentTypes: DRIVER_DOCUMENT_TYPES,
+      documentCategories: getDocumentTypesByCategory(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/drivers/document-types
+ * Get all available driver document types with configuration
+ */
+router.get('/document-types/list', async (req, res, next) => {
+  try {
+    const {
+      getDocumentTypesForSelect,
+      getDocumentTypesByCategory,
+    } = require('../config/driverDocumentTypes');
+
+    res.json({
+      types: getDocumentTypesForSelect(),
+      categories: getDocumentTypesByCategory(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/v1/drivers/alerts
+ * Get document alerts for all drivers in the company
+ */
+router.get('/alerts/all', async (req, res, next) => {
+  try {
+    const {
+      DRIVER_DOCUMENT_TYPES,
+      calculateDaysUntilExpiry,
+      getAlertStatus,
+    } = require('../config/driverDocumentTypes');
+
+    // Get all drivers
+    const { data: drivers, error: driversError } = await supabase
+      .from('drivers')
+      .select('id, first_name, last_name, status')
+      .eq('company_id', req.companyId)
+      .eq('status', 'activ');
+
+    if (driversError) throw driversError;
+
+    // Get all documents for active drivers
+    const driverIds = drivers.map(d => d.id);
+
+    const { data: allDocuments, error: docError } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('entity_type', 'driver')
+      .in('entity_id', driverIds);
+
+    if (docError) throw docError;
+
+    // Build alerts grouped by driver
+    const alerts = [];
+    const summary = {
+      totalDrivers: drivers.length,
+      driversWithAlerts: 0,
+      expired: 0,
+      critical: 0,
+      urgent: 0,
+      warning: 0,
+    };
+
+    for (const driver of drivers) {
+      const driverDocs = allDocuments.filter(d => d.entity_id === driver.id);
+      const driverAlerts = [];
+
+      for (const doc of driverDocs) {
+        const config = DRIVER_DOCUMENT_TYPES[doc.doc_type];
+        if (!config) continue;
+
+        const daysUntilExpiry = calculateDaysUntilExpiry(doc.expiry_date);
+        const alertStatus = getAlertStatus(daysUntilExpiry, config);
+
+        if (alertStatus.priority > 0) {
+          driverAlerts.push({
+            documentId: doc.id,
+            documentType: doc.doc_type,
+            documentName: config.name,
+            expiryDate: doc.expiry_date,
+            daysUntilExpiry,
+            ...alertStatus,
+          });
+
+          // Update summary
+          if (alertStatus.status === 'expired') summary.expired++;
+          else if (alertStatus.status === 'critical') summary.critical++;
+          else if (alertStatus.status === 'urgent') summary.urgent++;
+          else if (alertStatus.status === 'warning') summary.warning++;
+        }
+      }
+
+      if (driverAlerts.length > 0) {
+        summary.driversWithAlerts++;
+        alerts.push({
+          driver: {
+            id: driver.id,
+            name: `${driver.first_name} ${driver.last_name}`,
+          },
+          alerts: driverAlerts.sort((a, b) => b.priority - a.priority),
+          highestPriority: Math.max(...driverAlerts.map(a => a.priority)),
+        });
+      }
+    }
+
+    // Sort by highest priority
+    alerts.sort((a, b) => b.highestPriority - a.highestPriority);
+
+    res.json({
+      summary,
+      alerts,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
