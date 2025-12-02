@@ -321,74 +321,93 @@ Returnează DOAR JSON valid.`;
   "transport_date": "YYYY-MM-DD data transportului" sau null
 }
 IMPORTANT: Caută numărul de înmatriculare al vehiculului - poate apărea în descrierea serviciilor, în detalii transport, sau în referințe.`,
-    extras_bancar: `Extrage din acest extras bancar toate tranzacțiile individuale.
+    extras_bancar: `Extrage din acest extras bancar românesc toate tranzacțiile individuale.
 FOARTE IMPORTANT: Acest extras poate avea MULTE PAGINI (1-50+). Trebuie să extragi TOATE tranzacțiile din TOATE paginile!
 
+FORMAT EXTRAS BANCAR ROMÂNESC (Banca Transilvania, BRD, BCR, ING, Raiffeisen, etc.):
+- Tabel cu coloane: Data | Descriere | Debit | Credit
+- DEBIT = bani ieșiți din cont (plăți) - valori POZITIVE în coloana Debit
+- CREDIT = bani intrați în cont (încasări) - valori POZITIVE în coloana Credit
+- Dacă vezi valori NEGATIVE în coloana Debit (ex: -16.00), acestea sunt de fapt STORNĂRI/RETURNĂRI = credit
+- "SOLD ANTERIOR" sau "SOLD INITIAL" = opening_balance
+- "SOLD FINAL" sau "SOLD CURENT" = closing_balance
+- "RULAJ ZI" = totaluri pe zi (ignoră, nu sunt tranzacții individuale)
+
+Extrage și informațiile despre titular din antet:
+- Nume companie (ex: "TRANSFABI LOG SRL")
+- CUI companie (ex: "22366003")
+- IBAN cont (ex: "RO90BTRLRONCRT0CN8810801")
+
 {
-  "document_date": "YYYY-MM-DD",
-  "bank_name": "nume bancă",
-  "account_number": "IBAN",
+  "document_date": "YYYY-MM-DD (data generării extrasului)",
+  "document_number": "numărul extrasului dacă există",
+  "bank_name": "nume bancă (BANCA TRANSILVANIA, BRD, BCR, etc.)",
+  "account_holder": "numele companiei titulare a contului",
+  "account_holder_cui": "CUI-ul companiei titulare",
+  "account_number": "IBAN complet",
   "period_start": "YYYY-MM-DD",
   "period_end": "YYYY-MM-DD",
-  "opening_balance": număr,
-  "closing_balance": număr,
-  "total_income": număr total intrări,
-  "total_expenses": număr total ieșiri/plăți,
+  "opening_balance": număr (SOLD ANTERIOR/INITIAL),
+  "closing_balance": număr (SOLD FINAL),
   "currency": "RON|EUR",
   "transactions": [
     {
       "date": "YYYY-MM-DD",
       "type": "credit" sau "debit",
-      "amount": număr pozitiv,
-      "description": "descrierea tranzacției",
-      "reference": "referință/număr document dacă există",
-      "counterparty": "nume plătitor sau beneficiar",
-      "counterparty_iban": "IBAN contrapartidă dacă apare",
+      "amount": număr pozitiv (valoarea absolută),
+      "description": "descrierea completă a tranzacției",
+      "reference": "REF: xxx dacă există",
+      "counterparty": "numele beneficiarului sau plătitorului",
+      "counterparty_iban": "IBAN contrapartidă dacă apare în descriere",
       "ai_category": "categoria sugerată",
       "ai_category_confidence": număr între 0 și 1
     }
   ]
 }
 
-CATEGORII DISPONIBILE PENTRU TRANSPORT (ai_category):
-Pentru DEBIT (plăți/cheltuieli):
-- "combustibil" - diesel, benzină, AdBlue, alimentări la benzinării
-- "taxa_drum" - roviniete, vignete, taxe de pod, taxe autostradă, GO-Box, HU-GO, Toll
-- "parcare" - parcări, parking, TIR parking
-- "amenzi" - amenzi rutiere, penalități, sancțiuni
-- "reparatii" - service, piese auto, mentenanță, vulcanizare, ITP
-- "asigurare" - RCA, CASCO, CMR, asigurări
-- "diurna" - diurnă șoferi, avansuri șoferi
-- "salariu" - salarii, plăți angajați
-- "furnizori" - plăți către furnizori, factură
-- "leasing" - rate leasing, rate mașini
-- "utilitati" - curent, gaz, apă, telefon, internet
-- "chirie" - chirii, arendă
-- "taxe_stat" - impozite, taxe, contribuții ANAF
-- "bancar" - comisioane bancare, dobânzi
-- "altele" - alte plăți neîncadrate
+REGULI PENTRU PARSARE:
+1. Fiecare rând cu dată reprezintă o tranzacție
+2. Dacă valoarea e în coloana Debit (sau apare fără semn/cu semn pozitiv în stânga) = type: "debit"
+3. Dacă valoarea e în coloana Credit (sau apare în dreapta) = type: "credit"
+4. Dacă vezi valori NEGATIVE în Debit (ex: -16.00) = type: "credit" (stornare)
+5. NU include rândurile "RULAJ ZI", "SOLD FINAL ZI" - acestea NU sunt tranzacții
+6. Extrage REF: din descriere ca reference
+7. Extrage numele companiei/persoanei din descriere ca counterparty
 
-Pentru CREDIT (încasări):
-- "incasare_client" - plăți de la clienți, încasări facturi
-- "rambursare" - rambursări, returnări
-- "dobanda" - dobânzi încasate
+CATEGORII PENTRU DEBIT (plăți):
+- "combustibil" - SHELL, OMV, MOL, PETROM, benzinărie
+- "taxa_drum" - roviniete, vignete, HU-GO, GO-BOX, Toll
+- "parcare" - parking, parcare
+- "amenzi" - amendă, poliție, sancțiune
+- "reparatii" - service, piese, vulcanizare, ITP
+- "asigurare" - RCA, CASCO, asigurare
+- "diurna" - diurnă, avans șofer
+- "salariu" - salariu, plată angajat
+- "furnizori" - plată factură, furnizor
+- "leasing" - leasing, rată
+- "utilitati" - curent, gaz, telefon, internet
+- "chirie" - chirie
+- "taxe_stat" - impozit, ANAF, contribuții
+- "bancar" - comision, dobândă bancară, Pachet IZI, comision ATM, comision procesare
+- "numerar" - retragere numerar, ATM
+- "transfer_intern" - transfer între conturi proprii
+- "altele" - alte plăți
+
+CATEGORII PENTRU CREDIT (încasări):
+- "incasare_client" - plată de la client, încasare
+- "schimb_valutar" - schimb valutar
+- "transfer_intern" - transfer între conturi proprii
+- "rambursare" - stornare, rambursare
 - "altele" - alte încasări
 
-REGULI IMPORTANTE:
-1. "credit" = intrări/încasări în cont (bani primiți) - SUNT VENITURI
-2. "debit" = ieșiri/plăți din cont (bani plătiți) - SUNT CHELTUIELI
-3. Extrage TOATE tranzacțiile individuale din TOATE paginile documentului
-4. amount trebuie să fie întotdeauna POZITIV
-5. counterparty = cine a plătit (pentru credit) sau cui s-a plătit (pentru debit)
-6. Analizează descrierea și beneficiarul pentru a determina categoria corectă
-7. Setează ai_category_confidence mai mare dacă ești sigur de categorie
-
-EXEMPLE DE CATEGORISARE:
-- "SHELL", "OMV", "MOL", "PETROM" → combustibil
-- "HU-GO", "GO-BOX", "VIGNETA", "A4" → taxa_drum
-- "PARKING", "PARCARE" → parcare
-- "POLITIA", "AMENDA" → amenzi
-- "SERVICE", "PIESE", "VULCANIZARE" → reparatii`,
+EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
+- "Retragere de numerar de la ATM BT" cu 4,000.00 în Debit → type: "debit", category: "numerar"
+- "Comision procesare ridicare numerar" cu 16.00 în Debit → type: "debit", category: "bancar"
+- "Comision retragere ATM" cu -16.00 în Debit → type: "credit", category: "bancar" (stornare!)
+- "Transfer intern - canal electronic" în Credit → type: "credit", category: "transfer_intern"
+- "Plata OP intra - canal electronic" cu beneficiar CABINET AVOCATURA → type: "debit", category: "furnizori"
+- "Schimb valutar - canal electronic" în Credit → type: "credit", category: "schimb_valutar"
+- "Pachet IZI Nelimitat All Inclusive" → type: "debit", category: "bancar"`,
     bon_fiscal: `Extrage din acest bon fiscal:
 {
   "document_number": "număr bon",

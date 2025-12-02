@@ -651,115 +651,222 @@ export default function DocumentValidationPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Document Number */}
-            <div>
-              <label className="text-sm font-medium flex items-center gap-2">
-                <Hash className="h-4 w-4" /> Numar Document
-              </label>
-              {editMode ? (
-                <Input
-                  value={formData.document_number || ''}
-                  onChange={(e) => handleInputChange('document_number', e.target.value)}
-                  placeholder="Ex: FV-001234"
-                  className="mt-1"
-                />
-              ) : (
-                <p className="mt-1 p-2 bg-muted/50 rounded">{formData.document_number || '-'}</p>
-              )}
-            </div>
+            {/* Bank Statement specific fields */}
+            {isBankStatement ? (
+              <>
+                {/* Bank and Account Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Building className="h-4 w-4" /> Banca
+                    </label>
+                    <p className="mt-1 p-2 bg-muted/50 rounded">
+                      {extractedData?.bank_name || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Hash className="h-4 w-4" /> Nr. Extras
+                    </label>
+                    <p className="mt-1 p-2 bg-muted/50 rounded">
+                      {extractedData?.document_number || formData.document_number || '-'}
+                    </p>
+                  </div>
+                </div>
 
-            {/* Document Date */}
-            <div>
-              <label className="text-sm font-medium flex items-center gap-2">
-                <Calendar className="h-4 w-4" /> Data Document
-              </label>
-              {editMode ? (
-                <Input
-                  type="date"
-                  value={formData.document_date || ''}
-                  onChange={(e) => handleInputChange('document_date', e.target.value)}
-                  className="mt-1"
-                />
-              ) : (
-                <p className="mt-1 p-2 bg-muted/50 rounded">
-                  {formData.document_date ? new Date(formData.document_date).toLocaleDateString('ro-RO') : '-'}
-                </p>
-              )}
-            </div>
+                {/* Account Holder */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Building className="h-4 w-4" /> Titular Cont
+                    </label>
+                    <p className="mt-1 p-2 bg-muted/50 rounded">
+                      {extractedData?.account_holder || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">CUI Titular</label>
+                    <p className="mt-1 p-2 bg-muted/50 rounded">
+                      {extractedData?.account_holder_cui || '-'}
+                    </p>
+                  </div>
+                </div>
 
-            {/* Amount */}
-            <div className="grid grid-cols-2 gap-4">
+                {/* IBAN */}
+                <div>
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <CreditCard className="h-4 w-4" /> IBAN Cont
+                  </label>
+                  <p className="mt-1 p-2 bg-muted/50 rounded font-mono text-sm">
+                    {extractedData?.account_number || '-'}
+                  </p>
+                </div>
+
+                {/* Period */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4" /> Perioada
+                    </label>
+                    <p className="mt-1 p-2 bg-muted/50 rounded">
+                      {extractedData?.period_start && extractedData?.period_end
+                        ? `${new Date(extractedData.period_start).toLocaleDateString('ro-RO')} - ${new Date(extractedData.period_end).toLocaleDateString('ro-RO')}`
+                        : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Moneda</label>
+                    <p className="mt-1 p-2 bg-muted/50 rounded">{formData.currency || 'RON'}</p>
+                  </div>
+                </div>
+
+                {/* Balances */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" /> Sold Inițial
+                    </label>
+                    <p className="mt-1 p-2 bg-muted/50 rounded">
+                      {extractedData?.opening_balance?.toLocaleString('ro-RO') || '-'} {formData.currency}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" /> Sold Final
+                    </label>
+                    <p className="mt-1 p-2 bg-muted/50 rounded">
+                      {extractedData?.closing_balance?.toLocaleString('ro-RO') || '-'} {formData.currency}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Transaction counts */}
+                {bankTransactions.length > 0 && (
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>{bankTransactions.length}</strong> tranzacții extrase: {' '}
+                      <span className="text-green-600">{creditTransactions.length} încasări</span>, {' '}
+                      <span className="text-red-600">{debitTransactions.length} plăți</span>
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              /* Document Number - for non-bank statements */
               <div>
                 <label className="text-sm font-medium flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" /> Suma
+                  <Hash className="h-4 w-4" /> Numar Document
                 </label>
                 {editMode ? (
                   <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.amount || ''}
-                    onChange={(e) => handleInputChange('amount', parseFloat(e.target.value))}
-                    placeholder="0.00"
+                    value={formData.document_number || ''}
+                    onChange={(e) => handleInputChange('document_number', e.target.value)}
+                    placeholder="Ex: FV-001234"
                     className="mt-1"
                   />
                 ) : (
-                  <p className="mt-1 p-2 bg-muted/50 rounded">
-                    {formData.amount ? formData.amount.toLocaleString() : '-'}
-                  </p>
+                  <p className="mt-1 p-2 bg-muted/50 rounded">{formData.document_number || '-'}</p>
                 )}
               </div>
-              <div>
-                <label className="text-sm font-medium">Moneda</label>
-                {editMode ? (
-                  <select
-                    value={formData.currency || 'EUR'}
-                    onChange={(e) => handleInputChange('currency', e.target.value)}
-                    className="mt-1 w-full p-2 border rounded-md"
-                  >
-                    <option value="EUR">EUR</option>
-                    <option value="RON">RON</option>
-                    <option value="USD">USD</option>
-                  </select>
-                ) : (
-                  <p className="mt-1 p-2 bg-muted/50 rounded">{formData.currency || 'EUR'}</p>
-                )}
-              </div>
-            </div>
+            )}
 
-            {/* Supplier/Client - dynamic based on document type */}
-            <div>
-              <label className="text-sm font-medium flex items-center gap-2">
-                <Building className="h-4 w-4" />
-                {document.document_type === 'factura_iesire' ? 'Client' : 'Furnizor'}
-              </label>
-              {editMode ? (
-                <Input
-                  value={formData.supplier_name || ''}
-                  onChange={(e) => handleInputChange('supplier_name', e.target.value)}
-                  placeholder={document.document_type === 'factura_iesire' ? 'Nume client' : 'Nume furnizor'}
-                  className="mt-1"
-                />
-              ) : (
-                <p className="mt-1 p-2 bg-muted/50 rounded">{formData.supplier_name || '-'}</p>
-              )}
-            </div>
+            {/* These fields only show for non-bank statements */}
+            {!isBankStatement && (
+              <>
+                {/* Document Date */}
+                <div>
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Calendar className="h-4 w-4" /> Data Document
+                  </label>
+                  {editMode ? (
+                    <Input
+                      type="date"
+                      value={formData.document_date || ''}
+                      onChange={(e) => handleInputChange('document_date', e.target.value)}
+                      className="mt-1"
+                    />
+                  ) : (
+                    <p className="mt-1 p-2 bg-muted/50 rounded">
+                      {formData.document_date ? new Date(formData.document_date).toLocaleDateString('ro-RO') : '-'}
+                    </p>
+                  )}
+                </div>
 
-            {/* CUI - dynamic label */}
-            <div>
-              <label className="text-sm font-medium">
-                {document.document_type === 'factura_iesire' ? 'CUI Client' : 'CUI Furnizor'}
-              </label>
-              {editMode ? (
-                <Input
-                  value={formData.supplier_cui || ''}
-                  onChange={(e) => handleInputChange('supplier_cui', e.target.value)}
-                  placeholder="RO12345678"
-                  className="mt-1"
-                />
-              ) : (
-                <p className="mt-1 p-2 bg-muted/50 rounded">{formData.supplier_cui || '-'}</p>
-              )}
-            </div>
+                {/* Amount */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" /> Suma
+                    </label>
+                    {editMode ? (
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.amount || ''}
+                        onChange={(e) => handleInputChange('amount', parseFloat(e.target.value))}
+                        placeholder="0.00"
+                        className="mt-1"
+                      />
+                    ) : (
+                      <p className="mt-1 p-2 bg-muted/50 rounded">
+                        {formData.amount ? formData.amount.toLocaleString() : '-'}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Moneda</label>
+                    {editMode ? (
+                      <select
+                        value={formData.currency || 'EUR'}
+                        onChange={(e) => handleInputChange('currency', e.target.value)}
+                        className="mt-1 w-full p-2 border rounded-md"
+                      >
+                        <option value="EUR">EUR</option>
+                        <option value="RON">RON</option>
+                        <option value="USD">USD</option>
+                      </select>
+                    ) : (
+                      <p className="mt-1 p-2 bg-muted/50 rounded">{formData.currency || 'EUR'}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Supplier/Client - dynamic based on document type */}
+                <div>
+                  <label className="text-sm font-medium flex items-center gap-2">
+                    <Building className="h-4 w-4" />
+                    {document.document_type === 'factura_iesire' ? 'Client' : 'Furnizor'}
+                  </label>
+                  {editMode ? (
+                    <Input
+                      value={formData.supplier_name || ''}
+                      onChange={(e) => handleInputChange('supplier_name', e.target.value)}
+                      placeholder={document.document_type === 'factura_iesire' ? 'Nume client' : 'Nume furnizor'}
+                      className="mt-1"
+                    />
+                  ) : (
+                    <p className="mt-1 p-2 bg-muted/50 rounded">{formData.supplier_name || '-'}</p>
+                  )}
+                </div>
+
+                {/* CUI - dynamic label */}
+                <div>
+                  <label className="text-sm font-medium">
+                    {document.document_type === 'factura_iesire' ? 'CUI Client' : 'CUI Furnizor'}
+                  </label>
+                  {editMode ? (
+                    <Input
+                      value={formData.supplier_cui || ''}
+                      onChange={(e) => handleInputChange('supplier_cui', e.target.value)}
+                      placeholder="RO12345678"
+                      className="mt-1"
+                    />
+                  ) : (
+                    <p className="mt-1 p-2 bg-muted/50 rounded">{formData.supplier_cui || '-'}</p>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Vehicle/Truck - show for factura_iesire even if no auto-match */}
             {(formData.truck_registration || extractedData.vehicle_number || extractedData.truck_registration || document.truck) && (
