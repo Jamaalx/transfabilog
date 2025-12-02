@@ -38,12 +38,20 @@ async function processBankStatement(documentId, companyId, userId) {
     const processedPayments = [];
     let matchedCount = 0;
 
+    // Use the document's truck_id if set (for "per_camion" type bank statements)
+    const documentTruckId = doc.truck_id;
+
     for (const tx of extractedData.transactions) {
       // Try to match invoice
       const matchedInvoice = await matchTransactionToInvoice(tx, invoices, clients);
 
       // Try to match truck (for expenses)
-      const matchedTruck = await matchTransactionToTruck(tx, trucks);
+      // Use document's truck_id first, then fall back to auto-matching by registration number
+      let truckId = documentTruckId;
+      if (!truckId) {
+        const matchedTruck = await matchTransactionToTruck(tx, trucks);
+        truckId = matchedTruck?.id || null;
+      }
 
       const payment = {
         company_id: companyId,
@@ -59,13 +67,13 @@ async function processBankStatement(documentId, companyId, userId) {
         ai_suggested_category: tx.ai_category,
         expense_category: tx.ai_category,
         matched_invoice_id: matchedInvoice?.id || null,
-        truck_id: matchedTruck?.id || null,
-        status: matchedInvoice || matchedTruck ? 'matched' : 'pending',
+        truck_id: truckId,
+        status: matchedInvoice || truckId ? 'matched' : 'pending',
         processed_by: userId,
         processed_at: new Date().toISOString(),
       };
 
-      if (matchedInvoice || matchedTruck) {
+      if (matchedInvoice || truckId) {
         matchedCount++;
       }
 
