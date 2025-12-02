@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/use-toast'
 import { formatDate, formatCurrency } from '@/lib/utils'
-import { Plus, MapPin, ArrowRight, Calendar, Truck, User, X, ChevronDown, ChevronUp, Package } from 'lucide-react'
+import { Plus, MapPin, ArrowRight, Calendar, Truck, User, X, ChevronDown, ChevronUp, Package, Edit2, Clock, Save } from 'lucide-react'
 
 type TripStop = {
   id?: string
@@ -26,11 +26,11 @@ type TripStop = {
 
 type TripData = {
   id: string
-  origin_city: string
-  origin_country: string
-  destination_city: string
-  destination_country: string
-  departure_date: string
+  origin_city?: string
+  origin_country?: string
+  destination_city?: string
+  destination_country?: string
+  departure_date?: string
   estimated_arrival?: string
   actual_arrival?: string
   status: string
@@ -48,6 +48,8 @@ type TripData = {
   km_start?: number
   km_end?: number
   total_km?: number
+  last_modified_at?: string
+  last_modified_by?: string
   driver?: { id: string; first_name: string; last_name: string }
   truck?: { id: string; registration_number: string }
   trailer?: { id: string; registration_number: string }
@@ -69,6 +71,7 @@ const STOP_TYPES = [
 
 export default function TripsPage() {
   const [showForm, setShowForm] = useState(false)
+  const [editingTrip, setEditingTrip] = useState<TripData | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [expandedTrip, setExpandedTrip] = useState<string | null>(null)
   const [stops, setStops] = useState<TripStop[]>([])
@@ -121,13 +124,34 @@ export default function TripsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] })
       setShowForm(false)
+      setEditingTrip(null)
       setStops([])
-      toast({ title: 'Succes', description: 'Cursa adaugata cu succes' })
+      toast({ title: 'Succes', description: 'Cursa salvata cu succes' })
     },
     onError: () => {
       toast({
         title: 'Eroare',
-        description: 'Nu s-a putut adauga cursa',
+        description: 'Nu s-a putut salva cursa',
+        variant: 'destructive',
+      })
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
+      return tripsApi.update(id, data)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trips'] })
+      setShowForm(false)
+      setEditingTrip(null)
+      setStops([])
+      toast({ title: 'Succes', description: 'Cursa actualizata cu succes' })
+    },
+    onError: () => {
+      toast({
+        title: 'Eroare',
+        description: 'Nu s-a putut actualiza cursa',
         variant: 'destructive',
       })
     },
@@ -169,25 +193,31 @@ export default function TripsPage() {
 
   const removeStop = (index: number) => {
     const newStops = stops.filter((_, i) => i !== index)
-    // Update sequence numbers
     newStops.forEach((stop, i) => {
       stop.sequence = i + 1
     })
     setStops(newStops)
   }
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleEdit = (trip: TripData) => {
+    setEditingTrip(trip)
+    setStops(trip.stops || [])
+    setShowForm(true)
+  }
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>, saveAsDraft: boolean = true) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
-    const data = {
-      driver_id: formData.get('driver_id'),
-      truck_id: formData.get('truck_id'),
+
+    const data: Record<string, unknown> = {
+      driver_id: formData.get('driver_id') || undefined,
+      truck_id: formData.get('truck_id') || undefined,
       trailer_id: formData.get('trailer_id') || undefined,
-      origin_country: formData.get('origin_country'),
-      origin_city: formData.get('origin_city'),
-      destination_country: formData.get('destination_country'),
-      destination_city: formData.get('destination_city'),
-      departure_date: formData.get('departure_date'),
+      origin_country: formData.get('origin_country') || undefined,
+      origin_city: formData.get('origin_city') || undefined,
+      destination_country: formData.get('destination_country') || undefined,
+      destination_city: formData.get('destination_city') || undefined,
+      departure_date: formData.get('departure_date') || undefined,
       estimated_arrival: formData.get('estimated_arrival') || undefined,
       cargo_type: formData.get('cargo_type') || undefined,
       client_id: formData.get('client_id') || undefined,
@@ -199,9 +229,14 @@ export default function TripsPage() {
       cash_expenses: formData.get('cash_expenses') ? Number(formData.get('cash_expenses')) : undefined,
       cash_expenses_currency: formData.get('cash_expenses_currency') || 'EUR',
       expense_report_number: formData.get('expense_report_number') || undefined,
+      status: saveAsDraft ? 'draft' : 'planificat',
     }
 
-    createMutation.mutate(data)
+    if (editingTrip) {
+      updateMutation.mutate({ id: editingTrip.id, data })
+    } else {
+      createMutation.mutate(data)
+    }
   }
 
   const trips = tripsData?.data || []
@@ -212,6 +247,8 @@ export default function TripsPage() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'draft':
+        return 'bg-orange-100 text-orange-700 border border-orange-300'
       case 'planificat':
         return 'bg-gray-100 text-gray-700'
       case 'in_progress':
@@ -222,6 +259,23 @@ export default function TripsPage() {
         return 'bg-red-100 text-red-700'
       default:
         return 'bg-gray-100 text-gray-700'
+    }
+  }
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'draft':
+        return 'Ciorna'
+      case 'planificat':
+        return 'Planificat'
+      case 'in_progress':
+        return 'In progres'
+      case 'finalizat':
+        return 'Finalizat'
+      case 'anulat':
+        return 'Anulat'
+      default:
+        return status
     }
   }
 
@@ -247,7 +301,7 @@ export default function TripsPage() {
           <h1 className="text-3xl font-bold">Curse</h1>
           <p className="text-muted-foreground">Gestioneaza cursele de transport</p>
         </div>
-        <Button onClick={() => setShowForm(true)}>
+        <Button onClick={() => { setShowForm(true); setEditingTrip(null); setStops([]); }}>
           <Plus className="h-4 w-4 mr-2" />
           Adauga Cursa
         </Button>
@@ -261,6 +315,7 @@ export default function TripsPage() {
           className="border rounded-md px-3 py-2 text-sm"
         >
           <option value="">Toate statusurile</option>
+          <option value="draft">Ciorne</option>
           <option value="planificat">Planificat</option>
           <option value="in_progress">In progres</option>
           <option value="finalizat">Finalizat</option>
@@ -268,23 +323,32 @@ export default function TripsPage() {
         </select>
       </div>
 
-      {/* Add Form */}
+      {/* Add/Edit Form */}
       {showForm && (
-        <Card>
+        <Card className={editingTrip?.status === 'draft' ? 'border-orange-300' : ''}>
           <CardHeader>
-            <CardTitle>Adauga Cursa Noua</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              {editingTrip ? (
+                <>
+                  <Edit2 className="h-5 w-5" />
+                  Editeaza Cursa {editingTrip.status === 'draft' && <span className="text-sm font-normal text-orange-600">(Ciorna)</span>}
+                </>
+              ) : (
+                'Adauga Cursa Noua'
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={(e) => handleSubmit(e, true)} className="space-y-4">
               {/* Driver, Truck, Trailer */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="driver_id">Sofer *</Label>
+                  <Label htmlFor="driver_id">Sofer</Label>
                   <select
                     id="driver_id"
                     name="driver_id"
                     className="w-full border rounded-md px-3 py-2 text-sm"
-                    required
+                    defaultValue={editingTrip?.driver?.id || ''}
                   >
                     <option value="">Selecteaza sofer</option>
                     {drivers.map((driver: DriverOption) => (
@@ -295,12 +359,12 @@ export default function TripsPage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="truck_id">Camion *</Label>
+                  <Label htmlFor="truck_id">Camion</Label>
                   <select
                     id="truck_id"
                     name="truck_id"
                     className="w-full border rounded-md px-3 py-2 text-sm"
-                    required
+                    defaultValue={editingTrip?.truck?.id || ''}
                   >
                     <option value="">Selecteaza camion</option>
                     {trucks.map((truck: TruckOption) => (
@@ -316,6 +380,7 @@ export default function TripsPage() {
                     id="trailer_id"
                     name="trailer_id"
                     className="w-full border rounded-md px-3 py-2 text-sm"
+                    defaultValue={editingTrip?.trailer?.id || ''}
                   >
                     <option value="">Fara remorca</option>
                     {trailers.map((trailer: TrailerOption) => (
@@ -330,39 +395,39 @@ export default function TripsPage() {
               {/* Origin and Destination */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="origin_country">Tara Plecare *</Label>
+                  <Label htmlFor="origin_country">Tara Plecare</Label>
                   <Input
                     id="origin_country"
                     name="origin_country"
                     placeholder="Romania"
-                    required
+                    defaultValue={editingTrip?.origin_country || ''}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="origin_city">Oras Plecare *</Label>
+                  <Label htmlFor="origin_city">Oras Plecare</Label>
                   <Input
                     id="origin_city"
                     name="origin_city"
                     placeholder="Bucuresti"
-                    required
+                    defaultValue={editingTrip?.origin_city || ''}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="destination_country">Tara Destinatie *</Label>
+                  <Label htmlFor="destination_country">Tara Destinatie</Label>
                   <Input
                     id="destination_country"
                     name="destination_country"
                     placeholder="Germania"
-                    required
+                    defaultValue={editingTrip?.destination_country || ''}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="destination_city">Oras Destinatie *</Label>
+                  <Label htmlFor="destination_city">Oras Destinatie</Label>
                   <Input
                     id="destination_city"
                     name="destination_city"
                     placeholder="Berlin"
-                    required
+                    defaultValue={editingTrip?.destination_city || ''}
                   />
                 </div>
               </div>
@@ -370,12 +435,12 @@ export default function TripsPage() {
               {/* Dates, Cargo, Client */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="departure_date">Data Plecare *</Label>
+                  <Label htmlFor="departure_date">Data Plecare</Label>
                   <Input
                     id="departure_date"
                     name="departure_date"
                     type="datetime-local"
-                    required
+                    defaultValue={editingTrip?.departure_date ? editingTrip.departure_date.slice(0, 16) : ''}
                   />
                 </div>
                 <div className="space-y-2">
@@ -384,6 +449,7 @@ export default function TripsPage() {
                     id="estimated_arrival"
                     name="estimated_arrival"
                     type="datetime-local"
+                    defaultValue={editingTrip?.estimated_arrival ? editingTrip.estimated_arrival.slice(0, 16) : ''}
                   />
                 </div>
                 <div className="space-y-2">
@@ -392,6 +458,7 @@ export default function TripsPage() {
                     id="cargo_type"
                     name="cargo_type"
                     placeholder="General, ADR, etc."
+                    defaultValue={editingTrip?.cargo_type || ''}
                   />
                 </div>
                 <div className="space-y-2">
@@ -400,6 +467,7 @@ export default function TripsPage() {
                     id="client_id"
                     name="client_id"
                     className="w-full border rounded-md px-3 py-2 text-sm"
+                    defaultValue={editingTrip?.client_id || ''}
                   >
                     <option value="">Selecteaza client</option>
                     {clients.map((client: ClientOption) => (
@@ -421,6 +489,7 @@ export default function TripsPage() {
                     type="number"
                     step="0.01"
                     placeholder="0.00"
+                    defaultValue={editingTrip?.price || ''}
                   />
                 </div>
                 <div className="space-y-2">
@@ -429,7 +498,7 @@ export default function TripsPage() {
                     id="currency"
                     name="currency"
                     className="w-full border rounded-md px-3 py-2 text-sm"
-                    defaultValue="EUR"
+                    defaultValue={editingTrip?.currency || 'EUR'}
                   >
                     <option value="EUR">EUR</option>
                     <option value="RON">RON</option>
@@ -442,6 +511,7 @@ export default function TripsPage() {
                     id="client_name"
                     name="client_name"
                     placeholder="Sau scrie numele manual"
+                    defaultValue={editingTrip?.client_name || ''}
                   />
                 </div>
               </div>
@@ -543,11 +613,12 @@ export default function TripsPage() {
                         step="0.01"
                         placeholder="0.00"
                         className="flex-1"
+                        defaultValue={editingTrip?.diurna || ''}
                       />
                       <select
                         name="diurna_currency"
                         className="w-20 border rounded-md px-2 py-2 text-sm"
-                        defaultValue="EUR"
+                        defaultValue={editingTrip?.diurna_currency || 'EUR'}
                       >
                         <option value="EUR">EUR</option>
                         <option value="RON">RON</option>
@@ -564,11 +635,12 @@ export default function TripsPage() {
                         step="0.01"
                         placeholder="0.00"
                         className="flex-1"
+                        defaultValue={editingTrip?.cash_expenses || ''}
                       />
                       <select
                         name="cash_expenses_currency"
                         className="w-20 border rounded-md px-2 py-2 text-sm"
-                        defaultValue="EUR"
+                        defaultValue={editingTrip?.cash_expenses_currency || 'EUR'}
                       >
                         <option value="EUR">EUR</option>
                         <option value="RON">RON</option>
@@ -581,20 +653,42 @@ export default function TripsPage() {
                       id="expense_report_number"
                       name="expense_report_number"
                       placeholder="Ex: D-2025-001"
+                      defaultValue={editingTrip?.expense_report_number || ''}
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button type="submit" disabled={createMutation.isPending}>
-                  Adauga Cursa
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Salveaza Ciorna
                 </Button>
                 <Button
                   type="button"
-                  variant="outline"
+                  onClick={(e) => {
+                    const form = e.currentTarget.closest('form')
+                    if (form) {
+                      const formEvent = new Event('submit', { bubbles: true, cancelable: true })
+                      Object.defineProperty(formEvent, 'currentTarget', { value: form })
+                      handleSubmit(formEvent as unknown as React.FormEvent<HTMLFormElement>, false)
+                    }
+                  }}
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
+                  Salveaza si Planifica
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => {
                     setShowForm(false)
+                    setEditingTrip(null)
                     setStops([])
                   }}
                 >
@@ -614,7 +708,7 @@ export default function TripsPage() {
           <p className="text-muted-foreground">Nu exista curse inregistrate</p>
         ) : (
           trips.map((trip: TripData) => (
-            <Card key={trip.id}>
+            <Card key={trip.id} className={trip.status === 'draft' ? 'border-orange-200 bg-orange-50/30' : ''}>
               <CardContent className="p-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
@@ -622,31 +716,37 @@ export default function TripsPage() {
                       <MapPin className="h-5 w-5 text-muted-foreground" />
                       <div>
                         <p className="font-medium">
-                          {trip.origin_city}, {trip.origin_country}
+                          {trip.origin_city || '—'}{trip.origin_country ? `, ${trip.origin_country}` : ''}
                         </p>
                       </div>
                     </div>
                     <ArrowRight className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="font-medium">
-                        {trip.destination_city}, {trip.destination_country}
+                        {trip.destination_city || '—'}{trip.destination_country ? `, ${trip.destination_country}` : ''}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     {trip.stops && trip.stops.length > 0 && (
                       <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
                         {trip.stops.length} opriri
                       </span>
                     )}
-                    <span
-                      className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
-                        trip.status
-                      )}`}
-                    >
-                      {trip.status}
+                    <span className={`text-xs px-2 py-1 rounded-full ${getStatusColor(trip.status)}`}>
+                      {getStatusLabel(trip.status)}
                     </span>
+                    {(trip.status === 'draft' || trip.status === 'planificat') && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEdit(trip)}
+                        title="Editeaza"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -663,11 +763,13 @@ export default function TripsPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>{formatDate(trip.departure_date)}</span>
-                  </div>
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+                  {trip.departure_date && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span>{formatDate(trip.departure_date)}</span>
+                    </div>
+                  )}
                   {trip.driver && (
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
@@ -701,6 +803,14 @@ export default function TripsPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Last modified info for drafts */}
+                {trip.status === 'draft' && trip.last_modified_at && (
+                  <div className="mt-2 flex items-center gap-1 text-xs text-orange-600">
+                    <Clock className="h-3 w-3" />
+                    Ultima modificare: {formatDate(trip.last_modified_at)}
+                  </div>
+                )}
 
                 {/* Expanded details with stops */}
                 {expandedTrip === trip.id && (
@@ -774,6 +884,20 @@ export default function TripsPage() {
 
                 {/* Quick actions */}
                 <div className="mt-4 flex gap-2">
+                  {trip.status === 'draft' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        updateStatusMutation.mutate({
+                          id: trip.id,
+                          status: 'planificat',
+                        })
+                      }
+                    >
+                      Planifica
+                    </Button>
+                  )}
                   {trip.status === 'planificat' && (
                     <Button
                       size="sm"
@@ -802,8 +926,7 @@ export default function TripsPage() {
                       Finalizeaza Cursa
                     </Button>
                   )}
-                  {(trip.status === 'planificat' ||
-                    trip.status === 'in_progress') && (
+                  {(trip.status === 'draft' || trip.status === 'planificat' || trip.status === 'in_progress') && (
                     <Button
                       size="sm"
                       variant="outline"

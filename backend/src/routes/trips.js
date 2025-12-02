@@ -137,14 +137,16 @@ router.post(
   '/',
   authorize('admin', 'manager', 'operator'),
   [
-    body('driver_id').isUUID(),
-    body('truck_id').isUUID(),
+    // For draft mode, most fields are optional
+    body('driver_id').optional().isUUID(),
+    body('truck_id').optional().isUUID(),
     body('trailer_id').optional().isUUID(),
-    body('origin_country').isString().trim().notEmpty(),
-    body('origin_city').isString().trim().notEmpty(),
-    body('destination_country').isString().trim().notEmpty(),
-    body('destination_city').isString().trim().notEmpty(),
-    body('departure_date').isISO8601(),
+    body('client_id').optional().isUUID(),
+    body('origin_country').optional().isString().trim(),
+    body('origin_city').optional().isString().trim(),
+    body('destination_country').optional().isString().trim(),
+    body('destination_city').optional().isString().trim(),
+    body('departure_date').optional().isISO8601(),
     body('estimated_arrival').optional().isISO8601(),
     body('cargo_type').optional().isString().trim(),
     body('cargo_weight').optional().isFloat({ min: 0 }),
@@ -152,7 +154,7 @@ router.post(
     body('price').optional().isFloat({ min: 0 }),
     body('currency').optional().isIn(['EUR', 'RON', 'USD']).default('EUR'),
     body('notes').optional().isString().trim(),
-    body('status').optional().isIn(['planificat', 'in_progress', 'finalizat', 'anulat']).default('planificat'),
+    body('status').optional().isIn(['draft', 'planificat', 'in_progress', 'finalizat', 'anulat']).default('draft'),
     // New fields for driver expenses
     body('diurna').optional().isFloat({ min: 0 }),
     body('diurna_currency').optional().isIn(['EUR', 'RON', 'USD']).default('EUR'),
@@ -167,61 +169,81 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      // Verify driver belongs to company
-      const { data: driver, error: driverError } = await supabase
-        .from('drivers')
-        .select('id')
-        .eq('id', req.body.driver_id)
-        .eq('company_id', req.companyId)
-        .single();
+      const isDraft = req.body.status === 'draft' || !req.body.status;
 
-      if (driverError || !driver) {
-        return res.status(400).json({
-          error: 'Bad Request',
-          message: 'Invalid driver_id',
-        });
+      // Verify driver belongs to company (only if provided)
+      if (req.body.driver_id) {
+        const { data: driver, error: driverError } = await supabase
+          .from('drivers')
+          .select('id')
+          .eq('id', req.body.driver_id)
+          .eq('company_id', req.companyId)
+          .single();
+
+        if (driverError || !driver) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Invalid driver_id',
+          });
+        }
       }
 
-      // Verify truck belongs to company
-      const { data: truck, error: truckError } = await supabase
-        .from('truck_heads')
-        .select('id')
-        .eq('id', req.body.truck_id)
-        .eq('company_id', req.companyId)
-        .single();
+      // Verify truck belongs to company (only if provided)
+      if (req.body.truck_id) {
+        const { data: truck, error: truckError } = await supabase
+          .from('truck_heads')
+          .select('id')
+          .eq('id', req.body.truck_id)
+          .eq('company_id', req.companyId)
+          .single();
 
-      if (truckError || !truck) {
-        return res.status(400).json({
-          error: 'Bad Request',
-          message: 'Invalid truck_id',
-        });
+        if (truckError || !truck) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Invalid truck_id',
+          });
+        }
+      }
+
+      // For non-draft status, require essential fields
+      if (!isDraft) {
+        if (!req.body.driver_id || !req.body.truck_id || !req.body.origin_city || !req.body.destination_city || !req.body.departure_date) {
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: 'Pentru statusul planificat, completează: șofer, camion, oraș plecare, oraș destinație, dată plecare',
+          });
+        }
       }
 
       const tripData = {
         company_id: req.companyId,
-        driver_id: req.body.driver_id,
-        truck_id: req.body.truck_id,
-        trailer_id: req.body.trailer_id,
-        origin_country: req.body.origin_country,
-        origin_city: req.body.origin_city,
-        destination_country: req.body.destination_country,
-        destination_city: req.body.destination_city,
-        departure_date: req.body.departure_date,
-        estimated_arrival: req.body.estimated_arrival,
-        cargo_type: req.body.cargo_type,
-        cargo_weight: req.body.cargo_weight,
-        client_name: req.body.client_name,
-        price: req.body.price,
+        driver_id: req.body.driver_id || null,
+        truck_id: req.body.truck_id || null,
+        trailer_id: req.body.trailer_id || null,
+        client_id: req.body.client_id || null,
+        origin_country: req.body.origin_country || null,
+        origin_city: req.body.origin_city || null,
+        destination_country: req.body.destination_country || null,
+        destination_city: req.body.destination_city || null,
+        departure_date: req.body.departure_date || null,
+        estimated_arrival: req.body.estimated_arrival || null,
+        cargo_type: req.body.cargo_type || null,
+        cargo_weight: req.body.cargo_weight || null,
+        client_name: req.body.client_name || null,
+        price: req.body.price || null,
         currency: req.body.currency || 'EUR',
-        notes: req.body.notes,
-        status: req.body.status || 'planificat',
-        // New expense fields
-        diurna: req.body.diurna,
+        notes: req.body.notes || null,
+        status: req.body.status || 'draft',
+        // Expense fields
+        diurna: req.body.diurna || null,
         diurna_currency: req.body.diurna_currency || 'EUR',
-        cash_expenses: req.body.cash_expenses,
+        cash_expenses: req.body.cash_expenses || null,
         cash_expenses_currency: req.body.cash_expenses_currency || 'EUR',
-        expense_report_number: req.body.expense_report_number,
+        expense_report_number: req.body.expense_report_number || null,
+        // Tracking
         created_by: req.user.id,
+        last_modified_by: req.user.id,
+        last_modified_at: new Date().toISOString(),
       };
 
       const { data, error } = await supabase
@@ -268,7 +290,8 @@ router.put(
     body('price').optional().isFloat({ min: 0 }),
     body('currency').optional().isIn(['EUR', 'RON', 'USD']),
     body('notes').optional().isString().trim(),
-    body('status').optional().isIn(['planificat', 'in_progress', 'finalizat', 'anulat']),
+    body('status').optional().isIn(['draft', 'planificat', 'in_progress', 'finalizat', 'anulat']),
+    body('client_id').optional().isUUID(),
     body('km_start').optional().isInt({ min: 0 }),
     body('km_end').optional().isInt({ min: 0 }),
     // New expense fields
@@ -291,6 +314,8 @@ router.put(
         updateData.total_km = updateData.km_end - updateData.km_start;
       }
       updateData.updated_at = new Date().toISOString();
+      updateData.last_modified_by = req.user.id;
+      updateData.last_modified_at = new Date().toISOString();
 
       const { data, error } = await supabase
         .from('trips')
