@@ -1095,13 +1095,24 @@ export default function DocumentValidationPage() {
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-blue-600">
-                    Sold inițial: {extractedData.opening_balance?.toLocaleString()} {formData.currency}
-                  </p>
-                  <p className="text-sm text-blue-600">
-                    Sold final: {extractedData.closing_balance?.toLocaleString()} {formData.currency}
-                  </p>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-sm text-blue-600">
+                      Sold inițial: {extractedData.opening_balance?.toLocaleString()} {formData.currency}
+                    </p>
+                    <p className="text-sm text-blue-600">
+                      Sold final: {extractedData.closing_balance?.toLocaleString()} {formData.currency}
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                    onClick={() => navigate(`/documents/${id}/bank-review`)}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Distribuie Inteligent
+                  </Button>
                 </div>
               </div>
             </CardContent>

@@ -25,6 +25,7 @@ const aiRoutes = require('./routes/ai');
 const uploadedDocumentsRoutes = require('./routes/uploadedDocuments');
 const dkvRoutes = require('./routes/dkv');
 const clientRoutes = require('./routes/clients');
+const bankStatementRoutes = require('./routes/bankStatements');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -134,6 +135,7 @@ app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/uploaded-documents', uploadedDocumentsRoutes);
 app.use('/api/v1/dkv', dkvRoutes);
 app.use('/api/v1/clients', clientRoutes);
+app.use('/api/v1/bank-statements', bankStatementRoutes);
 
 // Serve frontend static files in production
 if (serveFrontend) {

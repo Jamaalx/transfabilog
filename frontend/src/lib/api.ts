@@ -255,3 +255,27 @@ export const dkvApi = {
     return api.get('/dkv/summary', { params })
   },
 }
+
+export const bankStatementsApi = {
+  // Process a bank statement and extract transactions
+  process: (documentId: string) => api.post(`/bank-statements/${documentId}/process`),
+
+  // Get payments from a specific bank statement
+  getPayments: (documentId: string, params?: Record<string, unknown>) =>
+    api.get(`/bank-statements/${documentId}/payments`, { params }),
+
+  // Get all payments across all bank statements
+  getAllPayments: (params?: Record<string, unknown>) =>
+    api.get('/bank-statements/payments', { params }),
+
+  // Get statistics for a bank statement
+  getStats: (documentId: string) => api.get(`/bank-statements/${documentId}/stats`),
+
+  // Update a payment (category, matching, etc.)
+  updatePayment: (paymentId: string, data: Record<string, unknown>) =>
+    api.patch(`/bank-statements/payments/${paymentId}`, data),
+
+  // Bulk confirm payments
+  confirmPayments: (paymentIds: string[]) =>
+    api.post('/bank-statements/payments/confirm', { paymentIds }),
+}

@@ -20,6 +20,7 @@ import AIAnalyticsPage from '@/pages/ai/AIAnalyticsPage'
 import DocumentsListPage from '@/pages/documents/DocumentsListPage'
 import DocumentUploadPage from '@/pages/documents/DocumentUploadPage'
 import DocumentValidationPage from '@/pages/documents/DocumentValidationPage'
+import BankStatementReviewPage from '@/pages/documents/BankStatementReviewPage'
 import DKVPage from '@/pages/dkv/DKVPage'
 import EurowagPage from '@/pages/eurowag/EurowagPage'
 import VeragPage from '@/pages/verag/VeragPage'
@@ -85,6 +86,7 @@ function App() {
           <Route path="/documents/upload" element={<DocumentUploadPage />} />
           <Route path="/documents/:id" element={<DocumentValidationPage />} />
           <Route path="/documents/:id/validate" element={<DocumentValidationPage />} />
+          <Route path="/documents/:documentId/bank-review" element={<BankStatementReviewPage />} />
           <Route path="/dkv" element={<DKVPage />} />
           <Route path="/eurowag" element={<EurowagPage />} />
           <Route path="/verag" element={<VeragPage />} />
