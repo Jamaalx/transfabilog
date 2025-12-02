@@ -1,13 +1,28 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { tripsApi, vehiclesApi, driversApi } from '@/lib/api'
+import { tripsApi, vehiclesApi, driversApi, clientsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/use-toast'
 import { formatDate, formatCurrency } from '@/lib/utils'
-import { Plus, MapPin, ArrowRight, Calendar, Truck, User } from 'lucide-react'
+import { Plus, MapPin, ArrowRight, Calendar, Truck, User, X, ChevronDown, ChevronUp, Package } from 'lucide-react'
+
+type TripStop = {
+  id?: string
+  country: string
+  city: string
+  address?: string
+  type: 'incarcare' | 'descarcare' | 'tranzit' | 'pauza'
+  planned_date?: string
+  client_id?: string
+  operator_name?: string
+  cargo_type?: string
+  cmr_number?: string
+  notes?: string
+  sequence: number
+}
 
 type TripData = {
   id: string
@@ -23,7 +38,8 @@ type TripData = {
   price?: number
   currency?: string
   client_name?: string
-  // New expense fields
+  client_id?: string
+  trailer_id?: string
   diurna?: number
   diurna_currency?: string
   cash_expenses?: number
@@ -34,14 +50,28 @@ type TripData = {
   total_km?: number
   driver?: { id: string; first_name: string; last_name: string }
   truck?: { id: string; registration_number: string }
+  trailer?: { id: string; registration_number: string }
+  stops?: TripStop[]
+  client?: { id: string; company_name: string }
 }
 
 type TruckOption = { id: string; registration_number: string }
+type TrailerOption = { id: string; registration_number: string }
 type DriverOption = { id: string; first_name: string; last_name: string }
+type ClientOption = { id: string; company_name: string }
+
+const STOP_TYPES = [
+  { value: 'incarcare', label: 'Incarcare' },
+  { value: 'descarcare', label: 'Descarcare' },
+  { value: 'tranzit', label: 'Tranzit' },
+  { value: 'pauza', label: 'Pauza' },
+]
 
 export default function TripsPage() {
   const [showForm, setShowForm] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [expandedTrip, setExpandedTrip] = useState<string | null>(null)
+  const [stops, setStops] = useState<TripStop[]>([])
   const queryClient = useQueryClient()
 
   const { data: tripsData, isLoading } = useQuery({
@@ -58,16 +88,40 @@ export default function TripsPage() {
       vehiclesApi.getTrucks({ limit: 100 }).then((res) => res.data),
   })
 
+  const { data: trailersData } = useQuery({
+    queryKey: ['trailers-options'],
+    queryFn: () =>
+      vehiclesApi.getTrailers({ limit: 100 }).then((res) => res.data),
+  })
+
   const { data: driversData } = useQuery({
     queryKey: ['drivers-options'],
     queryFn: () => driversApi.getAll({ limit: 100 }).then((res) => res.data),
   })
 
+  const { data: clientsData } = useQuery({
+    queryKey: ['clients-options'],
+    queryFn: () => clientsApi.getAll({ limit: 100 }).then((res) => res.data),
+  })
+
   const createMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => tripsApi.create(data),
+    mutationFn: async (data: Record<string, unknown>) => {
+      const tripResponse = await tripsApi.create(data)
+      const tripId = tripResponse.data.id
+
+      // Create stops if any
+      if (stops.length > 0) {
+        for (const stop of stops) {
+          await tripsApi.addStop(tripId, stop)
+        }
+      }
+
+      return tripResponse
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] })
       setShowForm(false)
+      setStops([])
       toast({ title: 'Succes', description: 'Cursa adaugata cu succes' })
     },
     onError: () => {
@@ -95,12 +149,40 @@ export default function TripsPage() {
     },
   })
 
+  const addStop = () => {
+    setStops([
+      ...stops,
+      {
+        country: '',
+        city: '',
+        type: 'incarcare',
+        sequence: stops.length + 1,
+      },
+    ])
+  }
+
+  const updateStop = (index: number, field: keyof TripStop, value: string) => {
+    const newStops = [...stops]
+    newStops[index] = { ...newStops[index], [field]: value }
+    setStops(newStops)
+  }
+
+  const removeStop = (index: number) => {
+    const newStops = stops.filter((_, i) => i !== index)
+    // Update sequence numbers
+    newStops.forEach((stop, i) => {
+      stop.sequence = i + 1
+    })
+    setStops(newStops)
+  }
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
     const data = {
       driver_id: formData.get('driver_id'),
       truck_id: formData.get('truck_id'),
+      trailer_id: formData.get('trailer_id') || undefined,
       origin_country: formData.get('origin_country'),
       origin_city: formData.get('origin_city'),
       destination_country: formData.get('destination_country'),
@@ -108,10 +190,10 @@ export default function TripsPage() {
       departure_date: formData.get('departure_date'),
       estimated_arrival: formData.get('estimated_arrival') || undefined,
       cargo_type: formData.get('cargo_type') || undefined,
+      client_id: formData.get('client_id') || undefined,
       client_name: formData.get('client_name') || undefined,
       price: formData.get('price') ? Number(formData.get('price')) : undefined,
       currency: formData.get('currency') || 'EUR',
-      // New expense fields
       diurna: formData.get('diurna') ? Number(formData.get('diurna')) : undefined,
       diurna_currency: formData.get('diurna_currency') || 'EUR',
       cash_expenses: formData.get('cash_expenses') ? Number(formData.get('cash_expenses')) : undefined,
@@ -124,7 +206,9 @@ export default function TripsPage() {
 
   const trips = tripsData?.data || []
   const trucks = trucksData?.data || []
+  const trailers = trailersData?.data || []
   const drivers = driversData?.data || []
+  const clients = clientsData?.data || []
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -136,6 +220,21 @@ export default function TripsPage() {
         return 'bg-green-100 text-green-700'
       case 'anulat':
         return 'bg-red-100 text-red-700'
+      default:
+        return 'bg-gray-100 text-gray-700'
+    }
+  }
+
+  const getStopTypeColor = (type: string) => {
+    switch (type) {
+      case 'incarcare':
+        return 'bg-green-100 text-green-700'
+      case 'descarcare':
+        return 'bg-blue-100 text-blue-700'
+      case 'tranzit':
+        return 'bg-yellow-100 text-yellow-700'
+      case 'pauza':
+        return 'bg-gray-100 text-gray-700'
       default:
         return 'bg-gray-100 text-gray-700'
     }
@@ -177,7 +276,8 @@ export default function TripsPage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Driver, Truck, Trailer */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="driver_id">Sofer *</Label>
                   <select
@@ -210,8 +310,24 @@ export default function TripsPage() {
                     ))}
                   </select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="trailer_id">Remorca</Label>
+                  <select
+                    id="trailer_id"
+                    name="trailer_id"
+                    className="w-full border rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">Fara remorca</option>
+                    {trailers.map((trailer: TrailerOption) => (
+                      <option key={trailer.id} value={trailer.id}>
+                        {trailer.registration_number}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
+              {/* Origin and Destination */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="origin_country">Tara Plecare *</Label>
@@ -251,6 +367,7 @@ export default function TripsPage() {
                 </div>
               </div>
 
+              {/* Dates, Cargo, Client */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="departure_date">Data Plecare *</Label>
@@ -278,18 +395,26 @@ export default function TripsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="client_name">Client</Label>
-                  <Input
-                    id="client_name"
-                    name="client_name"
-                    placeholder="Nume client"
-                  />
+                  <Label htmlFor="client_id">Client</Label>
+                  <select
+                    id="client_id"
+                    name="client_id"
+                    className="w-full border rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">Selecteaza client</option>
+                    {clients.map((client: ClientOption) => (
+                      <option key={client.id} value={client.id}>
+                        {client.company_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
+              {/* Price */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="price">Preț Cursă</Label>
+                  <Label htmlFor="price">Pret Cursa</Label>
                   <Input
                     id="price"
                     name="price"
@@ -299,7 +424,7 @@ export default function TripsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="currency">Monedă</Label>
+                  <Label htmlFor="currency">Moneda</Label>
                   <select
                     id="currency"
                     name="currency"
@@ -311,14 +436,105 @@ export default function TripsPage() {
                     <option value="USD">USD</option>
                   </select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="client_name">Client (text)</Label>
+                  <Input
+                    id="client_name"
+                    name="client_name"
+                    placeholder="Sau scrie numele manual"
+                  />
+                </div>
               </div>
 
-              {/* New expense fields section */}
+              {/* Multi-stop section */}
               <div className="border-t pt-4 mt-4">
-                <h3 className="text-sm font-medium text-muted-foreground mb-3">Cheltuieli Șofer</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-muted-foreground">Opriri Intermediare</h3>
+                  <Button type="button" variant="outline" size="sm" onClick={addStop}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Adauga Oprire
+                  </Button>
+                </div>
+
+                {stops.length > 0 && (
+                  <div className="space-y-3">
+                    {stops.map((stop, index) => (
+                      <div key={index} className="border rounded-lg p-3 bg-gray-50">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Oprire #{stop.sequence}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeStop(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Tip</Label>
+                            <select
+                              value={stop.type}
+                              onChange={(e) => updateStop(index, 'type', e.target.value)}
+                              className="w-full border rounded-md px-2 py-1.5 text-sm"
+                            >
+                              {STOP_TYPES.map((type) => (
+                                <option key={type.value} value={type.value}>
+                                  {type.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Tara</Label>
+                            <Input
+                              value={stop.country}
+                              onChange={(e) => updateStop(index, 'country', e.target.value)}
+                              placeholder="Tara"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Oras</Label>
+                            <Input
+                              value={stop.city}
+                              onChange={(e) => updateStop(index, 'city', e.target.value)}
+                              placeholder="Oras"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Operator</Label>
+                            <Input
+                              value={stop.operator_name || ''}
+                              onChange={(e) => updateStop(index, 'operator_name', e.target.value)}
+                              placeholder="Nume operator"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">CMR</Label>
+                            <Input
+                              value={stop.cmr_number || ''}
+                              onChange={(e) => updateStop(index, 'cmr_number', e.target.value)}
+                              placeholder="Nr. CMR"
+                              className="h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Expense fields section */}
+              <div className="border-t pt-4 mt-4">
+                <h3 className="text-sm font-medium text-muted-foreground mb-3">Cheltuieli Sofer</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="diurna">Diurnă</Label>
+                    <Label htmlFor="diurna">Diurna</Label>
                     <div className="flex gap-2">
                       <Input
                         id="diurna"
@@ -377,7 +593,10 @@ export default function TripsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setShowForm(false)}
+                  onClick={() => {
+                    setShowForm(false)
+                    setStops([])
+                  }}
                 >
                   Anuleaza
                 </Button>
@@ -416,6 +635,11 @@ export default function TripsPage() {
                   </div>
 
                   <div className="flex items-center gap-4">
+                    {trip.stops && trip.stops.length > 0 && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                        {trip.stops.length} opriri
+                      </span>
+                    )}
                     <span
                       className={`text-xs px-2 py-1 rounded-full ${getStatusColor(
                         trip.status
@@ -423,6 +647,19 @@ export default function TripsPage() {
                     >
                       {trip.status}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setExpandedTrip(expandedTrip === trip.id ? null : trip.id)
+                      }
+                    >
+                      {expandedTrip === trip.id ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
 
@@ -445,45 +682,91 @@ export default function TripsPage() {
                       <span>{trip.truck.registration_number}</span>
                     </div>
                   )}
-                  {trip.client_name && (
+                  {trip.trailer && (
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                      <span>{trip.trailer.registration_number}</span>
+                    </div>
+                  )}
+                  {(trip.client_name || trip.client) && (
                     <div>
                       <span className="text-muted-foreground">Client: </span>
-                      {trip.client_name}
+                      {trip.client?.company_name || trip.client_name}
                     </div>
                   )}
                   {trip.price && (
                     <div>
-                      <span className="text-muted-foreground">Preț: </span>
+                      <span className="text-muted-foreground">Pret: </span>
                       {formatCurrency(trip.price, trip.currency)}
                     </div>
                   )}
                 </div>
 
-                {/* Expense info row */}
-                {(trip.diurna || trip.cash_expenses || trip.expense_report_number) && (
-                  <div className="mt-2 pt-2 border-t grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    {trip.diurna && trip.diurna > 0 && (
-                      <div>
-                        <span className="text-muted-foreground">Diurnă: </span>
-                        <span className="font-medium">{formatCurrency(trip.diurna, trip.diurna_currency)}</span>
+                {/* Expanded details with stops */}
+                {expandedTrip === trip.id && (
+                  <div className="mt-4 pt-4 border-t">
+                    {/* Expense info */}
+                    {(trip.diurna || trip.cash_expenses || trip.expense_report_number) && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                        {trip.diurna && trip.diurna > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Diurna: </span>
+                            <span className="font-medium">{formatCurrency(trip.diurna, trip.diurna_currency)}</span>
+                          </div>
+                        )}
+                        {trip.cash_expenses && trip.cash_expenses > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">Cash: </span>
+                            <span className="font-medium">{formatCurrency(trip.cash_expenses, trip.cash_expenses_currency)}</span>
+                          </div>
+                        )}
+                        {trip.expense_report_number && (
+                          <div>
+                            <span className="text-muted-foreground">Nr. Decont: </span>
+                            <span className="font-medium">{trip.expense_report_number}</span>
+                          </div>
+                        )}
+                        {trip.total_km && trip.total_km > 0 && (
+                          <div>
+                            <span className="text-muted-foreground">KM: </span>
+                            <span className="font-medium">{trip.total_km.toLocaleString()} km</span>
+                          </div>
+                        )}
                       </div>
                     )}
-                    {trip.cash_expenses && trip.cash_expenses > 0 && (
-                      <div>
-                        <span className="text-muted-foreground">Cash: </span>
-                        <span className="font-medium">{formatCurrency(trip.cash_expenses, trip.cash_expenses_currency)}</span>
-                      </div>
-                    )}
-                    {trip.expense_report_number && (
-                      <div>
-                        <span className="text-muted-foreground">Nr. Decont: </span>
-                        <span className="font-medium">{trip.expense_report_number}</span>
-                      </div>
-                    )}
-                    {trip.total_km && trip.total_km > 0 && (
-                      <div>
-                        <span className="text-muted-foreground">KM: </span>
-                        <span className="font-medium">{trip.total_km.toLocaleString()} km</span>
+
+                    {/* Stops */}
+                    {trip.stops && trip.stops.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium">Opriri:</h4>
+                        <div className="space-y-2">
+                          {trip.stops
+                            .sort((a, b) => a.sequence - b.sequence)
+                            .map((stop, idx) => (
+                              <div
+                                key={stop.id || idx}
+                                className="flex items-center gap-3 text-sm bg-gray-50 p-2 rounded"
+                              >
+                                <span className="text-muted-foreground w-6">#{stop.sequence}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded ${getStopTypeColor(stop.type)}`}>
+                                  {stop.type}
+                                </span>
+                                <span className="font-medium">
+                                  {stop.city}, {stop.country}
+                                </span>
+                                {stop.operator_name && (
+                                  <span className="text-muted-foreground">
+                                    ({stop.operator_name})
+                                  </span>
+                                )}
+                                {stop.cmr_number && (
+                                  <span className="text-xs bg-gray-200 px-1.5 py-0.5 rounded">
+                                    CMR: {stop.cmr_number}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                        </div>
                       </div>
                     )}
                   </div>
