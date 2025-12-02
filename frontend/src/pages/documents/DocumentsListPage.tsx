@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { useToast } from '@/components/ui/use-toast'
 import {
   FileText,
   FileSpreadsheet,
@@ -85,9 +87,12 @@ export default function DocumentsListPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
   const [selectedDocs, setSelectedDocs] = useState<string[]>([])
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
 
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   // Fetch documents
   const { data, isLoading } = useQuery({
@@ -138,6 +143,23 @@ export default function DocumentsListPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['uploaded-documents'] })
       queryClient.invalidateQueries({ queryKey: ['uploaded-documents-stats'] })
+      setDeleteDialogOpen(false)
+      setDocumentToDelete(null)
+      toast({
+        title: 'Document șters',
+        description: 'Documentul a fost șters cu succes.',
+      })
+    },
+    onError: (error: Error & { response?: { status?: number; data?: { error?: string } } }) => {
+      setDeleteDialogOpen(false)
+      setDocumentToDelete(null)
+      const errorMessage = error.response?.data?.error || error.message || 'A apărut o eroare la ștergere'
+      const isAuthError = error.response?.status === 403
+      toast({
+        title: isAuthError ? 'Acces interzis' : 'Eroare la ștergere',
+        description: isAuthError ? 'Nu aveți permisiunea de a șterge documente.' : errorMessage,
+        variant: 'destructive',
+      })
     },
   })
 
@@ -438,9 +460,8 @@ export default function DocumentsListPage() {
                               variant="ghost"
                               size="icon"
                               onClick={() => {
-                                if (confirm('Ești sigur că vrei să ștergi acest document?')) {
-                                  deleteMutation.mutate(doc.id)
-                                }
+                                setDocumentToDelete(doc.id)
+                                setDeleteDialogOpen(true)
                               }}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -483,6 +504,23 @@ export default function DocumentsListPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Șterge documentul"
+        description="Ești sigur că vrei să ștergi acest document? Această acțiune nu poate fi anulată."
+        confirmText="Șterge"
+        cancelText="Anulează"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (documentToDelete) {
+            deleteMutation.mutate(documentToDelete)
+          }
+        }}
+      />
     </div>
   )
 }

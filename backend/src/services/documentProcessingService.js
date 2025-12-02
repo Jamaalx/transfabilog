@@ -558,18 +558,28 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
 
   const prompt = extractionPrompts[documentType] || extractionPrompts.default;
 
+  // Bank statements and fuel reports need more text to capture all transactions
+  const isMultiPageDocument = ['extras_bancar', 'raport_dkv', 'raport_eurowag', 'raport_verag', 'raport_shell', 'raport_omv'].includes(documentType);
+  const textLimit = isMultiPageDocument ? 50000 : 8000;
+  const model = isMultiPageDocument ? 'gpt-4o' : 'gpt-4o-mini';
+
   try {
+    console.log(`[DocumentProcessing] Extracting from ${documentType} using ${model}, text length: ${extractedText.length}, limit: ${textLimit}`);
+
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: model,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `${prompt}\n\nText document:\n${extractedText.substring(0, 4000)}` },
+        { role: 'user', content: `${prompt}\n\nText document:\n${extractedText.substring(0, textLimit)}` },
       ],
       temperature: 0.2,
       response_format: { type: 'json_object' },
+      max_tokens: isMultiPageDocument ? 16000 : 4000,
     });
 
-    return JSON.parse(response.choices[0].message.content);
+    const result = JSON.parse(response.choices[0].message.content);
+    console.log(`[DocumentProcessing] Extracted ${result.transactions?.length || 0} transactions from ${documentType}`);
+    return result;
   } catch (error) {
     console.error('Error extracting structured data:', error);
     return null;
@@ -790,6 +800,10 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
     const entityMatches = await matchToEntities(structuredData, companyId);
 
     // Prepare update data - set to needs_review so operator can validate
+    // Store more raw text for multi-page documents like bank statements
+    const isMultiPage = ['extras_bancar', 'raport_dkv', 'raport_eurowag', 'raport_verag', 'raport_shell', 'raport_omv'].includes(classification.document_type);
+    const rawTextLimit = isMultiPage ? 50000 : 10000;
+
     const updateData = {
       status: 'needs_review',
       document_type: classification.document_type,
@@ -797,7 +811,7 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       ai_confidence: classification.confidence * 100,
       ai_processed_at: new Date().toISOString(),
       extracted_data: {
-        raw_text: extractedText.substring(0, 5000),
+        raw_text: extractedText.substring(0, rawTextLimit),
         structured: structuredData,
         classification,
       },

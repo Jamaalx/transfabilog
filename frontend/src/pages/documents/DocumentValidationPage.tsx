@@ -93,6 +93,10 @@ interface ExtractedData {
   bank_statement_type?: 'per_camion' | 'administrativ'
   bank_name?: string
   account_number?: string
+  account_holder?: string
+  account_holder_cui?: string
+  period_start?: string
+  period_end?: string
   opening_balance?: number
   closing_balance?: number
   total_income?: number
@@ -473,7 +477,7 @@ export default function DocumentValidationPage() {
     )
   }
 
-  const extractedData = document.extracted_data?.structured || {}
+  const extractedData = (document.extracted_data?.structured || {}) as ExtractedData
   const classification = document.extracted_data?.classification
   const isProcessed = document.status === 'processed'
   const isFailed = document.status === 'failed'

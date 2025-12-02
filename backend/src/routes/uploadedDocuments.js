@@ -585,7 +585,7 @@ router.put(
  */
 router.delete(
   '/:id',
-  authorize('admin', 'manager'),
+  authenticate,
   param('id').isUUID(),
   async (req, res, next) => {
     try {
