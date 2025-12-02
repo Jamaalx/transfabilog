@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/use-toast'
 import { formatDate } from '@/lib/utils'
-import { Plus, Search, User, Edit, Trash2, Phone, Mail } from 'lucide-react'
+import { Plus, Search, User, Edit, Trash2, Phone, Mail, ChevronLeft, ChevronRight } from 'lucide-react'
 
 type DriverData = {
   id: string
@@ -35,15 +35,22 @@ const EMPLOYEE_TYPES = [
 
 export default function DriversPage() {
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const limit = 20
   const [showForm, setShowForm] = useState(false)
   const [editingDriver, setEditingDriver] = useState<DriverData | null>(null)
   const queryClient = useQueryClient()
 
   const { data: driversData, isLoading } = useQuery({
-    queryKey: ['drivers', search],
+    queryKey: ['drivers', search, page],
     queryFn: () =>
-      driversApi.getAll({ search: search || undefined }).then((res) => res.data),
+      driversApi.getAll({ search: search || undefined, page, limit }).then((res) => res.data),
   })
+
+  const handleSearch = (value: string) => {
+    setSearch(value)
+    setPage(1)
+  }
 
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => driversApi.create(data),
@@ -144,7 +151,7 @@ export default function DriversPage() {
           <Input
             placeholder="Cauta dupa nume..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             className="pl-10"
           />
         </div>
@@ -363,10 +370,35 @@ export default function DriversPage() {
         )}
       </div>
 
-      {/* Pagination info */}
+      {/* Pagination */}
       {driversData?.pagination && (
-        <div className="text-sm text-muted-foreground text-center">
-          Afisare {drivers.length} din {driversData.pagination.total} soferi
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Afisare {(page - 1) * limit + 1}-{Math.min(page * limit, driversData.pagination.total)} din {driversData.pagination.total} soferi
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(page - 1)}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Inapoi
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Pagina {page} din {Math.ceil(driversData.pagination.total / limit)}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(page + 1)}
+              disabled={page >= Math.ceil(driversData.pagination.total / limit)}
+            >
+              Inainte
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
         </div>
       )}
     </div>
