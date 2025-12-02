@@ -280,36 +280,64 @@ router.delete(
 
 /**
  * GET /api/v1/vehicles/trailers
- * List all trailers
+ * List all trailers with pagination and filters
  */
-router.get('/trailers', async (req, res, next) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = (page - 1) * limit;
+router.get(
+  '/trailers',
+  [
+    query('page').optional().isInt({ min: 1 }).toInt(),
+    query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
+    query('status').optional().isIn(['activ', 'inactiv']),
+    query('search').optional().isString().trim(),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
 
-    const { data, error, count } = await supabase
-      .from('trailers')
-      .select('*', { count: 'exact' })
-      .eq('company_id', req.companyId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      const page = req.query.page || 1;
+      const limit = req.query.limit || 20;
+      const offset = (page - 1) * limit;
 
-    if (error) throw error;
+      let dbQuery = supabase
+        .from('trailers')
+        .select('*', { count: 'exact' })
+        .eq('company_id', req.companyId)
+        .order('created_at', { ascending: false });
 
-    res.json({
-      data,
-      pagination: {
-        page,
-        limit,
-        total: count,
-        totalPages: Math.ceil(count / limit),
-      },
-    });
-  } catch (error) {
-    next(error);
+      if (req.query.status) {
+        dbQuery = dbQuery.eq('status', req.query.status);
+      }
+
+      if (req.query.search) {
+        dbQuery = dbQuery.or(
+          `registration_number.ilike.%${req.query.search}%,brand.ilike.%${req.query.search}%,model.ilike.%${req.query.search}%`
+        );
+      }
+
+      const { data, error, count } = await dbQuery.range(
+        offset,
+        offset + limit - 1
+      );
+
+      if (error) throw error;
+
+      res.json({
+        data,
+        pagination: {
+          page,
+          limit,
+          total: count,
+          totalPages: Math.ceil(count / limit),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 /**
  * POST /api/v1/vehicles/trailers

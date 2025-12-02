@@ -91,6 +91,14 @@ export const driversApi = {
   delete: (id: string) => api.delete(`/drivers/${id}`),
 }
 
+export const clientsApi = {
+  getAll: (params?: Record<string, unknown>) => api.get('/clients', { params }),
+  getOne: (id: string) => api.get(`/clients/${id}`),
+  create: (data: Record<string, unknown>) => api.post('/clients', data),
+  update: (id: string, data: Record<string, unknown>) => api.put(`/clients/${id}`, data),
+  delete: (id: string) => api.delete(`/clients/${id}`),
+}
+
 export const tripsApi = {
   getAll: (params?: Record<string, unknown>) => api.get('/trips', { params }),
   getOne: (id: string) => api.get(`/trips/${id}`),

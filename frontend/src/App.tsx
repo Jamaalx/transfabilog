@@ -13,6 +13,7 @@ import DashboardPage from '@/pages/DashboardPage'
 // ... alte importuri existente ...
 import VehiclesPage from '@/pages/vehicles/VehiclesPage'
 import DriversPage from '@/pages/drivers/DriversPage'
+import ClientsPage from '@/pages/clients/ClientsPage'
 import TripsPage from '@/pages/trips/TripsPage'
 import ReportsPage from '@/pages/reports/ReportsPage'
 import AIAnalyticsPage from '@/pages/ai/AIAnalyticsPage'
@@ -76,6 +77,7 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/vehicles/*" element={<VehiclesPage />} />
           <Route path="/drivers/*" element={<DriversPage />} />
+          <Route path="/clients/*" element={<ClientsPage />} />
           <Route path="/trips/*" element={<TripsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/ai" element={<AIAnalyticsPage />} />
