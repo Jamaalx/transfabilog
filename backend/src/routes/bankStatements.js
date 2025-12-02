@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { body, param, query, validationResult } = require('express-validator');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 const bankStatementService = require('../services/bankStatementService');
 
 /**
@@ -10,8 +10,8 @@ const bankStatementService = require('../services/bankStatementService');
  */
 router.post(
   '/:documentId/process',
-  requireAuth,
-  requireRole(['admin', 'manager', 'operator']),
+  authenticate,
+  authorize('admin', 'manager', 'operator'),
   [param('documentId').isUUID()],
   async (req, res) => {
     try {
@@ -22,7 +22,7 @@ router.post(
 
       const result = await bankStatementService.processBankStatement(
         req.params.documentId,
-        req.user.company_id,
+        req.companyId,
         req.user.id
       );
 
@@ -46,7 +46,7 @@ router.post(
  */
 router.get(
   '/:documentId/payments',
-  requireAuth,
+  authenticate,
   [param('documentId').isUUID()],
   async (req, res) => {
     try {
@@ -55,7 +55,7 @@ router.get(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const payments = await bankStatementService.getBankStatementPayments(req.user.company_id, {
+      const payments = await bankStatementService.getBankStatementPayments(req.companyId, {
         bank_statement_id: req.params.documentId,
         status: req.query.status,
         type: req.query.type,
@@ -80,9 +80,9 @@ router.get(
  * Get all bank statement payments (for overview)
  * GET /api/bank-statements/payments
  */
-router.get('/payments', requireAuth, async (req, res) => {
+router.get('/payments', authenticate, async (req, res) => {
   try {
-    const payments = await bankStatementService.getBankStatementPayments(req.user.company_id, {
+    const payments = await bankStatementService.getBankStatementPayments(req.companyId, {
       status: req.query.status,
       type: req.query.type,
       category: req.query.category,
@@ -107,7 +107,7 @@ router.get('/payments', requireAuth, async (req, res) => {
  */
 router.get(
   '/:documentId/stats',
-  requireAuth,
+  authenticate,
   [param('documentId').isUUID()],
   async (req, res) => {
     try {
@@ -117,7 +117,7 @@ router.get(
       }
 
       const stats = await bankStatementService.getBankStatementStats(
-        req.user.company_id,
+        req.companyId,
         req.params.documentId
       );
 
@@ -141,8 +141,8 @@ router.get(
  */
 router.patch(
   '/payments/:paymentId',
-  requireAuth,
-  requireRole(['admin', 'manager', 'operator']),
+  authenticate,
+  authorize('admin', 'manager', 'operator'),
   [
     param('paymentId').isUUID(),
     body('expense_category').optional().isString(),
@@ -161,7 +161,7 @@ router.patch(
 
       const payment = await bankStatementService.updatePayment(
         req.params.paymentId,
-        req.user.company_id,
+        req.companyId,
         req.body,
         req.user.id
       );
@@ -186,8 +186,8 @@ router.patch(
  */
 router.post(
   '/payments/confirm',
-  requireAuth,
-  requireRole(['admin', 'manager']),
+  authenticate,
+  authorize('admin', 'manager'),
   [body('paymentIds').isArray()],
   async (req, res) => {
     try {
@@ -201,7 +201,7 @@ router.post(
         try {
           const payment = await bankStatementService.updatePayment(
             paymentId,
-            req.user.company_id,
+            req.companyId,
             { status: 'confirmed' },
             req.user.id
           );
