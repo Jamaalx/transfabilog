@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from '@/components/ui/use-toast'
 import { formatDate } from '@/lib/utils'
-import { Plus, Search, Building2, Edit, Trash2, Phone, Mail, MapPin } from 'lucide-react'
+import { Plus, Search, Building2, Edit, Trash2, Phone, Mail, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
 
 type ClientData = {
   id: string
@@ -35,15 +35,23 @@ const CLIENT_TYPES = [
 
 export default function ClientsPage() {
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientData | null>(null)
   const queryClient = useQueryClient()
+  const limit = 20
 
   const { data: clientsData, isLoading } = useQuery({
-    queryKey: ['clients', search],
+    queryKey: ['clients', search, page],
     queryFn: () =>
-      clientsApi.getAll({ search: search || undefined }).then((res) => res.data),
+      clientsApi.getAll({ search: search || undefined, page, limit }).then((res) => res.data),
   })
+
+  // Reset page when search changes
+  const handleSearch = (value: string) => {
+    setSearch(value)
+    setPage(1)
+  }
 
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => clientsApi.create(data),
@@ -144,7 +152,7 @@ export default function ClientsPage() {
           <Input
             placeholder="Cauta dupa nume, CUI, email..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             className="pl-10"
           />
         </div>
@@ -432,10 +440,33 @@ export default function ClientsPage() {
         )}
       </div>
 
-      {/* Pagination info */}
+      {/* Pagination */}
       {clientsData?.pagination && (
-        <div className="text-sm text-muted-foreground text-center">
-          Afisare {clients.length} din {clientsData.pagination.total} clienti
+        <div className="flex items-center justify-center gap-4 mt-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(page - 1)}
+            disabled={page <= 1}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Inapoi
+          </Button>
+
+          <div className="text-sm text-muted-foreground">
+            Pagina {page} din {Math.ceil(clientsData.pagination.total / limit)}
+            <span className="ml-2">({clientsData.pagination.total} clienti)</span>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(page + 1)}
+            disabled={page >= Math.ceil(clientsData.pagination.total / limit)}
+          >
+            Inainte
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
         </div>
       )}
     </div>
