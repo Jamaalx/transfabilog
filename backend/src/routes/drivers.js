@@ -126,6 +126,7 @@ router.post(
     body('salary_base').optional().isFloat({ min: 0 }),
     body('diurna_rate').optional().isFloat({ min: 0 }),
     body('status').optional().isIn(['activ', 'inactiv', 'concediu']).default('activ'),
+    body('employee_type').optional().isIn(['sofer', 'mecanic', 'portar', 'femeie_serviciu', 'asistent_manager', 'coordonator_transport', 'altele']),
   ],
   async (req, res, next) => {
     try {
@@ -150,6 +151,7 @@ router.post(
         salary_base: req.body.salary_base,
         diurna_rate: req.body.diurna_rate,
         status: req.body.status || 'activ',
+        employee_type: req.body.employee_type || 'sofer',
       };
 
       const { data, error } = await supabase
@@ -198,6 +200,7 @@ router.put(
     body('salary_base').optional().isFloat({ min: 0 }),
     body('diurna_rate').optional().isFloat({ min: 0 }),
     body('status').optional().isIn(['activ', 'inactiv', 'concediu']),
+    body('employee_type').optional().isIn(['sofer', 'mecanic', 'portar', 'femeie_serviciu', 'asistent_manager', 'coordonator_transport', 'altele']),
   ],
   async (req, res, next) => {
     try {

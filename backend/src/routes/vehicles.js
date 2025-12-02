@@ -321,6 +321,8 @@ router.post(
   [
     body('registration_number').isString().trim().notEmpty().toUpperCase(),
     body('vin').optional().isString().trim(),
+    body('brand').optional().isString().trim(),
+    body('model').optional().isString().trim(),
     body('type').optional().isIn(['prelata', 'frigorific', 'cisterna', 'altele']),
     body('capacity_tons').optional().isFloat({ min: 0 }),
     body('volume_m3').optional().isFloat({ min: 0 }),
@@ -355,6 +357,102 @@ router.post(
       }
 
       res.status(201).json(data);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/v1/vehicles/trailers/:id
+ * Update trailer
+ */
+router.put(
+  '/trailers/:id',
+  authorize('admin', 'manager', 'operator'),
+  [
+    param('id').isUUID(),
+    body('registration_number').optional().isString().trim().toUpperCase(),
+    body('vin').optional().isString().trim(),
+    body('brand').optional().isString().trim(),
+    body('model').optional().isString().trim(),
+    body('type').optional().isIn(['prelata', 'frigorific', 'cisterna', 'altele']),
+    body('capacity_tons').optional().isFloat({ min: 0 }),
+    body('volume_m3').optional().isFloat({ min: 0 }),
+    body('purchase_date').optional().isISO8601(),
+    body('purchase_price').optional().isFloat({ min: 0 }),
+    body('status').optional().isIn(['activ', 'inactiv']),
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const { data, error } = await supabase
+        .from('trailers')
+        .update({
+          ...req.body,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', req.params.id)
+        .eq('company_id', req.companyId)
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return res.status(404).json({
+            error: 'Not Found',
+            message: 'Trailer not found',
+          });
+        }
+        throw error;
+      }
+
+      res.json(data);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * DELETE /api/v1/vehicles/trailers/:id
+ * Delete trailer (soft delete via status)
+ */
+router.delete(
+  '/trailers/:id',
+  authorize('admin'),
+  param('id').isUUID(),
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      // Soft delete by setting status to 'inactiv'
+      const { data, error } = await supabase
+        .from('trailers')
+        .update({ status: 'inactiv', updated_at: new Date().toISOString() })
+        .eq('id', req.params.id)
+        .eq('company_id', req.companyId)
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return res.status(404).json({
+            error: 'Not Found',
+            message: 'Trailer not found',
+          });
+        }
+        throw error;
+      }
+
+      res.json({ message: 'Trailer deactivated successfully', data });
     } catch (error) {
       next(error);
     }
