@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/use-toast'
 import { formatDate } from '@/lib/utils'
 import { Plus, Search, Building2, Edit, Trash2, Phone, Mail, MapPin, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -38,6 +39,8 @@ export default function ClientsPage() {
   const [page, setPage] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editingClient, setEditingClient] = useState<ClientData | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [clientToDelete, setClientToDelete] = useState<string | null>(null)
   const queryClient = useQueryClient()
   const limit = 20
 
@@ -90,9 +93,13 @@ export default function ClientsPage() {
     mutationFn: (id: string) => clientsApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clients'] })
+      setDeleteDialogOpen(false)
+      setClientToDelete(null)
       toast({ title: 'Succes', description: 'Client dezactivat cu succes' })
     },
     onError: () => {
+      setDeleteDialogOpen(false)
+      setClientToDelete(null)
       toast({
         title: 'Eroare',
         description: 'Nu s-a putut dezactiva clientul',
@@ -425,9 +432,8 @@ export default function ClientsPage() {
                     variant="outline"
                     className="text-red-600 hover:text-red-700"
                     onClick={() => {
-                      if (confirm('Sigur doriti sa dezactivati acest client?')) {
-                        deleteMutation.mutate(client.id)
-                      }
+                      setClientToDelete(client.id)
+                      setDeleteDialogOpen(true)
                     }}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -469,6 +475,22 @@ export default function ClientsPage() {
           </Button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Dezactivează clientul"
+        description="Sigur doriți să dezactivați acest client?"
+        confirmText="Dezactivează"
+        cancelText="Anulează"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (clientToDelete) {
+            deleteMutation.mutate(clientToDelete)
+          }
+        }}
+      />
     </div>
   )
 }

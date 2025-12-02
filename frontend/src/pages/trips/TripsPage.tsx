@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/use-toast'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import { Plus, MapPin, ArrowRight, Calendar, Truck, User, X, ChevronDown, ChevronUp, Package, Edit2, Clock, Save } from 'lucide-react'
@@ -75,6 +76,8 @@ export default function TripsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [expandedTrip, setExpandedTrip] = useState<string | null>(null)
   const [stops, setStops] = useState<TripStop[]>([])
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [tripToCancel, setTripToCancel] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: tripsData, isLoading } = useQuery({
@@ -162,9 +165,13 @@ export default function TripsPage() {
       tripsApi.update(id, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] })
+      setCancelDialogOpen(false)
+      setTripToCancel(null)
       toast({ title: 'Succes', description: 'Status actualizat cu succes' })
     },
     onError: () => {
+      setCancelDialogOpen(false)
+      setTripToCancel(null)
       toast({
         title: 'Eroare',
         description: 'Nu s-a putut actualiza statusul',
@@ -932,12 +939,8 @@ export default function TripsPage() {
                       variant="outline"
                       className="text-red-600"
                       onClick={() => {
-                        if (confirm('Sigur doriti sa anulati aceasta cursa?')) {
-                          updateStatusMutation.mutate({
-                            id: trip.id,
-                            status: 'anulat',
-                          })
-                        }
+                        setTripToCancel(trip.id)
+                        setCancelDialogOpen(true)
                       }}
                     >
                       Anuleaza
@@ -956,6 +959,22 @@ export default function TripsPage() {
           Afisare {trips.length} din {tripsData.pagination.total} curse
         </div>
       )}
+
+      <ConfirmDialog
+        open={cancelDialogOpen}
+        onOpenChange={setCancelDialogOpen}
+        title="Anulează cursa"
+        description="Sigur doriți să anulați această cursă? Această acțiune nu poate fi anulată."
+        confirmText="Anulează cursa"
+        cancelText="Înapoi"
+        variant="destructive"
+        isLoading={updateStatusMutation.isPending}
+        onConfirm={() => {
+          if (tripToCancel) {
+            updateStatusMutation.mutate({ id: tripToCancel, status: 'anulat' })
+          }
+        }}
+      />
     </div>
   )
 }

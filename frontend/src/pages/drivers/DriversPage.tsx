@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/use-toast'
 import { formatDate } from '@/lib/utils'
 import { Plus, Search, User, Edit, Trash2, Phone, Mail, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -39,6 +40,8 @@ export default function DriversPage() {
   const limit = 20
   const [showForm, setShowForm] = useState(false)
   const [editingDriver, setEditingDriver] = useState<DriverData | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [driverToDelete, setDriverToDelete] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: driversData, isLoading } = useQuery({
@@ -89,9 +92,13 @@ export default function DriversPage() {
     mutationFn: (id: string) => driversApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['drivers'] })
+      setDeleteDialogOpen(false)
+      setDriverToDelete(null)
       toast({ title: 'Succes', description: 'Sofer dezactivat cu succes' })
     },
     onError: () => {
+      setDeleteDialogOpen(false)
+      setDriverToDelete(null)
       toast({
         title: 'Eroare',
         description: 'Nu s-a putut dezactiva soferul',
@@ -355,9 +362,8 @@ export default function DriversPage() {
                     variant="outline"
                     className="text-red-600 hover:text-red-700"
                     onClick={() => {
-                      if (confirm('Sigur doriti sa dezactivati acest sofer?')) {
-                        deleteMutation.mutate(driver.id)
-                      }
+                      setDriverToDelete(driver.id)
+                      setDeleteDialogOpen(true)
                     }}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
@@ -401,6 +407,22 @@ export default function DriversPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Dezactivează șoferul"
+        description="Sigur doriți să dezactivați acest șofer? Acesta nu va mai putea fi asignat la curse."
+        confirmText="Dezactivează"
+        cancelText="Anulează"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (driverToDelete) {
+            deleteMutation.mutate(driverToDelete)
+          }
+        }}
+      />
     </div>
   )
 }
