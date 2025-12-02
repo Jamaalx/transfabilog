@@ -1,0 +1,596 @@
+table_name,column_name,data_type,is_nullable,column_default,constraint_type,foreign_table,foreign_column
+bank_statement_payments,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+bank_statement_payments,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+bank_statement_payments,bank_statement_id,uuid,NO,null,FOREIGN KEY,uploaded_documents,id
+bank_statement_payments,transaction_type,character varying,NO,null,null,null,null
+bank_statement_payments,transaction_date,date,YES,null,null,null,null
+bank_statement_payments,amount,numeric,NO,null,null,null,null
+bank_statement_payments,currency,character varying,YES,'EUR'::character varying,null,null,null
+bank_statement_payments,description,text,YES,null,null,null,null
+bank_statement_payments,reference,character varying,YES,null,null,null,null
+bank_statement_payments,counterparty,character varying,YES,null,null,null,null
+bank_statement_payments,counterparty_iban,character varying,YES,null,null,null,null
+bank_statement_payments,matched_invoice_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+bank_statement_payments,trip_id,uuid,YES,null,FOREIGN KEY,trips,id
+bank_statement_payments,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+bank_statement_payments,expense_category,character varying,YES,null,null,null,null
+bank_statement_payments,ai_suggested_category,character varying,YES,null,null,null,null
+bank_statement_payments,user_modified_category,boolean,YES,false,null,null,null
+bank_statement_payments,status,character varying,YES,'pending'::character varying,null,null,null
+bank_statement_payments,created_at,timestamp with time zone,YES,now(),null,null,null
+bank_statement_payments,updated_at,timestamp with time zone,YES,now(),null,null,null
+bank_statement_payments,processed_by,uuid,YES,null,FOREIGN KEY,null,null
+bank_statement_payments,processed_at,timestamp with time zone,YES,null,null,null,null
+companies,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+companies,name,character varying,NO,null,null,null,null
+companies,cui,character varying,YES,null,UNIQUE,null,null
+companies,j_number,character varying,YES,null,null,null,null
+companies,address,text,YES,null,null,null,null
+companies,city,character varying,YES,null,null,null,null
+companies,county,character varying,YES,null,null,null,null
+companies,country,character varying,YES,'Romania'::character varying,null,null,null
+companies,phone,character varying,YES,null,null,null,null
+companies,email,character varying,YES,null,null,null,null
+companies,subscription_plan,character varying,YES,'basic'::character varying,null,null,null
+companies,subscription_status,character varying,YES,'active'::character varying,null,null,null
+companies,subscription_expires_at,timestamp with time zone,YES,null,null,null,null
+companies,settings,jsonb,YES,'{}'::jsonb,null,null,null
+companies,created_at,timestamp with time zone,YES,now(),null,null,null
+companies,updated_at,timestamp with time zone,YES,now(),null,null,null
+dkv_import_batches,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+dkv_import_batches,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+dkv_import_batches,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+dkv_import_batches,file_name,character varying,YES,null,null,null,null
+dkv_import_batches,import_date,timestamp with time zone,YES,now(),null,null,null
+dkv_import_batches,total_transactions,integer,YES,0,null,null,null
+dkv_import_batches,matched_transactions,integer,YES,0,null,null,null
+dkv_import_batches,unmatched_transactions,integer,YES,0,null,null,null
+dkv_import_batches,total_amount,numeric,YES,0,null,null,null
+dkv_import_batches,currency,character varying,YES,'EUR'::character varying,null,null,null
+dkv_import_batches,period_start,date,YES,null,null,null,null
+dkv_import_batches,period_end,date,YES,null,null,null,null
+dkv_import_batches,status,character varying,YES,'imported'::character varying,null,null,null
+dkv_import_batches,imported_by,uuid,YES,null,FOREIGN KEY,null,null
+dkv_import_batches,notes,text,YES,null,null,null,null
+dkv_import_batches,created_at,timestamp with time zone,YES,now(),null,null,null
+dkv_import_batches,updated_at,timestamp with time zone,YES,now(),null,null,null
+dkv_import_batches,provider,character varying,YES,'dkv'::character varying,null,null,null
+dkv_import_batches,total_vat,numeric,YES,0,null,null,null
+dkv_temp_import_batches,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+dkv_temp_import_batches,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+dkv_temp_import_batches,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+dkv_temp_import_batches,file_name,character varying,YES,null,null,null,null
+dkv_temp_import_batches,import_date,timestamp with time zone,YES,now(),null,null,null
+dkv_temp_import_batches,total_transactions,integer,YES,0,null,null,null
+dkv_temp_import_batches,matched_transactions,integer,YES,0,null,null,null
+dkv_temp_import_batches,unmatched_transactions,integer,YES,0,null,null,null
+dkv_temp_import_batches,total_amount,numeric,YES,0,null,null,null
+dkv_temp_import_batches,total_vat,numeric,YES,0,null,null,null
+dkv_temp_import_batches,currency,character varying,YES,'EUR'::character varying,null,null,null
+dkv_temp_import_batches,period_start,date,YES,null,null,null,null
+dkv_temp_import_batches,period_end,date,YES,null,null,null,null
+dkv_temp_import_batches,provider,character varying,YES,'dkv'::character varying,null,null,null
+dkv_temp_import_batches,status,character varying,YES,'imported'::character varying,null,null,null
+dkv_temp_import_batches,imported_by,uuid,YES,null,FOREIGN KEY,null,null
+dkv_temp_import_batches,notes,text,YES,null,null,null,null
+dkv_temp_import_batches,created_at,timestamp with time zone,YES,now(),null,null,null
+dkv_temp_import_batches,updated_at,timestamp with time zone,YES,now(),null,null,null
+dkv_temp_transactions,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+dkv_temp_transactions,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+dkv_temp_transactions,batch_id,uuid,YES,null,FOREIGN KEY,dkv_temp_import_batches,id
+dkv_temp_transactions,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+dkv_temp_transactions,transaction_time,timestamp with time zone,NO,null,null,null,null
+dkv_temp_transactions,transaction_number,character varying,YES,null,null,null,null
+dkv_temp_transactions,station_name,character varying,YES,null,null,null,null
+dkv_temp_transactions,station_city,character varying,YES,null,null,null,null
+dkv_temp_transactions,station_number,character varying,YES,null,null,null,null
+dkv_temp_transactions,country,character varying,YES,null,null,null,null
+dkv_temp_transactions,country_code,character varying,YES,null,null,null,null
+dkv_temp_transactions,cost_group,character varying,YES,null,null,null,null
+dkv_temp_transactions,product_group,character varying,YES,null,null,null,null
+dkv_temp_transactions,goods_type,character varying,YES,null,null,null,null
+dkv_temp_transactions,goods_code,character varying,YES,null,null,null,null
+dkv_temp_transactions,unit,character varying,YES,null,null,null,null
+dkv_temp_transactions,quantity,numeric,YES,null,null,null,null
+dkv_temp_transactions,price_per_unit,numeric,YES,null,null,null,null
+dkv_temp_transactions,currency,character varying,YES,'EUR'::character varying,null,null,null
+dkv_temp_transactions,net_base_value,numeric,YES,null,null,null,null
+dkv_temp_transactions,net_service_fee,numeric,YES,0,null,null,null
+dkv_temp_transactions,net_purchase_value,numeric,YES,null,null,null,null
+dkv_temp_transactions,net_purchase_value_eur,numeric,YES,null,null,null,null
+dkv_temp_transactions,payment_currency,character varying,YES,null,null,null,null
+dkv_temp_transactions,payment_value,numeric,YES,null,null,null,null
+dkv_temp_transactions,payment_value_eur,numeric,YES,null,null,null,null
+dkv_temp_transactions,gross_value,numeric,YES,null,null,null,null
+dkv_temp_transactions,gross_value_eur,numeric,YES,null,null,null,null
+dkv_temp_transactions,vat_amount,numeric,YES,null,null,null,null
+dkv_temp_transactions,vat_amount_eur,numeric,YES,null,null,null,null
+dkv_temp_transactions,vat_rate,numeric,YES,null,null,null,null
+dkv_temp_transactions,vat_country,character varying,YES,null,null,null,null
+dkv_temp_transactions,vat_country_rate,numeric,YES,null,null,null,null
+dkv_temp_transactions,vat_refundable,boolean,YES,false,null,null,null
+dkv_temp_transactions,vehicle_registration,character varying,YES,null,null,null,null
+dkv_temp_transactions,card_number,character varying,YES,null,null,null,null
+dkv_temp_transactions,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+dkv_temp_transactions,status,character varying,YES,'pending'::character varying,null,null,null
+dkv_temp_transactions,imported_at,timestamp with time zone,YES,now(),null,null,null
+dkv_temp_transactions,matched_at,timestamp with time zone,YES,null,null,null,null
+dkv_temp_transactions,notes,text,YES,null,null,null,null
+dkv_temp_transactions,created_at,timestamp with time zone,YES,now(),null,null,null
+dkv_temp_transactions,updated_at,timestamp with time zone,YES,now(),null,null,null
+dkv_temp_transactions,original_currency,character varying,YES,null,null,null,null
+dkv_temp_transactions,exchange_rate,numeric,YES,1,null,null,null
+dkv_temp_transactions,exchange_rate_date,character varying,YES,null,null,null,null
+dkv_temp_transactions,vat_amount_original,numeric,YES,null,null,null,null
+dkv_temp_transactions,provider,character varying,YES,'dkv'::character varying,null,null,null
+dkv_transactions,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+dkv_transactions,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+dkv_transactions,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+dkv_transactions,transaction_time,timestamp with time zone,NO,null,null,null,null
+dkv_transactions,transaction_number,character varying,YES,null,null,null,null
+dkv_transactions,station_name,character varying,YES,null,null,null,null
+dkv_transactions,station_city,character varying,YES,null,null,null,null
+dkv_transactions,station_number,character varying,YES,null,null,null,null
+dkv_transactions,country,character varying,YES,null,null,null,null
+dkv_transactions,cost_group,character varying,YES,null,null,null,null
+dkv_transactions,product_group,character varying,YES,null,null,null,null
+dkv_transactions,goods_type,character varying,YES,null,null,null,null
+dkv_transactions,goods_code,character varying,YES,null,null,null,null
+dkv_transactions,unit,character varying,YES,null,null,null,null
+dkv_transactions,quantity,numeric,YES,null,null,null,null
+dkv_transactions,price_per_unit,numeric,YES,null,null,null,null
+dkv_transactions,currency,character varying,YES,'EUR'::character varying,null,null,null
+dkv_transactions,net_base_value,numeric,YES,null,null,null,null
+dkv_transactions,net_service_fee,numeric,YES,0,null,null,null
+dkv_transactions,net_purchase_value,numeric,YES,null,null,null,null
+dkv_transactions,payment_currency,character varying,YES,null,null,null,null
+dkv_transactions,payment_value,numeric,YES,null,null,null,null
+dkv_transactions,vehicle_registration,character varying,YES,null,null,null,null
+dkv_transactions,card_number,character varying,YES,null,null,null,null
+dkv_transactions,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+dkv_transactions,status,character varying,YES,'pending'::character varying,null,null,null
+dkv_transactions,transaction_id,uuid,YES,null,FOREIGN KEY,transactions,id
+dkv_transactions,imported_at,timestamp with time zone,YES,now(),null,null,null
+dkv_transactions,matched_at,timestamp with time zone,YES,null,null,null,null
+dkv_transactions,notes,text,YES,null,null,null,null
+dkv_transactions,created_at,timestamp with time zone,YES,now(),null,null,null
+dkv_transactions,updated_at,timestamp with time zone,YES,now(),null,null,null
+dkv_transactions,batch_id,uuid,YES,null,FOREIGN KEY,dkv_import_batches,id
+dkv_transactions,provider,character varying,YES,'dkv'::character varying,null,null,null
+dkv_transactions,vat_amount,numeric,YES,0,null,null,null
+dkv_transactions,vat_rate,numeric,YES,null,null,null,null
+dkv_transactions,vat_country,character varying,YES,null,null,null,null
+dkv_transactions,vat_refundable,boolean,YES,false,null,null,null
+dkv_transactions,vat_refund_status,character varying,YES,'not_applicable'::character varying,null,null,null
+dkv_transactions,original_currency,character varying,YES,'EUR'::character varying,null,null,null
+dkv_transactions,exchange_rate,numeric,YES,1,null,null,null
+dkv_transactions,exchange_rate_date,character varying,YES,null,null,null,null
+dkv_transactions,country_code,character varying,YES,null,null,null,null
+dkv_transactions,net_purchase_value_eur,numeric,YES,null,null,null,null
+dkv_transactions,gross_value,numeric,YES,null,null,null,null
+dkv_transactions,gross_value_eur,numeric,YES,null,null,null,null
+dkv_transactions,payment_value_eur,numeric,YES,null,null,null,null
+dkv_transactions,vat_amount_original,numeric,YES,null,null,null,null
+dkv_transactions,vat_country_rate,numeric,YES,null,null,null,null
+dkv_transactions,vat_amount_eur,numeric,YES,null,null,null,null
+dkv_transactions,expense_id,uuid,YES,null,FOREIGN KEY,transactions,id
+document_processing_queue,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+document_processing_queue,document_id,uuid,NO,null,FOREIGN KEY,uploaded_documents,id
+document_processing_queue,status,character varying,YES,'pending'::character varying,null,null,null
+document_processing_queue,priority,integer,YES,5,null,null,null
+document_processing_queue,attempts,integer,YES,0,null,null,null
+document_processing_queue,max_attempts,integer,YES,3,null,null,null
+document_processing_queue,last_error,text,YES,null,null,null,null
+document_processing_queue,scheduled_at,timestamp with time zone,YES,now(),null,null,null
+document_processing_queue,started_at,timestamp with time zone,YES,null,null,null,null
+document_processing_queue,completed_at,timestamp with time zone,YES,null,null,null,null
+document_processing_queue,created_at,timestamp with time zone,YES,now(),null,null,null
+document_type_mappings,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+document_type_mappings,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+document_type_mappings,document_type,character varying,NO,null,null,null,null
+document_type_mappings,keywords,ARRAY,YES,null,null,null,null
+document_type_mappings,patterns,jsonb,YES,null,null,null,null
+document_type_mappings,extraction_rules,jsonb,YES,null,null,null,null
+document_type_mappings,created_at,timestamp with time zone,YES,now(),null,null,null
+document_type_mappings,updated_at,timestamp with time zone,YES,now(),null,null,null
+documents,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+documents,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+documents,entity_type,character varying,NO,null,null,null,null
+documents,entity_id,uuid,NO,null,null,null,null
+documents,doc_type,character varying,NO,null,null,null,null
+documents,doc_number,character varying,YES,null,null,null,null
+documents,issue_date,date,YES,null,null,null,null
+documents,expiry_date,date,YES,null,null,null,null
+documents,file_url,text,YES,null,null,null,null
+documents,file_name,character varying,YES,null,null,null,null
+documents,file_size,integer,YES,null,null,null,null
+documents,notes,text,YES,null,null,null,null
+documents,uploaded_by,uuid,YES,null,FOREIGN KEY,null,null
+documents,created_at,timestamp with time zone,YES,now(),null,null,null
+documents,updated_at,timestamp with time zone,YES,now(),null,null,null
+drivers,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+drivers,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+drivers,user_id,uuid,YES,null,FOREIGN KEY,null,null
+drivers,first_name,character varying,NO,null,null,null,null
+drivers,last_name,character varying,NO,null,null,null,null
+drivers,cnp,character varying,YES,null,UNIQUE,null,null
+drivers,phone,character varying,YES,null,null,null,null
+drivers,email,character varying,YES,null,null,null,null
+drivers,address,text,YES,null,null,null,null
+drivers,city,character varying,YES,null,null,null,null
+drivers,county,character varying,YES,null,null,null,null
+drivers,license_number,character varying,YES,null,null,null,null
+drivers,license_categories,ARRAY,YES,null,null,null,null
+drivers,license_expiry,date,YES,null,null,null,null
+drivers,medical_expiry,date,YES,null,null,null,null
+drivers,card_tahograf_number,character varying,YES,null,null,null,null
+drivers,card_tahograf_expiry,date,YES,null,null,null,null
+drivers,hire_date,date,YES,null,null,null,null
+drivers,termination_date,date,YES,null,null,null,null
+drivers,salary_base,numeric,YES,null,null,null,null
+drivers,diurna_rate,numeric,YES,null,null,null,null
+drivers,status,character varying,YES,'activ'::character varying,null,null,null
+drivers,notes,text,YES,null,null,null,null
+drivers,created_at,timestamp with time zone,YES,now(),null,null,null
+drivers,updated_at,timestamp with time zone,YES,now(),null,null,null
+drivers,position,character varying,YES,null,null,null,null
+drivers,employee_type,text,YES,'sofer'::text,null,null,null
+eurowag_import_batches,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+eurowag_import_batches,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+eurowag_import_batches,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+eurowag_import_batches,file_name,character varying,YES,null,null,null,null
+eurowag_import_batches,import_date,timestamp with time zone,YES,now(),null,null,null
+eurowag_import_batches,total_transactions,integer,YES,0,null,null,null
+eurowag_import_batches,matched_transactions,integer,YES,0,null,null,null
+eurowag_import_batches,unmatched_transactions,integer,YES,0,null,null,null
+eurowag_import_batches,total_net_eur,numeric,YES,0,null,null,null
+eurowag_import_batches,total_gross_eur,numeric,YES,0,null,null,null
+eurowag_import_batches,total_vat_eur,numeric,YES,0,null,null,null
+eurowag_import_batches,period_start,date,YES,null,null,null,null
+eurowag_import_batches,period_end,date,YES,null,null,null,null
+eurowag_import_batches,status,character varying,YES,'imported'::character varying,null,null,null
+eurowag_import_batches,imported_by,uuid,YES,null,FOREIGN KEY,null,null
+eurowag_import_batches,notes,text,YES,null,null,null,null
+eurowag_import_batches,created_at,timestamp with time zone,YES,now(),null,null,null
+eurowag_import_batches,updated_at,timestamp with time zone,YES,now(),null,null,null
+eurowag_temp_import_batches,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+eurowag_temp_import_batches,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+eurowag_temp_import_batches,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+eurowag_temp_import_batches,file_name,character varying,YES,null,null,null,null
+eurowag_temp_import_batches,import_date,timestamp with time zone,YES,now(),null,null,null
+eurowag_temp_import_batches,total_transactions,integer,YES,0,null,null,null
+eurowag_temp_import_batches,matched_transactions,integer,YES,0,null,null,null
+eurowag_temp_import_batches,unmatched_transactions,integer,YES,0,null,null,null
+eurowag_temp_import_batches,total_net_eur,numeric,YES,0,null,null,null
+eurowag_temp_import_batches,total_gross_eur,numeric,YES,0,null,null,null
+eurowag_temp_import_batches,total_vat_eur,numeric,YES,0,null,null,null
+eurowag_temp_import_batches,period_start,date,YES,null,null,null,null
+eurowag_temp_import_batches,period_end,date,YES,null,null,null,null
+eurowag_temp_import_batches,provider,character varying,YES,'eurowag'::character varying,null,null,null
+eurowag_temp_import_batches,status,character varying,YES,'imported'::character varying,null,null,null
+eurowag_temp_import_batches,imported_by,uuid,YES,null,FOREIGN KEY,null,null
+eurowag_temp_import_batches,notes,text,YES,null,null,null,null
+eurowag_temp_import_batches,created_at,timestamp with time zone,YES,now(),null,null,null
+eurowag_temp_import_batches,updated_at,timestamp with time zone,YES,now(),null,null,null
+eurowag_temp_transactions,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+eurowag_temp_transactions,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+eurowag_temp_transactions,batch_id,uuid,YES,null,FOREIGN KEY,eurowag_temp_import_batches,id
+eurowag_temp_transactions,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+eurowag_temp_transactions,transaction_time,timestamp with time zone,NO,null,null,null,null
+eurowag_temp_transactions,service_type,character varying,YES,null,null,null,null
+eurowag_temp_transactions,vehicle_registration,character varying,YES,null,null,null,null
+eurowag_temp_transactions,card_number,character varying,YES,null,null,null,null
+eurowag_temp_transactions,obu_id,character varying,YES,null,null,null,null
+eurowag_temp_transactions,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+eurowag_temp_transactions,product_type,character varying,YES,null,null,null,null
+eurowag_temp_transactions,product_category,character varying,YES,null,null,null,null
+eurowag_temp_transactions,quantity,numeric,YES,null,null,null,null
+eurowag_temp_transactions,unit,character varying,YES,'LTR'::character varying,null,null,null
+eurowag_temp_transactions,country,character varying,YES,null,null,null,null
+eurowag_temp_transactions,country_code,character varying,YES,null,null,null,null
+eurowag_temp_transactions,location,character varying,YES,null,null,null,null
+eurowag_temp_transactions,original_currency,character varying,YES,'EUR'::character varying,null,null,null
+eurowag_temp_transactions,net_amount,numeric,YES,null,null,null,null
+eurowag_temp_transactions,gross_amount,numeric,YES,null,null,null,null
+eurowag_temp_transactions,vat_amount,numeric,YES,null,null,null,null
+eurowag_temp_transactions,exchange_rate,numeric,YES,1,null,null,null
+eurowag_temp_transactions,exchange_rate_date,character varying,YES,null,null,null,null
+eurowag_temp_transactions,net_amount_eur,numeric,YES,null,null,null,null
+eurowag_temp_transactions,gross_amount_eur,numeric,YES,null,null,null,null
+eurowag_temp_transactions,vat_amount_eur,numeric,YES,null,null,null,null
+eurowag_temp_transactions,vat_rate,numeric,YES,null,null,null,null
+eurowag_temp_transactions,vat_country,character varying,YES,null,null,null,null
+eurowag_temp_transactions,vat_country_rate,numeric,YES,null,null,null,null
+eurowag_temp_transactions,vat_refundable,boolean,YES,false,null,null,null
+eurowag_temp_transactions,vat_refund_status,character varying,YES,'not_applicable'::character varying,null,null,null
+eurowag_temp_transactions,status,character varying,YES,'pending'::character varying,null,null,null
+eurowag_temp_transactions,notes,text,YES,null,null,null,null
+eurowag_temp_transactions,created_at,timestamp with time zone,YES,now(),null,null,null
+eurowag_temp_transactions,updated_at,timestamp with time zone,YES,now(),null,null,null
+eurowag_transactions,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+eurowag_transactions,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+eurowag_transactions,batch_id,uuid,YES,null,FOREIGN KEY,eurowag_import_batches,id
+eurowag_transactions,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+eurowag_transactions,transaction_time,timestamp with time zone,NO,null,null,null,null
+eurowag_transactions,service_type,character varying,YES,null,null,null,null
+eurowag_transactions,vehicle_registration,character varying,YES,null,null,null,null
+eurowag_transactions,card_number,character varying,YES,null,null,null,null
+eurowag_transactions,obu_id,character varying,YES,null,null,null,null
+eurowag_transactions,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+eurowag_transactions,product_type,character varying,YES,null,null,null,null
+eurowag_transactions,quantity,numeric,YES,null,null,null,null
+eurowag_transactions,unit,character varying,YES,'LTR'::character varying,null,null,null
+eurowag_transactions,country,character varying,YES,null,null,null,null
+eurowag_transactions,country_code,character varying,YES,null,null,null,null
+eurowag_transactions,location,character varying,YES,null,null,null,null
+eurowag_transactions,original_currency,character varying,YES,'EUR'::character varying,null,null,null
+eurowag_transactions,net_amount,numeric,YES,null,null,null,null
+eurowag_transactions,gross_amount,numeric,YES,null,null,null,null
+eurowag_transactions,vat_amount,numeric,YES,null,null,null,null
+eurowag_transactions,exchange_rate,numeric,YES,1,null,null,null
+eurowag_transactions,exchange_rate_date,character varying,YES,null,null,null,null
+eurowag_transactions,net_amount_eur,numeric,YES,null,null,null,null
+eurowag_transactions,gross_amount_eur,numeric,YES,null,null,null,null
+eurowag_transactions,vat_amount_eur,numeric,YES,null,null,null,null
+eurowag_transactions,vat_rate,numeric,YES,null,null,null,null
+eurowag_transactions,vat_country,character varying,YES,null,null,null,null
+eurowag_transactions,vat_country_rate,numeric,YES,null,null,null,null
+eurowag_transactions,vat_refundable,boolean,YES,false,null,null,null
+eurowag_transactions,vat_refund_status,character varying,YES,'not_applicable'::character varying,null,null,null
+eurowag_transactions,status,character varying,YES,'pending'::character varying,null,null,null
+eurowag_transactions,expense_id,uuid,YES,null,FOREIGN KEY,transactions,id
+eurowag_transactions,notes,text,YES,null,null,null,null
+eurowag_transactions,created_at,timestamp with time zone,YES,now(),null,null,null
+eurowag_transactions,updated_at,timestamp with time zone,YES,now(),null,null,null
+eurowag_transactions,product_category,character varying,YES,null,null,null,null
+trailers,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+trailers,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+trailers,company_id,uuid,NO,null,UNIQUE,null,null
+trailers,registration_number,character varying,NO,null,UNIQUE,null,null
+trailers,vin,character varying,YES,null,null,null,null
+trailers,type,character varying,YES,null,null,null,null
+trailers,brand,character varying,YES,null,null,null,null
+trailers,model,character varying,YES,null,null,null,null
+trailers,year,integer,YES,null,null,null,null
+trailers,capacity_tons,numeric,YES,null,null,null,null
+trailers,volume_m3,numeric,YES,null,null,null,null
+trailers,purchase_date,date,YES,null,null,null,null
+trailers,purchase_price,numeric,YES,null,null,null,null
+trailers,status,character varying,YES,'activ'::character varying,null,null,null
+trailers,notes,text,YES,null,null,null,null
+trailers,created_at,timestamp with time zone,YES,now(),null,null,null
+trailers,updated_at,timestamp with time zone,YES,now(),null,null,null
+transactions,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+transactions,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+transactions,type,character varying,NO,null,null,null,null
+transactions,category,character varying,NO,null,null,null,null
+transactions,amount,numeric,NO,null,null,null,null
+transactions,currency,character varying,YES,'EUR'::character varying,null,null,null
+transactions,date,date,NO,null,null,null,null
+transactions,description,text,YES,null,null,null,null
+transactions,trip_id,uuid,YES,null,FOREIGN KEY,trips,id
+transactions,driver_id,uuid,YES,null,FOREIGN KEY,drivers,id
+transactions,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+transactions,invoice_number,character varying,YES,null,null,null,null
+transactions,payment_method,character varying,YES,null,null,null,null
+transactions,external_ref,character varying,YES,null,null,null,null
+transactions,created_by,uuid,YES,null,FOREIGN KEY,null,null
+transactions,created_at,timestamp with time zone,YES,now(),null,null,null
+transactions,updated_at,timestamp with time zone,YES,now(),null,null,null
+transactions,notes,text,YES,null,null,null,null
+trip_expenses,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+trip_expenses,trip_id,uuid,NO,null,FOREIGN KEY,trips,id
+trip_expenses,category,character varying,NO,null,null,null,null
+trip_expenses,amount,numeric,NO,null,null,null,null
+trip_expenses,currency,character varying,YES,'EUR'::character varying,null,null,null
+trip_expenses,description,text,YES,null,null,null,null
+trip_expenses,receipt_number,character varying,YES,null,null,null,null
+trip_expenses,date,date,YES,null,null,null,null
+trip_expenses,created_by,uuid,YES,null,FOREIGN KEY,null,null
+trip_expenses,created_at,timestamp with time zone,YES,now(),null,null,null
+trip_stops,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+trip_stops,trip_id,uuid,NO,null,FOREIGN KEY,trips,id
+trip_stops,sequence,integer,NO,null,null,null,null
+trip_stops,country,character varying,NO,null,null,null,null
+trip_stops,city,character varying,NO,null,null,null,null
+trip_stops,address,text,YES,null,null,null,null
+trip_stops,type,character varying,YES,null,null,null,null
+trip_stops,planned_date,timestamp with time zone,YES,null,null,null,null
+trip_stops,actual_date,timestamp with time zone,YES,null,null,null,null
+trip_stops,notes,text,YES,null,null,null,null
+trip_stops,created_at,timestamp with time zone,YES,now(),null,null,null
+trip_stops,updated_at,timestamp with time zone,YES,now(),null,null,null
+trips,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+trips,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+trips,driver_id,uuid,YES,null,FOREIGN KEY,drivers,id
+trips,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+trips,trailer_id,uuid,YES,null,FOREIGN KEY,trailers,id
+trips,origin_country,character varying,NO,null,null,null,null
+trips,origin_city,character varying,NO,null,null,null,null
+trips,origin_address,text,YES,null,null,null,null
+trips,destination_country,character varying,NO,null,null,null,null
+trips,destination_city,character varying,NO,null,null,null,null
+trips,destination_address,text,YES,null,null,null,null
+trips,departure_date,timestamp with time zone,NO,null,null,null,null
+trips,estimated_arrival,timestamp with time zone,YES,null,null,null,null
+trips,actual_arrival,timestamp with time zone,YES,null,null,null,null
+trips,km_start,integer,YES,null,null,null,null
+trips,km_end,integer,YES,null,null,null,null
+trips,cargo_type,character varying,YES,null,null,null,null
+trips,cargo_weight,numeric,YES,null,null,null,null
+trips,cargo_description,text,YES,null,null,null,null
+trips,client_name,character varying,YES,null,null,null,null
+trips,client_contact,character varying,YES,null,null,null,null
+trips,price,numeric,YES,null,null,null,null
+trips,currency,character varying,YES,'EUR'::character varying,null,null,null
+trips,payment_status,character varying,YES,'pending'::character varying,null,null,null
+trips,status,character varying,YES,'planificat'::character varying,null,null,null
+trips,notes,text,YES,null,null,null,null
+trips,created_by,uuid,YES,null,FOREIGN KEY,null,null
+trips,created_at,timestamp with time zone,YES,now(),null,null,null
+trips,updated_at,timestamp with time zone,YES,now(),null,null,null
+trips,diurna,numeric,YES,0,null,null,null
+trips,diurna_currency,character varying,YES,'EUR'::character varying,null,null,null
+trips,cash_expenses,numeric,YES,0,null,null,null
+trips,cash_expenses_currency,character varying,YES,'EUR'::character varying,null,null,null
+trips,expense_report_number,character varying,YES,null,null,null,null
+trips,total_km,integer,YES,null,null,null,null
+truck_heads,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+truck_heads,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+truck_heads,company_id,uuid,NO,null,UNIQUE,null,null
+truck_heads,registration_number,character varying,NO,null,UNIQUE,null,null
+truck_heads,vin,character varying,YES,null,null,null,null
+truck_heads,brand,character varying,YES,null,null,null,null
+truck_heads,model,character varying,YES,null,null,null,null
+truck_heads,year,integer,YES,null,null,null,null
+truck_heads,euro_standard,character varying,YES,null,null,null,null
+truck_heads,purchase_date,date,YES,null,null,null,null
+truck_heads,purchase_price,numeric,YES,null,null,null,null
+truck_heads,current_km,integer,YES,0,null,null,null
+truck_heads,status,character varying,YES,'activ'::character varying,null,null,null
+truck_heads,gps_provider,character varying,YES,null,null,null,null
+truck_heads,gps_device_id,character varying,YES,null,null,null,null
+truck_heads,fuel_tank_capacity,integer,YES,null,null,null,null
+truck_heads,avg_consumption,numeric,YES,null,null,null,null
+truck_heads,notes,text,YES,null,null,null,null
+truck_heads,created_at,timestamp with time zone,YES,now(),null,null,null
+truck_heads,updated_at,timestamp with time zone,YES,now(),null,null,null
+uploaded_documents,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+uploaded_documents,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+uploaded_documents,file_name,character varying,NO,null,null,null,null
+uploaded_documents,original_name,character varying,NO,null,null,null,null
+uploaded_documents,file_path,text,NO,null,null,null,null
+uploaded_documents,file_url,text,YES,null,null,null,null
+uploaded_documents,file_size,integer,YES,null,null,null,null
+uploaded_documents,mime_type,character varying,YES,null,null,null,null
+uploaded_documents,file_extension,character varying,YES,null,null,null,null
+uploaded_documents,document_type,character varying,YES,null,null,null,null
+uploaded_documents,document_category,character varying,YES,null,null,null,null
+uploaded_documents,extracted_data,jsonb,YES,'{}'::jsonb,null,null,null
+uploaded_documents,ai_confidence,numeric,YES,null,null,null,null
+uploaded_documents,ai_processed_at,timestamp with time zone,YES,null,null,null,null
+uploaded_documents,ai_error,text,YES,null,null,null,null
+uploaded_documents,document_date,date,YES,null,null,null,null
+uploaded_documents,document_number,character varying,YES,null,null,null,null
+uploaded_documents,amount,numeric,YES,null,null,null,null
+uploaded_documents,currency,character varying,YES,null,null,null,null
+uploaded_documents,supplier_name,character varying,YES,null,null,null,null
+uploaded_documents,supplier_cui,character varying,YES,null,null,null,null
+uploaded_documents,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+uploaded_documents,trailer_id,uuid,YES,null,FOREIGN KEY,trailers,id
+uploaded_documents,driver_id,uuid,YES,null,FOREIGN KEY,drivers,id
+uploaded_documents,trip_id,uuid,YES,null,FOREIGN KEY,trips,id
+uploaded_documents,status,character varying,YES,'uploaded'::character varying,null,null,null
+uploaded_documents,reviewed_by,uuid,YES,null,FOREIGN KEY,null,null
+uploaded_documents,reviewed_at,timestamp with time zone,YES,null,null,null,null
+uploaded_documents,tags,ARRAY,YES,null,null,null,null
+uploaded_documents,notes,text,YES,null,null,null,null
+uploaded_documents,uploaded_by,uuid,YES,null,FOREIGN KEY,null,null
+uploaded_documents,created_at,timestamp with time zone,YES,now(),null,null,null
+uploaded_documents,updated_at,timestamp with time zone,YES,now(),null,null,null
+uploaded_documents,is_paid,boolean,YES,false,null,null,null
+uploaded_documents,paid_at,timestamp with time zone,YES,null,null,null,null
+uploaded_documents,paid_from_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+user_profiles,id,uuid,NO,null,FOREIGN KEY,null,null
+user_profiles,id,uuid,NO,null,PRIMARY KEY,null,null
+user_profiles,company_id,uuid,YES,null,FOREIGN KEY,companies,id
+user_profiles,full_name,character varying,YES,null,null,null,null
+user_profiles,role,character varying,YES,'operator'::character varying,null,null,null
+user_profiles,phone,character varying,YES,null,null,null,null
+user_profiles,avatar_url,text,YES,null,null,null,null
+user_profiles,settings,jsonb,YES,'{}'::jsonb,null,null,null
+user_profiles,last_login_at,timestamp with time zone,YES,null,null,null,null
+user_profiles,created_at,timestamp with time zone,YES,now(),null,null,null
+user_profiles,updated_at,timestamp with time zone,YES,now(),null,null,null
+verag_import_batches,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+verag_import_batches,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+verag_import_batches,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+verag_import_batches,file_name,character varying,YES,null,null,null,null
+verag_import_batches,import_date,timestamp with time zone,YES,now(),null,null,null
+verag_import_batches,report_date,date,YES,null,null,null,null
+verag_import_batches,total_transactions,integer,YES,0,null,null,null
+verag_import_batches,matched_transactions,integer,YES,0,null,null,null
+verag_import_batches,unmatched_transactions,integer,YES,0,null,null,null
+verag_import_batches,total_net_eur,numeric,YES,0,null,null,null
+verag_import_batches,total_gross_eur,numeric,YES,0,null,null,null
+verag_import_batches,total_vat_eur,numeric,YES,0,null,null,null
+verag_import_batches,period_start,date,YES,null,null,null,null
+verag_import_batches,period_end,date,YES,null,null,null,null
+verag_import_batches,status,character varying,YES,'imported'::character varying,null,null,null
+verag_import_batches,imported_by,uuid,YES,null,FOREIGN KEY,null,null
+verag_import_batches,notes,text,YES,null,null,null,null
+verag_import_batches,created_at,timestamp with time zone,YES,now(),null,null,null
+verag_import_batches,updated_at,timestamp with time zone,YES,now(),null,null,null
+verag_temp_import_batches,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+verag_temp_import_batches,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+verag_temp_import_batches,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+verag_temp_import_batches,file_name,character varying,YES,null,null,null,null
+verag_temp_import_batches,import_date,timestamp with time zone,YES,now(),null,null,null
+verag_temp_import_batches,report_date,date,YES,null,null,null,null
+verag_temp_import_batches,total_transactions,integer,YES,0,null,null,null
+verag_temp_import_batches,matched_transactions,integer,YES,0,null,null,null
+verag_temp_import_batches,unmatched_transactions,integer,YES,0,null,null,null
+verag_temp_import_batches,total_net_eur,numeric,YES,0,null,null,null
+verag_temp_import_batches,total_gross_eur,numeric,YES,0,null,null,null
+verag_temp_import_batches,total_vat_eur,numeric,YES,0,null,null,null
+verag_temp_import_batches,period_start,date,YES,null,null,null,null
+verag_temp_import_batches,period_end,date,YES,null,null,null,null
+verag_temp_import_batches,provider,character varying,YES,'verag'::character varying,null,null,null
+verag_temp_import_batches,status,character varying,YES,'imported'::character varying,null,null,null
+verag_temp_import_batches,imported_by,uuid,YES,null,FOREIGN KEY,null,null
+verag_temp_import_batches,notes,text,YES,null,null,null,null
+verag_temp_import_batches,created_at,timestamp with time zone,YES,now(),null,null,null
+verag_temp_import_batches,updated_at,timestamp with time zone,YES,now(),null,null,null
+verag_temp_transactions,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+verag_temp_transactions,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+verag_temp_transactions,batch_id,uuid,YES,null,FOREIGN KEY,verag_temp_import_batches,id
+verag_temp_transactions,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+verag_temp_transactions,transaction_date,timestamp with time zone,NO,null,null,null,null
+verag_temp_transactions,vehicle_registration,character varying,YES,null,null,null,null
+verag_temp_transactions,card_number,character varying,YES,null,null,null,null
+verag_temp_transactions,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+verag_temp_transactions,product_type,character varying,YES,null,null,null,null
+verag_temp_transactions,product_category,character varying,YES,null,null,null,null
+verag_temp_transactions,route_info,character varying,YES,null,null,null,null
+verag_temp_transactions,country,character varying,YES,null,null,null,null
+verag_temp_transactions,country_code,character varying,YES,null,null,null,null
+verag_temp_transactions,currency,character varying,YES,'EUR'::character varying,null,null,null
+verag_temp_transactions,net_amount,numeric,YES,null,null,null,null
+verag_temp_transactions,vat_amount,numeric,YES,null,null,null,null
+verag_temp_transactions,gross_amount,numeric,YES,null,null,null,null
+verag_temp_transactions,vat_rate,numeric,YES,null,null,null,null
+verag_temp_transactions,vat_country,character varying,YES,null,null,null,null
+verag_temp_transactions,vat_country_rate,numeric,YES,null,null,null,null
+verag_temp_transactions,vat_refundable,boolean,YES,false,null,null,null
+verag_temp_transactions,vat_refund_status,character varying,YES,'not_applicable'::character varying,null,null,null
+verag_temp_transactions,status,character varying,YES,'pending'::character varying,null,null,null
+verag_temp_transactions,notes,text,YES,null,null,null,null
+verag_temp_transactions,created_at,timestamp with time zone,YES,now(),null,null,null
+verag_temp_transactions,updated_at,timestamp with time zone,YES,now(),null,null,null
+verag_transactions,id,uuid,NO,uuid_generate_v4(),PRIMARY KEY,null,null
+verag_transactions,company_id,uuid,NO,null,FOREIGN KEY,companies,id
+verag_transactions,batch_id,uuid,YES,null,FOREIGN KEY,verag_import_batches,id
+verag_transactions,uploaded_document_id,uuid,YES,null,FOREIGN KEY,uploaded_documents,id
+verag_transactions,transaction_date,timestamp with time zone,NO,null,null,null,null
+verag_transactions,vehicle_registration,character varying,YES,null,null,null,null
+verag_transactions,card_number,character varying,YES,null,null,null,null
+verag_transactions,truck_id,uuid,YES,null,FOREIGN KEY,truck_heads,id
+verag_transactions,product_type,character varying,YES,null,null,null,null
+verag_transactions,product_category,character varying,YES,null,null,null,null
+verag_transactions,route_info,character varying,YES,null,null,null,null
+verag_transactions,country,character varying,YES,null,null,null,null
+verag_transactions,country_code,character varying,YES,null,null,null,null
+verag_transactions,currency,character varying,YES,'EUR'::character varying,null,null,null
+verag_transactions,net_amount,numeric,YES,null,null,null,null
+verag_transactions,vat_amount,numeric,YES,null,null,null,null
+verag_transactions,gross_amount,numeric,YES,null,null,null,null
+verag_transactions,vat_rate,numeric,YES,null,null,null,null
+verag_transactions,vat_country,character varying,YES,null,null,null,null
+verag_transactions,vat_country_rate,numeric,YES,null,null,null,null
+verag_transactions,vat_refundable,boolean,YES,false,null,null,null
+verag_transactions,vat_refund_status,character varying,YES,'not_applicable'::character varying,null,null,null
+verag_transactions,status,character varying,YES,'pending'::character varying,null,null,null
+verag_transactions,expense_id,uuid,YES,null,FOREIGN KEY,transactions,id
+verag_transactions,notes,text,YES,null,null,null,null
+verag_transactions,created_at,timestamp with time zone,YES,now(),null,null,null
+verag_transactions,updated_at,timestamp with time zone,YES,now(),null,null,null
