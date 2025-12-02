@@ -4,6 +4,7 @@ import { dkvApi, vehiclesApi } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   Upload,
   Fuel,
@@ -133,6 +134,13 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
   const [matchingTxId, setMatchingTxId] = useState<string | null>(null)
   const [summaryFilter, setSummaryFilter] = useState<'latest' | 'all'>('all')
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Delete dialog states
+  const [deleteSelectedDialogOpen, setDeleteSelectedDialogOpen] = useState(false)
+  const [deleteSelectedIds, setDeleteSelectedIds] = useState<string[]>([])
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false)
+  const [deleteBatchDialogOpen, setDeleteBatchDialogOpen] = useState(false)
+  const [batchToDelete, setBatchToDelete] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
   const config = providerConfig[provider] || providerConfig.dkv
@@ -279,6 +287,12 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
       queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
       setSelectedTx([])
+      setDeleteSelectedDialogOpen(false)
+      setDeleteSelectedIds([])
+    },
+    onError: () => {
+      setDeleteSelectedDialogOpen(false)
+      setDeleteSelectedIds([])
     },
   })
 
@@ -288,15 +302,14 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       const res = await dkvApi.bulkDeleteTempTransactions(provider !== 'all' ? provider : undefined)
       return res.data
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
       queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
-      alert(`Sterse ${data?.deleted || 0} tranzactii: ${data?.message || 'OK'}`)
+      setDeleteAllDialogOpen(false)
     },
-    onError: (error: Error) => {
-      console.error('Bulk delete error:', error)
-      alert(`Eroare la stergere: ${error.message}`)
+    onError: () => {
+      setDeleteAllDialogOpen(false)
     },
   })
 
@@ -309,6 +322,12 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       queryClient.invalidateQueries({ queryKey: ['dkv-temp-batches'] })
       queryClient.invalidateQueries({ queryKey: ['dkv-temp-transactions'] })
       queryClient.invalidateQueries({ queryKey: ['dkv-temp-summary'] })
+      setDeleteBatchDialogOpen(false)
+      setBatchToDelete(null)
+    },
+    onError: () => {
+      setDeleteBatchDialogOpen(false)
+      setBatchToDelete(null)
     },
   })
 
@@ -360,9 +379,8 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
       : transactions.map((tx) => tx.id)
 
     if (toRejectIds.length > 0) {
-      if (confirm(`Sigur doriti sa stergeti ${toRejectIds.length} tranzactii din staging? Aceasta actiune nu poate fi anulata.`)) {
-        bulkIgnoreMutation.mutate(toRejectIds)
-      }
+      setDeleteSelectedIds(toRejectIds)
+      setDeleteSelectedDialogOpen(true)
     }
   }
 
@@ -571,11 +589,7 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        if (confirm(`Sigur doriti sa stergeti TOATE ${summary?.total_transactions} tranzactii din staging? Aceasta actiune nu poate fi anulata!`)) {
-                          bulkDeleteMutation.mutate()
-                        }
-                      }}
+                      onClick={() => setDeleteAllDialogOpen(true)}
                       disabled={bulkDeleteMutation.isPending}
                       className="text-red-700 hover:text-red-800 hover:bg-red-100 border-red-300"
                     >
@@ -1018,9 +1032,8 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
                             variant="ghost"
                             size="icon"
                             onClick={() => {
-                              if (confirm('Esti sigur ca vrei sa stergi acest import? Toate tranzactiile asociate vor fi sterse.')) {
-                                deleteBatchMutation.mutate(batch.id)
-                              }
+                              setBatchToDelete(batch.id)
+                              setDeleteBatchDialogOpen(true)
                             }}
                             className="text-red-500 hover:text-red-600"
                           >
@@ -1036,6 +1049,53 @@ export default function DKVPage({ provider = 'dkv' }: FuelReportPageProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Selected Transactions Dialog */}
+      <ConfirmDialog
+        open={deleteSelectedDialogOpen}
+        onOpenChange={setDeleteSelectedDialogOpen}
+        title="Șterge tranzacțiile selectate"
+        description={`Sigur doriți să ștergeți ${deleteSelectedIds.length} tranzacții din staging? Această acțiune nu poate fi anulată.`}
+        confirmText="Șterge"
+        cancelText="Anulează"
+        variant="destructive"
+        isLoading={bulkIgnoreMutation.isPending}
+        onConfirm={() => {
+          if (deleteSelectedIds.length > 0) {
+            bulkIgnoreMutation.mutate(deleteSelectedIds)
+          }
+        }}
+      />
+
+      {/* Delete All Transactions Dialog */}
+      <ConfirmDialog
+        open={deleteAllDialogOpen}
+        onOpenChange={setDeleteAllDialogOpen}
+        title="Șterge toate tranzacțiile"
+        description={`Sigur doriți să ștergeți TOATE ${summary?.total_transactions || 0} tranzacțiile din staging? Această acțiune nu poate fi anulată!`}
+        confirmText="Șterge toate"
+        cancelText="Anulează"
+        variant="destructive"
+        isLoading={bulkDeleteMutation.isPending}
+        onConfirm={() => bulkDeleteMutation.mutate()}
+      />
+
+      {/* Delete Batch Dialog */}
+      <ConfirmDialog
+        open={deleteBatchDialogOpen}
+        onOpenChange={setDeleteBatchDialogOpen}
+        title="Șterge importul"
+        description="Ești sigur că vrei să ștergi acest import? Toate tranzacțiile asociate vor fi șterse."
+        confirmText="Șterge"
+        cancelText="Anulează"
+        variant="destructive"
+        isLoading={deleteBatchMutation.isPending}
+        onConfirm={() => {
+          if (batchToDelete) {
+            deleteBatchMutation.mutate(batchToDelete)
+          }
+        }}
+      />
     </div>
   )
 }

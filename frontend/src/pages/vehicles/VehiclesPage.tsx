@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/use-toast'
 import { formatDate } from '@/lib/utils'
 import { Plus, Search, Truck, Edit, Trash2, Container } from 'lucide-react'
@@ -48,6 +49,10 @@ export default function VehiclesPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingTruck, setEditingTruck] = useState<TruckData | null>(null)
   const [editingTrailer, setEditingTrailer] = useState<TrailerData | null>(null)
+  const [deleteTruckDialogOpen, setDeleteTruckDialogOpen] = useState(false)
+  const [truckToDelete, setTruckToDelete] = useState<string | null>(null)
+  const [deleteTrailerDialogOpen, setDeleteTrailerDialogOpen] = useState(false)
+  const [trailerToDelete, setTrailerToDelete] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   // Trucks queries and mutations
@@ -95,9 +100,13 @@ export default function VehiclesPage() {
     mutationFn: (id: string) => vehiclesApi.deleteTruck(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trucks'] })
+      setDeleteTruckDialogOpen(false)
+      setTruckToDelete(null)
       toast({ title: 'Succes', description: 'Camion dezactivat cu succes' })
     },
     onError: () => {
+      setDeleteTruckDialogOpen(false)
+      setTruckToDelete(null)
       toast({
         title: 'Eroare',
         description: 'Nu s-a putut dezactiva camionul',
@@ -151,9 +160,13 @@ export default function VehiclesPage() {
     mutationFn: (id: string) => vehiclesApi.deleteTrailer(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trailers'] })
+      setDeleteTrailerDialogOpen(false)
+      setTrailerToDelete(null)
       toast({ title: 'Succes', description: 'Remorca dezactivata cu succes' })
     },
     onError: () => {
+      setDeleteTrailerDialogOpen(false)
+      setTrailerToDelete(null)
       toast({
         title: 'Eroare',
         description: 'Nu s-a putut dezactiva remorca',
@@ -439,9 +452,8 @@ export default function VehiclesPage() {
                         variant="outline"
                         className="text-red-600 hover:text-red-700"
                         onClick={() => {
-                          if (confirm('Sigur doriti sa dezactivati acest camion?')) {
-                            deleteTruckMutation.mutate(truck.id)
-                          }
+                          setTruckToDelete(truck.id)
+                          setDeleteTruckDialogOpen(true)
                         }}
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
@@ -644,9 +656,8 @@ export default function VehiclesPage() {
                         variant="outline"
                         className="text-red-600 hover:text-red-700"
                         onClick={() => {
-                          if (confirm('Sigur doriti sa dezactivati aceasta remorca?')) {
-                            deleteTrailerMutation.mutate(trailer.id)
-                          }
+                          setTrailerToDelete(trailer.id)
+                          setDeleteTrailerDialogOpen(true)
                         }}
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
@@ -667,6 +678,38 @@ export default function VehiclesPage() {
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={deleteTruckDialogOpen}
+        onOpenChange={setDeleteTruckDialogOpen}
+        title="Dezactivează camionul"
+        description="Sigur doriți să dezactivați acest camion?"
+        confirmText="Dezactivează"
+        cancelText="Anulează"
+        variant="destructive"
+        isLoading={deleteTruckMutation.isPending}
+        onConfirm={() => {
+          if (truckToDelete) {
+            deleteTruckMutation.mutate(truckToDelete)
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteTrailerDialogOpen}
+        onOpenChange={setDeleteTrailerDialogOpen}
+        title="Dezactivează remorca"
+        description="Sigur doriți să dezactivați această remorcă?"
+        confirmText="Dezactivează"
+        cancelText="Anulează"
+        variant="destructive"
+        isLoading={deleteTrailerMutation.isPending}
+        onConfirm={() => {
+          if (trailerToDelete) {
+            deleteTrailerMutation.mutate(trailerToDelete)
+          }
+        }}
+      />
     </div>
   )
 }
