@@ -19,8 +19,19 @@ type DriverData = {
   license_expiry?: string
   medical_expiry?: string
   status: string
+  employee_type?: string
   created_at: string
 }
+
+const EMPLOYEE_TYPES = [
+  { value: 'sofer', label: 'Șofer' },
+  { value: 'mecanic', label: 'Mecanic' },
+  { value: 'portar', label: 'Portar' },
+  { value: 'femeie_serviciu', label: 'Femeie de serviciu' },
+  { value: 'asistent_manager', label: 'Asistent Manager' },
+  { value: 'coordonator_transport', label: 'Coordonator Transport' },
+  { value: 'altele', label: 'Altele' },
+]
 
 export default function DriversPage() {
   const [search, setSearch] = useState('')
@@ -93,6 +104,7 @@ export default function DriversPage() {
       license_number: formData.get('license_number') || undefined,
       license_expiry: formData.get('license_expiry') || undefined,
       medical_expiry: formData.get('medical_expiry') || undefined,
+      employee_type: formData.get('employee_type') || 'sofer',
     }
 
     if (editingDriver) {
@@ -211,6 +223,21 @@ export default function DriversPage() {
                     defaultValue={editingDriver?.medical_expiry?.split('T')[0]}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="employee_type">Tip Angajat</Label>
+                  <select
+                    id="employee_type"
+                    name="employee_type"
+                    defaultValue={editingDriver?.employee_type || 'sofer'}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    {EMPLOYEE_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
@@ -272,6 +299,12 @@ export default function DriversPage() {
                     <p className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       {driver.email}
+                    </p>
+                  )}
+                  {driver.employee_type && (
+                    <p>
+                      <span className="text-muted-foreground">Tip:</span>{' '}
+                      {EMPLOYEE_TYPES.find(t => t.value === driver.employee_type)?.label || driver.employee_type}
                     </p>
                   )}
                   {driver.license_expiry && (

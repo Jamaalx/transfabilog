@@ -77,7 +77,10 @@ export const vehiclesApi = {
   updateTruck: (id: string, data: Record<string, unknown>) => api.put(`/vehicles/trucks/${id}`, data),
   deleteTruck: (id: string) => api.delete(`/vehicles/trucks/${id}`),
   getTrailers: (params?: Record<string, unknown>) => api.get('/vehicles/trailers', { params }),
+  getTrailer: (id: string) => api.get(`/vehicles/trailers/${id}`),
   createTrailer: (data: Record<string, unknown>) => api.post('/vehicles/trailers', data),
+  updateTrailer: (id: string, data: Record<string, unknown>) => api.put(`/vehicles/trailers/${id}`, data),
+  deleteTrailer: (id: string) => api.delete(`/vehicles/trailers/${id}`),
 }
 
 export const driversApi = {
