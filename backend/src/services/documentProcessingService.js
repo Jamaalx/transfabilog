@@ -319,6 +319,179 @@ Răspunde cu JSON:
 }
 
 /**
+ * Attempt to repair truncated JSON from AI response
+ * This handles cases where the response was cut off due to max_tokens limit
+ */
+function repairTruncatedJson(jsonString, documentType) {
+  if (!jsonString || typeof jsonString !== 'string') {
+    return null;
+  }
+
+  try {
+    // First, try parsing as-is (maybe it's actually valid)
+    return JSON.parse(jsonString);
+  } catch (e) {
+    // JSON is invalid, try to repair it
+  }
+
+  try {
+    let repaired = jsonString.trim();
+
+    // For bank statements, try to close the transactions array and object
+    if (documentType === 'extras_bancar') {
+      // Find if we're inside the transactions array
+      const transactionsStart = repaired.indexOf('"transactions"');
+      if (transactionsStart !== -1) {
+        // Count open brackets to determine nesting level
+        let openBraces = 0;
+        let openBrackets = 0;
+        let inString = false;
+        let escape = false;
+
+        for (let i = 0; i < repaired.length; i++) {
+          const char = repaired[i];
+
+          if (escape) {
+            escape = false;
+            continue;
+          }
+
+          if (char === '\\') {
+            escape = true;
+            continue;
+          }
+
+          if (char === '"' && !escape) {
+            inString = !inString;
+            continue;
+          }
+
+          if (!inString) {
+            if (char === '{') openBraces++;
+            if (char === '}') openBraces--;
+            if (char === '[') openBrackets++;
+            if (char === ']') openBrackets--;
+          }
+        }
+
+        // Remove trailing incomplete content (partial string or number)
+        // Find the last complete JSON element
+        let lastValidIndex = repaired.length - 1;
+
+        // Look for last complete transaction (ends with })
+        const lastClosingBrace = repaired.lastIndexOf('}');
+        if (lastClosingBrace > 0) {
+          // Check if there's incomplete content after the last }
+          const afterBrace = repaired.substring(lastClosingBrace + 1).trim();
+          if (afterBrace && !afterBrace.startsWith(']') && !afterBrace.startsWith(',')) {
+            // There's garbage after the last closing brace, truncate there
+            repaired = repaired.substring(0, lastClosingBrace + 1);
+            // Recalculate brackets
+            openBraces = 0;
+            openBrackets = 0;
+            inString = false;
+            escape = false;
+            for (let i = 0; i < repaired.length; i++) {
+              const char = repaired[i];
+              if (escape) { escape = false; continue; }
+              if (char === '\\') { escape = true; continue; }
+              if (char === '"' && !escape) { inString = !inString; continue; }
+              if (!inString) {
+                if (char === '{') openBraces++;
+                if (char === '}') openBraces--;
+                if (char === '[') openBrackets++;
+                if (char === ']') openBrackets--;
+              }
+            }
+          }
+        }
+
+        // Close any open brackets and braces
+        while (openBrackets > 0) {
+          repaired += ']';
+          openBrackets--;
+        }
+        while (openBraces > 0) {
+          repaired += '}';
+          openBraces--;
+        }
+      }
+    } else {
+      // For other document types, try simple closing
+      let openBraces = (repaired.match(/{/g) || []).length - (repaired.match(/}/g) || []).length;
+      let openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/]/g) || []).length;
+
+      while (openBrackets > 0) {
+        repaired += ']';
+        openBrackets--;
+      }
+      while (openBraces > 0) {
+        repaired += '}';
+        openBraces--;
+      }
+    }
+
+    // Try to parse the repaired JSON
+    const result = JSON.parse(repaired);
+    console.log(`[DocumentProcessing] JSON repair successful. Transactions count: ${result.transactions?.length || 0}`);
+    return result;
+  } catch (error) {
+    console.error('[DocumentProcessing] JSON repair failed:', error.message);
+
+    // Last resort: try to extract at least the header information
+    if (documentType === 'extras_bancar') {
+      try {
+        // Extract what we can using regex
+        const bankNameMatch = jsonString.match(/"bank_name"\s*:\s*"([^"]+)"/);
+        const accountHolderMatch = jsonString.match(/"account_holder"\s*:\s*"([^"]+)"/);
+        const accountNumberMatch = jsonString.match(/"account_number"\s*:\s*"([^"]+)"/);
+        const periodStartMatch = jsonString.match(/"period_start"\s*:\s*"([^"]+)"/);
+        const periodEndMatch = jsonString.match(/"period_end"\s*:\s*"([^"]+)"/);
+        const openingBalanceMatch = jsonString.match(/"opening_balance"\s*:\s*([\d.]+)/);
+        const closingBalanceMatch = jsonString.match(/"closing_balance"\s*:\s*([\d.]+)/);
+        const currencyMatch = jsonString.match(/"currency"\s*:\s*"([^"]+)"/);
+
+        // Try to extract complete transactions
+        const transactions = [];
+        const transactionRegex = /\{\s*"date"\s*:\s*"([^"]+)"\s*,\s*"type"\s*:\s*"([^"]+)"\s*,\s*"amount"\s*:\s*([\d.]+)\s*,\s*"description"\s*:\s*"([^"]*)"\s*(?:,\s*"counterparty"\s*:\s*"([^"]*)")?\s*(?:,\s*"category"\s*:\s*"([^"]*)")?\s*\}/g;
+        let match;
+        while ((match = transactionRegex.exec(jsonString)) !== null) {
+          transactions.push({
+            date: match[1],
+            type: match[2],
+            amount: parseFloat(match[3]),
+            description: match[4],
+            counterparty: match[5] || null,
+            category: match[6] || 'necunoscut',
+          });
+        }
+
+        if (bankNameMatch || accountHolderMatch || transactions.length > 0) {
+          const partialResult = {
+            bank_name: bankNameMatch ? bankNameMatch[1] : null,
+            account_holder: accountHolderMatch ? accountHolderMatch[1] : null,
+            account_number: accountNumberMatch ? accountNumberMatch[1] : null,
+            period_start: periodStartMatch ? periodStartMatch[1] : null,
+            period_end: periodEndMatch ? periodEndMatch[1] : null,
+            opening_balance: openingBalanceMatch ? parseFloat(openingBalanceMatch[1]) : null,
+            closing_balance: closingBalanceMatch ? parseFloat(closingBalanceMatch[1]) : null,
+            currency: currencyMatch ? currencyMatch[1] : 'RON',
+            transactions: transactions,
+            _partial_extraction: true,
+          };
+          console.log(`[DocumentProcessing] Partial extraction successful. Extracted ${transactions.length} transactions`);
+          return partialResult;
+        }
+      } catch (regexError) {
+        console.error('[DocumentProcessing] Regex extraction also failed:', regexError.message);
+      }
+    }
+
+    return null;
+  }
+}
+
+/**
  * Extract structured data from document
  */
 async function extractStructuredData(extractedText, documentType, companyData) {
@@ -831,11 +1004,12 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
       ],
       temperature: 0.2,
       response_format: { type: 'json_object' },
-      max_tokens: isMultiPageDocument ? 16000 : 4000,
+      max_tokens: isMultiPageDocument ? 16384 : 4096,
     });
 
     const responseContent = response.choices[0].message.content;
-    console.log(`[DocumentProcessing] Raw AI response length: ${responseContent?.length || 0}`);
+    const finishReason = response.choices[0].finish_reason;
+    console.log(`[DocumentProcessing] Raw AI response length: ${responseContent?.length || 0}, finish_reason: ${finishReason}`);
 
     // Log first 500 chars of response for debugging
     if (documentType === 'extras_bancar') {
@@ -847,7 +1021,26 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
       return null;
     }
 
-    const result = JSON.parse(responseContent);
+    // Check if response was truncated
+    if (finishReason === 'length') {
+      console.warn('[DocumentProcessing] Response was truncated due to max_tokens limit. Attempting to repair JSON...');
+    }
+
+    let result;
+    try {
+      result = JSON.parse(responseContent);
+    } catch (parseError) {
+      console.warn('[DocumentProcessing] JSON parse failed, attempting to repair truncated JSON...');
+
+      // Try to repair truncated JSON
+      const repairedJson = repairTruncatedJson(responseContent, documentType);
+      if (repairedJson) {
+        result = repairedJson;
+        console.log('[DocumentProcessing] Successfully repaired truncated JSON');
+      } else {
+        throw parseError;
+      }
+    }
     console.log(`[DocumentProcessing] Extracted ${result.transactions?.length || 0} transactions from ${documentType}`);
     console.log(`[DocumentProcessing] Extracted fields: bank_name=${result.bank_name}, account_holder=${result.account_holder}, period_start=${result.period_start}`);
 
