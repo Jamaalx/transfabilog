@@ -24,7 +24,7 @@ import {
   FileCheck,
   Thermometer,
   Globe,
-  Map,
+  Map as MapIcon,
   CreditCard,
   Container,
 } from 'lucide-react'
@@ -78,7 +78,7 @@ const iconMap: Record<string, React.ElementType> = {
   AlertTriangle,
   Thermometer,
   Globe,
-  Map,
+  Map: MapIcon,
   CreditCard,
 }
 
