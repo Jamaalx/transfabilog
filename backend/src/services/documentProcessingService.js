@@ -834,11 +834,21 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
       max_tokens: isMultiPageDocument ? 16000 : 4000,
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const responseContent = response.choices[0].message.content;
+    console.log(`[DocumentProcessing] Raw AI response length: ${responseContent?.length || 0}`);
+
+    if (!responseContent) {
+      console.error('[DocumentProcessing] AI returned empty response');
+      return null;
+    }
+
+    const result = JSON.parse(responseContent);
     console.log(`[DocumentProcessing] Extracted ${result.transactions?.length || 0} transactions from ${documentType}`);
+    console.log(`[DocumentProcessing] Extracted fields: bank_name=${result.bank_name}, account_holder=${result.account_holder}, period_start=${result.period_start}`);
     return result;
   } catch (error) {
-    console.error('Error extracting structured data:', error);
+    console.error('[DocumentProcessing] Error extracting structured data:', error.message);
+    console.error('[DocumentProcessing] Error details:', error.response?.data || error.code || 'No additional details');
     return null;
   }
 }
@@ -1000,6 +1010,20 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
   const startTime = Date.now();
 
   try {
+    // Get existing document data to preserve metadata (like bank_statement_type)
+    const { data: existingDoc, error: fetchError } = await supabase
+      .from('uploaded_documents')
+      .select('extracted_data')
+      .eq('id', documentId)
+      .single();
+
+    if (fetchError) {
+      console.error('[DocumentProcessing] Error fetching existing document:', fetchError);
+    }
+
+    const existingMetadata = existingDoc?.extracted_data || {};
+    console.log(`[DocumentProcessing] Existing metadata: bank_statement_type=${existingMetadata.bank_statement_type}`);
+
     // Update status to processing
     await supabase
       .from('uploaded_documents')
@@ -1045,6 +1069,7 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
 
     // Classify document
     const classification = await classifyDocument(extractedText, fileName);
+    console.log(`[DocumentProcessing] Classification: ${classification.document_type} (${classification.confidence * 100}% confidence)`);
 
     // Extract structured data
     const structuredData = await extractStructuredData(
@@ -1052,6 +1077,12 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       classification.document_type,
       companyData
     );
+
+    if (!structuredData) {
+      console.error(`[DocumentProcessing] structuredData is null for ${classification.document_type}. Text length: ${extractedText.length}`);
+    } else {
+      console.log(`[DocumentProcessing] structuredData keys: ${Object.keys(structuredData).join(', ')}`);
+    }
 
     // Match to entities
     const entityMatches = await matchToEntities(structuredData, companyId);
@@ -1068,6 +1099,7 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       ai_confidence: classification.confidence * 100,
       ai_processed_at: new Date().toISOString(),
       extracted_data: {
+        ...existingMetadata, // Preserve existing metadata (bank_statement_type, etc.)
         raw_text: extractedText.substring(0, rawTextLimit),
         structured: structuredData,
         classification,
