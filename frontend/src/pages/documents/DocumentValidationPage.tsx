@@ -485,6 +485,13 @@ export default function DocumentValidationPage() {
   const isFuel = isFuelDocument(document.document_type)
   const hasExtractedTransactions = (extractedData.transactions?.length || 0) > 0
 
+  // Helper to safely get string values from extracted data
+  const safeString = (value: unknown): string => {
+    if (typeof value === 'string') return value
+    if (typeof value === 'number') return String(value)
+    return ''
+  }
+
   // Bank statement specific
   const isBankStatement = document.document_type === 'extras_bancar'
   const bankStatementType = document.extracted_data?.bank_statement_type || extractedData.bank_statement_type || 'administrativ'
@@ -673,7 +680,7 @@ export default function DocumentValidationPage() {
                       <Hash className="h-4 w-4" /> Nr. Extras
                     </label>
                     <p className="mt-1 p-2 bg-muted/50 rounded">
-                      {extractedData?.document_number || formData.document_number || '-'}
+                      {safeString(extractedData?.document_number) || formData.document_number || '-'}
                     </p>
                   </div>
                 </div>
@@ -685,13 +692,13 @@ export default function DocumentValidationPage() {
                       <Building className="h-4 w-4" /> Titular Cont
                     </label>
                     <p className="mt-1 p-2 bg-muted/50 rounded">
-                      {extractedData?.account_holder || '-'}
+                      {safeString(extractedData?.account_holder) || '-'}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium">CUI Titular</label>
                     <p className="mt-1 p-2 bg-muted/50 rounded">
-                      {extractedData?.account_holder_cui || '-'}
+                      {safeString(extractedData?.account_holder_cui) || '-'}
                     </p>
                   </div>
                 </div>
@@ -702,7 +709,7 @@ export default function DocumentValidationPage() {
                     <CreditCard className="h-4 w-4" /> IBAN Cont
                   </label>
                   <p className="mt-1 p-2 bg-muted/50 rounded font-mono text-sm">
-                    {extractedData?.account_number || '-'}
+                    {safeString(extractedData?.account_number) || '-'}
                   </p>
                 </div>
 
@@ -713,8 +720,8 @@ export default function DocumentValidationPage() {
                       <Calendar className="h-4 w-4" /> Perioada
                     </label>
                     <p className="mt-1 p-2 bg-muted/50 rounded">
-                      {extractedData?.period_start && extractedData?.period_end
-                        ? `${new Date(extractedData.period_start).toLocaleDateString('ro-RO')} - ${new Date(extractedData.period_end).toLocaleDateString('ro-RO')}`
+                      {safeString(extractedData?.period_start) && safeString(extractedData?.period_end)
+                        ? `${new Date(safeString(extractedData.period_start)).toLocaleDateString('ro-RO')} - ${new Date(safeString(extractedData.period_end)).toLocaleDateString('ro-RO')}`
                         : '-'}
                     </p>
                   </div>
