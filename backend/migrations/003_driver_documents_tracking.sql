@@ -157,7 +157,7 @@ CREATE POLICY documents_company_isolation ON documents
     USING (
         company_id IN (
             SELECT company_id FROM user_profiles
-            WHERE user_id = auth.uid()
+            WHERE id = auth.uid()
         )
     );
 
