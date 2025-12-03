@@ -89,6 +89,14 @@ export const driversApi = {
   create: (data: Record<string, unknown>) => api.post('/drivers', data),
   update: (id: string, data: Record<string, unknown>) => api.put(`/drivers/${id}`, data),
   delete: (id: string) => api.delete(`/drivers/${id}`),
+  // Driver documents
+  getDocumentStatus: (id: string) => api.get(`/drivers/${id}/document-status`),
+  getDocumentTypes: () => api.get('/drivers/document-types/list'),
+  getAllAlerts: () => api.get('/drivers/alerts/all'),
+  addDocument: (driverId: string, data: FormData) => api.post(`/drivers/${driverId}/documents`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  deleteDocument: (driverId: string, documentId: string) => api.delete(`/drivers/${driverId}/documents/${documentId}`),
 }
 
 export const clientsApi = {

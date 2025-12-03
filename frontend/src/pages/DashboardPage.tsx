@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { dashboardApi } from '@/lib/api'
+import { Link } from 'react-router-dom'
+import { dashboardApi, driversApi } from '@/lib/api'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import {
   Truck,
@@ -9,6 +12,10 @@ import {
   AlertTriangle,
   TrendingUp,
   TrendingDown,
+  FileText,
+  Clock,
+  XCircle,
+  ChevronRight,
 } from 'lucide-react'
 
 export default function DashboardPage() {
@@ -30,6 +37,11 @@ export default function DashboardPage() {
   const { data: recentTrips } = useQuery({
     queryKey: ['dashboard', 'recent-trips'],
     queryFn: () => dashboardApi.getRecentTrips().then((res) => res.data),
+  })
+
+  const { data: driverAlerts } = useQuery({
+    queryKey: ['driver-alerts'],
+    queryFn: () => driversApi.getAllAlerts().then((res) => res.data),
   })
 
   return (
@@ -256,6 +268,124 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Driver Document Alerts */}
+      {driverAlerts?.alerts && driverAlerts.alerts.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Documente Soferi - Alerte
+            </CardTitle>
+            <Link to="/drivers/documents">
+              <Button variant="outline" size="sm">
+                Vezi toate
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-4 mb-4">
+              <div className="flex items-center gap-2 p-3 bg-red-50 rounded-lg">
+                <XCircle className="h-5 w-5 text-red-500" />
+                <div>
+                  <p className="text-2xl font-bold text-red-600">
+                    {driverAlerts.summary?.expired || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Expirate</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-3 bg-orange-50 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
+                <div>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {driverAlerts.summary?.critical || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Critice (&lt;7 zile)</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-3 bg-yellow-50 rounded-lg">
+                <Clock className="h-5 w-5 text-yellow-500" />
+                <div>
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {driverAlerts.summary?.warning || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Atentie (&lt;30 zile)</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
+                <Users className="h-5 w-5 text-green-500" />
+                <div>
+                  <p className="text-2xl font-bold text-green-600">
+                    {driverAlerts.summary?.driversWithIssues || 0}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Soferi cu probleme</p>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {driverAlerts.alerts.slice(0, 5).map((alert: {
+                driverId: string
+                driverName: string
+                documentType: string
+                documentName: string
+                expiryDate: string
+                daysUntilExpiry: number
+                color: string
+                status: string
+                label: string
+              }, index: number) => (
+                <div
+                  key={index}
+                  className={`flex items-center justify-between p-3 rounded-lg border ${
+                    alert.color === 'red'
+                      ? 'bg-red-50 border-red-200'
+                      : alert.color === 'orange'
+                      ? 'bg-orange-50 border-orange-200'
+                      : 'bg-yellow-50 border-yellow-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {alert.color === 'red' ? (
+                      <XCircle className="h-5 w-5 text-red-500" />
+                    ) : alert.color === 'orange' ? (
+                      <AlertTriangle className="h-5 w-5 text-orange-500" />
+                    ) : (
+                      <Clock className="h-5 w-5 text-yellow-500" />
+                    )}
+                    <div>
+                      <p className="font-medium">{alert.driverName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {alert.documentName} - {alert.daysUntilExpiry < 0
+                          ? `Expirat de ${Math.abs(alert.daysUntilExpiry)} zile`
+                          : `Expira in ${alert.daysUntilExpiry} zile`}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge
+                    variant={
+                      alert.color === 'red'
+                        ? 'destructive'
+                        : alert.color === 'orange'
+                        ? 'default'
+                        : 'secondary'
+                    }
+                    className={
+                      alert.color === 'orange'
+                        ? 'bg-orange-500 hover:bg-orange-600'
+                        : alert.color === 'yellow'
+                        ? 'bg-yellow-500 hover:bg-yellow-600'
+                        : ''
+                    }
+                  >
+                    {alert.label}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
