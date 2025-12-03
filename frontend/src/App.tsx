@@ -12,6 +12,7 @@ import LoginPage from '@/pages/auth/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 // ... alte importuri existente ...
 import VehiclesPage from '@/pages/vehicles/VehiclesPage'
+import VehicleDocumentsPage from '@/pages/vehicles/VehicleDocumentsPage'
 import DriversPage from '@/pages/drivers/DriversPage'
 import DriverDocumentsPage from '@/pages/drivers/DriverDocumentsPage'
 import ClientsPage from '@/pages/clients/ClientsPage'
@@ -77,7 +78,8 @@ function App() {
           {/* <Route path="/" element={<Navigate to="/dashboard" replace />} /> */}
           
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/vehicles/*" element={<VehiclesPage />} />
+          <Route path="/vehicles" element={<VehiclesPage />} />
+          <Route path="/vehicles/documents" element={<VehicleDocumentsPage />} />
           <Route path="/drivers" element={<DriversPage />} />
           <Route path="/drivers/documents" element={<DriverDocumentsPage />} />
           <Route path="/clients/*" element={<ClientsPage />} />

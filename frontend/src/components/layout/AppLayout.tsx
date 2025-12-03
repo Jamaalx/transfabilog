@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils'
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Vehicule', href: '/vehicles', icon: Truck },
+  { name: 'Documente Flotă', href: '/vehicles/documents', icon: FolderCheck },
   { name: 'Soferi', href: '/drivers', icon: Users },
   { name: 'Documente HR', href: '/drivers/documents', icon: FolderCheck },
   { name: 'Clienti', href: '/clients', icon: Building2 },
