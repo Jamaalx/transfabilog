@@ -19,6 +19,7 @@ import {
   CreditCard,
   Milestone,
   HelpCircle,
+  FolderCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -26,6 +27,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Vehicule', href: '/vehicles', icon: Truck },
   { name: 'Soferi', href: '/drivers', icon: Users },
+  { name: 'Documente HR', href: '/drivers/documents', icon: FolderCheck },
   { name: 'Clienti', href: '/clients', icon: Building2 },
   { name: 'Curse', href: '/trips', icon: MapPin },
   { name: 'Documente', href: '/documents', icon: Upload },

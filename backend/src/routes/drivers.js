@@ -371,15 +371,20 @@ router.get('/:id/document-status', param('id').isUUID(), async (req, res, next) 
     // Get document status with alerts
     const status = getDriverDocumentStatus(documents || [], driverProfile);
 
+    // Return in the format expected by frontend
     res.json({
       driver: {
         id: driver.id,
-        name: `${driver.first_name} ${driver.last_name}`,
-        status: driver.status,
+        first_name: driver.first_name,
+        last_name: driver.last_name,
+        phone: driver.phone,
+        email: driver.email,
+        has_international_routes: driver.has_international_routes,
+        has_adr: driver.has_adr,
+        has_frigo: driver.has_frigo,
+        photo_url: driver.photo_url,
       },
-      documentStatus: status,
-      documentTypes: DRIVER_DOCUMENT_TYPES,
-      documentCategories: getDocumentTypesByCategory(),
+      status,
     });
   } catch (error) {
     next(error);
@@ -421,7 +426,7 @@ router.get('/alerts/all', async (req, res, next) => {
     // Get all drivers
     const { data: drivers, error: driversError } = await supabase
       .from('drivers')
-      .select('id, first_name, last_name, status')
+      .select('id, first_name, last_name, status, has_international_routes, has_adr, has_frigo, photo_url')
       .eq('company_id', req.companyId)
       .eq('status', 'activ');
 
@@ -438,20 +443,25 @@ router.get('/alerts/all', async (req, res, next) => {
 
     if (docError) throw docError;
 
-    // Build alerts grouped by driver
+    // Build flat alerts list for dashboard
     const alerts = [];
+    const driversWithIssues = new Set();
     const summary = {
       totalDrivers: drivers.length,
-      driversWithAlerts: 0,
+      driversWithIssues: 0,
       expired: 0,
       critical: 0,
       urgent: 0,
       warning: 0,
+      ok: 0,
     };
 
+    // Count OK documents
+    let okCount = 0;
+
     for (const driver of drivers) {
-      const driverDocs = allDocuments.filter(d => d.entity_id === driver.id);
-      const driverAlerts = [];
+      const driverDocs = (allDocuments || []).filter(d => d.entity_id === driver.id);
+      let driverHasIssue = false;
 
       for (const doc of driverDocs) {
         const config = DRIVER_DOCUMENT_TYPES[doc.doc_type];
@@ -461,7 +471,10 @@ router.get('/alerts/all', async (req, res, next) => {
         const alertStatus = getAlertStatus(daysUntilExpiry, config);
 
         if (alertStatus.priority > 0) {
-          driverAlerts.push({
+          driverHasIssue = true;
+          alerts.push({
+            driverId: driver.id,
+            driverName: `${driver.first_name} ${driver.last_name}`,
             documentId: doc.id,
             documentType: doc.doc_type,
             documentName: config.name,
@@ -475,24 +488,24 @@ router.get('/alerts/all', async (req, res, next) => {
           else if (alertStatus.status === 'critical') summary.critical++;
           else if (alertStatus.status === 'urgent') summary.urgent++;
           else if (alertStatus.status === 'warning') summary.warning++;
+        } else {
+          okCount++;
         }
       }
 
-      if (driverAlerts.length > 0) {
-        summary.driversWithAlerts++;
-        alerts.push({
-          driver: {
-            id: driver.id,
-            name: `${driver.first_name} ${driver.last_name}`,
-          },
-          alerts: driverAlerts.sort((a, b) => b.priority - a.priority),
-          highestPriority: Math.max(...driverAlerts.map(a => a.priority)),
-        });
+      if (driverHasIssue) {
+        driversWithIssues.add(driver.id);
       }
     }
 
-    // Sort by highest priority
-    alerts.sort((a, b) => b.highestPriority - a.highestPriority);
+    summary.driversWithIssues = driversWithIssues.size;
+    summary.ok = okCount;
+
+    // Sort alerts by priority (highest first), then by days until expiry
+    alerts.sort((a, b) => {
+      if (b.priority !== a.priority) return b.priority - a.priority;
+      return (a.daysUntilExpiry || 999) - (b.daysUntilExpiry || 999);
+    });
 
     res.json({
       summary,
