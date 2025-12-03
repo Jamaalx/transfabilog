@@ -837,6 +837,11 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
     const responseContent = response.choices[0].message.content;
     console.log(`[DocumentProcessing] Raw AI response length: ${responseContent?.length || 0}`);
 
+    // Log first 500 chars of response for debugging
+    if (documentType === 'extras_bancar') {
+      console.log(`[DocumentProcessing] AI response preview: ${responseContent?.substring(0, 500)}...`);
+    }
+
     if (!responseContent) {
       console.error('[DocumentProcessing] AI returned empty response');
       return null;
@@ -845,6 +850,13 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
     const result = JSON.parse(responseContent);
     console.log(`[DocumentProcessing] Extracted ${result.transactions?.length || 0} transactions from ${documentType}`);
     console.log(`[DocumentProcessing] Extracted fields: bank_name=${result.bank_name}, account_holder=${result.account_holder}, period_start=${result.period_start}`);
+
+    // Additional detailed logging for bank statements
+    if (documentType === 'extras_bancar') {
+      console.log(`[DocumentProcessing] Bank statement details: opening_balance=${result.opening_balance}, closing_balance=${result.closing_balance}, currency=${result.currency}`);
+      console.log(`[DocumentProcessing] Bank statement result keys: ${Object.keys(result).join(', ')}`);
+    }
+
     return result;
   } catch (error) {
     console.error('[DocumentProcessing] Error extracting structured data:', error.message);
@@ -1040,11 +1052,13 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
 
     let extractedText = '';
     const mimeCategory = getMimeCategory(mimeType);
+    console.log(`[DocumentProcessing] Processing ${fileName}, mime: ${mimeType}, category: ${mimeCategory}`);
 
     // Extract text based on file type
     if (mimeCategory === 'pdf') {
       // Use pdf-parse for PDF files
       extractedText = await extractTextFromPDF(fileBuffer);
+      console.log(`[DocumentProcessing] PDF text extracted, length: ${extractedText.length}, first 200 chars: ${extractedText.substring(0, 200).replace(/\n/g, ' ')}...`);
     } else if (mimeCategory === 'image') {
       // Use OpenAI Vision for images
       const base64 = fileBuffer.toString('base64');
@@ -1118,6 +1132,15 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       if (structuredData.supplier_cui) updateData.supplier_cui = structuredData.supplier_cui;
     }
 
+    // Log what we're about to save for bank statements
+    if (classification.document_type === 'extras_bancar') {
+      console.log(`[DocumentProcessing] Saving bank statement. structured is ${structuredData ? 'PRESENT' : 'NULL'}`);
+      if (structuredData) {
+        console.log(`[DocumentProcessing] Saving structured data with keys: ${Object.keys(structuredData).join(', ')}`);
+        console.log(`[DocumentProcessing] Saving transactions: ${structuredData.transactions?.length || 0}`);
+      }
+    }
+
     // Update document record
     const { data, error } = await supabase
       .from('uploaded_documents')
@@ -1126,7 +1149,19 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error(`[DocumentProcessing] Database update error:`, error);
+      throw error;
+    }
+
+    // Verify what was saved
+    if (classification.document_type === 'extras_bancar' && data) {
+      const savedStructured = data.extracted_data?.structured;
+      console.log(`[DocumentProcessing] Verified saved data - structured is ${savedStructured ? 'PRESENT' : 'MISSING'}`);
+      if (savedStructured) {
+        console.log(`[DocumentProcessing] Verified saved keys: ${Object.keys(savedStructured).join(', ')}`);
+      }
+    }
 
     const processingTime = Date.now() - startTime;
     console.log(`Document ${documentId} processed in ${processingTime}ms`);
