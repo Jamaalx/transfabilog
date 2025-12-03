@@ -26,11 +26,22 @@ import {
   Globe,
   Map,
   CreditCard,
-  Trailer,
+  Container,
 } from 'lucide-react'
 
+// Document type configuration interface
+interface DocTypeConfig {
+  type: string
+  name: string
+  expires: boolean
+  alertDays: number | null
+  icon: string
+  optional?: boolean
+  conditional?: 'adr' | 'frigo'
+}
+
 // Document type configurations with expiration rules
-const TRUCK_DOCUMENTS = [
+const TRUCK_DOCUMENTS: DocTypeConfig[] = [
   { type: 'talon_camion', name: 'Talon', expires: false, alertDays: null, icon: 'FileText' },
   { type: 'itp_camion', name: 'ITP', expires: true, alertDays: 30, icon: 'FileCheck' },
   { type: 'rca_camion', name: 'RCA', expires: true, alertDays: 30, icon: 'Shield' },
@@ -43,7 +54,7 @@ const TRUCK_DOCUMENTS = [
   { type: 'certificat_adr_vehicul', name: 'Certificat ADR', expires: true, alertDays: 60, icon: 'AlertTriangle', conditional: 'adr' },
 ]
 
-const TRAILER_DOCUMENTS = [
+const TRAILER_DOCUMENTS: DocTypeConfig[] = [
   { type: 'talon_remorca', name: 'Talon', expires: false, alertDays: null, icon: 'FileText' },
   { type: 'itp_remorca', name: 'ITP', expires: true, alertDays: 30, icon: 'FileCheck' },
   { type: 'rca_remorca', name: 'RCA', expires: true, alertDays: 30, icon: 'Shield' },
@@ -51,7 +62,7 @@ const TRAILER_DOCUMENTS = [
   { type: 'certificat_adr_remorca', name: 'Certificat ADR', expires: true, alertDays: 60, icon: 'AlertTriangle', conditional: 'adr' },
 ]
 
-const INTERNATIONAL_DOCUMENTS = [
+const INTERNATIONAL_DOCUMENTS: DocTypeConfig[] = [
   { type: 'carnet_tir', name: 'Carnet TIR', expires: true, alertDays: 60, icon: 'Globe' },
   { type: 'autorizatii_cemt', name: 'Autorizații CEMT', expires: true, alertDays: 30, icon: 'FileCheck' },
   { type: 'viniete_strainatate', name: 'Viniete Străinătate', expires: true, alertDays: 7, icon: 'Map' },
@@ -136,7 +147,7 @@ function VehicleDocumentCard({
   onToggle: () => void
 }) {
   const docTypes = vehicleType === 'trailer' ? TRAILER_DOCUMENTS : TRUCK_DOCUMENTS
-  const existingDocs = new Map(documents.map(d => [d.doc_type, d]))
+  const existingDocs = new Map<string, DocumentData>(documents.map(d => [d.doc_type, d]))
 
   // Calculate stats
   let expired = 0, expiring = 0, valid = 0
@@ -177,7 +188,7 @@ function VehicleDocumentCard({
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
               {vehicleType === 'trailer' ? (
-                <Trailer className="h-5 w-5 text-primary" />
+                <Container className="h-5 w-5 text-primary" />
               ) : (
                 <Truck className="h-5 w-5 text-primary" />
               )}
@@ -443,7 +454,7 @@ export default function VehicleDocumentsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Trailer className="h-4 w-4 text-cyan-500" />
+              <Container className="h-4 w-4 text-cyan-500" />
               Semiremorci
             </CardTitle>
           </CardHeader>
@@ -514,7 +525,7 @@ export default function VehicleDocumentsPage() {
             onClick={() => setVehicleType('trailer')}
             className={vehicleType === 'trailer' ? 'bg-cyan-500 hover:bg-cyan-600' : ''}
           >
-            <Trailer className="h-4 w-4 mr-1" />
+            <Container className="h-4 w-4 mr-1" />
             Semiremorci
           </Button>
         </div>
