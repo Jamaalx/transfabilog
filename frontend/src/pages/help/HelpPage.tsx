@@ -208,35 +208,92 @@ export default function HelpPage() {
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-3">
                   <Truck className="h-5 w-5 text-green-600" />
-                  <span className="font-medium">Vehicule - Gestionare Flota</span>
+                  <span className="font-medium">Vehicule - Gestionare Flotă</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-3 text-muted-foreground">
                 <p>
-                  In sectiunea Vehicule poti gestiona toata flota ta:
+                  În secțiunea Vehicule poți gestiona toată flota ta:
                 </p>
                 <div className="space-y-4">
                   <div>
                     <h4 className="font-semibold text-foreground">Camioane (Cap Tractor)</h4>
                     <ul className="list-disc list-inside space-y-1 ml-4">
-                      <li>Numar inmatriculare, marca, model, an fabricatie</li>
+                      <li>Număr înmatriculare, marcă, model, an fabricație</li>
                       <li>Consum mediu de carburant</li>
-                      <li>Status: activ, in service, inactiv</li>
-                      <li>Date GPS (daca este disponibil)</li>
+                      <li>Status: activ, în service, inactiv</li>
+                      <li>Date GPS (dacă este disponibil)</li>
                     </ul>
                   </div>
                   <div>
                     <h4 className="font-semibold text-foreground">Remorci</h4>
                     <ul className="list-disc list-inside space-y-1 ml-4">
-                      <li>Tip: prelata, frigorifica, cisterna, platforma</li>
-                      <li>Capacitate (tone) si volum (m³)</li>
-                      <li>Status si disponibilitate</li>
+                      <li>Tip: prelată, frigorifică, cisternă, platformă</li>
+                      <li>Capacitate (tone) și volum (m³)</li>
+                      <li>Status și disponibilitate</li>
                     </ul>
                   </div>
                 </div>
                 <div className="bg-green-50 p-3 rounded-lg mt-2">
                   <p className="text-sm text-green-800">
-                    <strong>Cum adaugi un vehicul:</strong> Click pe butonul "Adauga Vehicul" → Completeaza formularul → Salveaza
+                    <strong>Cum adaugi un vehicul:</strong> Click pe butonul "Adaugă Vehicul" → Completează formularul → Salvează
+                  </p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Vehicle Documents */}
+            <AccordionItem value="vehicle-documents">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                  <span className="font-medium">Documente Flotă - Vehicule</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-3 text-muted-foreground">
+                <p>
+                  Monitorizează și gestionează toate documentele vehiculelor într-un singur loc:
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-foreground">📋 Cap Tractor (10 documente)</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                      <li><strong>Talon</strong> - Certificat de înmatriculare</li>
+                      <li><strong>ITP</strong> - Inspecția tehnică periodică (alertă 30 zile)</li>
+                      <li><strong>RCA</strong> - Asigurare auto obligatorie (alertă 30 zile)</li>
+                      <li><strong>CASCO</strong> - Asigurare opțională (alertă 30 zile)</li>
+                      <li><strong>Rovinietă</strong> - Taxă de drum (alertă 7 zile)</li>
+                      <li><strong>Copie Conformă</strong> - Licență transport (alertă 90 zile)</li>
+                      <li><strong>Agreare Tahograf</strong> - Certificat agreare (alertă 60 zile)</li>
+                      <li><strong>Verificare Tahograf</strong> - Verificare periodică (alertă 60 zile)</li>
+                      <li><strong>Asigurare CMR</strong> - Asigurare transport (alertă 30 zile)</li>
+                      <li><strong>Certificat ADR</strong> - Mărfuri periculoase (alertă 60 zile) - doar dacă vehiculul are ADR</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-foreground">🚛 Semiremorcă (5 documente)</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                      <li><strong>Talon</strong> - Certificat de înmatriculare</li>
+                      <li><strong>ITP</strong> - Inspecția tehnică periodică (alertă 30 zile)</li>
+                      <li><strong>RCA</strong> - Asigurare auto obligatorie (alertă 30 zile)</li>
+                      <li><strong>Certificat ATP/FRIGO</strong> - Transport frigorific (alertă 90 zile) - doar dacă are FRIGO</li>
+                      <li><strong>Certificat ADR</strong> - Mărfuri periculoase (alertă 60 zile) - doar dacă are ADR</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-foreground">🌍 Internațional (4 documente)</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                      <li><strong>Carnet TIR</strong> - Transport internațional (alertă 60 zile)</li>
+                      <li><strong>Autorizații CEMT</strong> - Autorizații multilaterale (alertă 30 zile)</li>
+                      <li><strong>Viniete Străinătate</strong> - Taxe de drum europene (alertă 7 zile)</li>
+                      <li><strong>Carte Verde</strong> - Asigurare internațională (alertă 30 zile)</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="bg-blue-50 p-3 rounded-lg mt-2 flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-blue-800">
+                    <strong>Coduri culori:</strong> 🔴 Expirat/Critic (sub 7 zile) | 🟠 Urgent (7-30 zile) | 🟡 Atenție (30-90 zile) | 🟢 OK (peste 90 zile)
                   </p>
                 </div>
               </AccordionContent>
@@ -247,24 +304,77 @@ export default function HelpPage() {
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-3">
                   <Users className="h-5 w-5 text-purple-600" />
-                  <span className="font-medium">Soferi - Managementul Echipei</span>
+                  <span className="font-medium">Șoferi - Managementul Echipei</span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-3 text-muted-foreground">
                 <p>
-                  Gestioneaza informatiile despre soferii tai:
+                  Gestionează informațiile despre șoferii tăi:
                 </p>
                 <ul className="list-disc list-inside space-y-2 ml-4">
                   <li><strong>Date personale:</strong> Nume, prenume, telefon, email</li>
-                  <li><strong>Permis conducere:</strong> Categorie si data expirare</li>
-                  <li><strong>Fisa medicala:</strong> Data expirare</li>
-                  <li><strong>Cartela tahograf:</strong> Data expirare</li>
-                  <li><strong>Angajare:</strong> Data angajarii, salariu, diurna</li>
+                  <li><strong>Permis conducere:</strong> Categorie și data expirare</li>
+                  <li><strong>Fișă medicală:</strong> Data expirare</li>
+                  <li><strong>Cartelă tahograf:</strong> Data expirare</li>
+                  <li><strong>Angajare:</strong> Data angajării, salariu, diurnă</li>
                 </ul>
                 <div className="bg-purple-50 p-3 rounded-lg mt-2 flex items-start gap-2">
                   <AlertCircle className="h-5 w-5 text-purple-600 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-purple-800">
-                    <strong>Important:</strong> Platforma te va avertiza automat cand documentele soferilor sunt pe cale sa expire!
+                    <strong>Important:</strong> Platforma te va avertiza automat când documentele șoferilor sunt pe cale să expire!
+                  </p>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Driver Documents */}
+            <AccordionItem value="driver-documents">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-3">
+                  <User className="h-5 w-5 text-cyan-600" />
+                  <span className="font-medium">Documente HR - Șoferi</span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-3 text-muted-foreground">
+                <p>
+                  Sistemul de monitorizare documente pentru șoferi cu alerte automate:
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-semibold text-foreground">📋 Documente Obligatorii (11 documente)</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                      <li><strong>Contract de muncă</strong> - Nu expiră</li>
+                      <li><strong>Carte de identitate</strong> - Alertă 90 zile înainte</li>
+                      <li><strong>Permis de conducere (C+E)</strong> - Alertă 90 zile</li>
+                      <li><strong>Card tahograf</strong> - Alertă 60 zile</li>
+                      <li><strong>Atestat profesional (CPC)</strong> - Alertă 180 zile</li>
+                      <li><strong>Aviz psihologic</strong> - Alertă 60 zile</li>
+                      <li><strong>Fișă aptitudini</strong> - Medicina muncii, alertă 30 zile</li>
+                      <li><strong>SSM Introductiv</strong> - O singură dată la angajare</li>
+                      <li><strong>SSM Periodic</strong> - La 6 luni, alertă 14 zile</li>
+                      <li><strong>PSI Instruire</strong> - La 6 luni, alertă 14 zile</li>
+                      <li><strong>Copie conformă licență</strong> - Alertă 90 zile</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-foreground">🔸 Documente Condiționate</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                      <li><strong>Pașaport</strong> - Obligatoriu doar pentru transport internațional (alertă 180 zile)</li>
+                      <li><strong>Certificat ADR</strong> - Obligatoriu pentru mărfuri periculoase (alertă 90 zile)</li>
+                      <li><strong>Certificat FRIGO/ATP</strong> - Obligatoriu pentru transport frigorific (alertă 90 zile)</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-foreground">📎 Documente Recomandate</h4>
+                    <ul className="list-disc list-inside space-y-1 ml-4 text-sm">
+                      <li><strong>Cazier judiciar</strong> - Reînnoire anuală recomandată</li>
+                      <li><strong>Cazier auto</strong> - Pentru verificarea punctelor de penalizare</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="bg-cyan-50 p-3 rounded-lg mt-2">
+                  <p className="text-sm text-cyan-800">
+                    <strong>Indicator conformitate:</strong> Procentul arată câte documente obligatorii sunt încărcate. Ținta: 100%!
                   </p>
                 </div>
               </AccordionContent>
