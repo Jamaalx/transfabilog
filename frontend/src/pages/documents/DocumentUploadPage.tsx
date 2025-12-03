@@ -38,6 +38,15 @@ import {
   File,
   X,
   Briefcase,
+  AlertTriangle,
+  Globe,
+  Map,
+  Thermometer,
+  Heart,
+  Flame,
+  BookOpen,
+  Car,
+  FileCheck,
 } from 'lucide-react'
 
 interface DocumentType {
@@ -70,17 +79,33 @@ const iconMap: Record<string, React.ElementType> = {
   CreditCard: CreditCard,
   Award: Award,
   File: File,
+  AlertTriangle: AlertTriangle,
+  Globe: Globe,
+  Map: Map,
+  Thermometer: Thermometer,
+  Heart: Heart,
+  Flame: Flame,
+  BookOpen: BookOpen,
+  Car: Car,
+  FileCheck: FileCheck,
+  Brain: Brain,
 }
 
 const categoryColors: Record<string, string> = {
   financial: 'bg-green-100 text-green-800 border-green-300',
   fleet: 'bg-purple-100 text-purple-800 border-purple-300',
+  truck: 'bg-blue-100 text-blue-800 border-blue-300',
+  trailer: 'bg-cyan-100 text-cyan-800 border-cyan-300',
+  international: 'bg-indigo-100 text-indigo-800 border-indigo-300',
   hr: 'bg-pink-100 text-pink-800 border-pink-300',
 }
 
 const categoryLabels: Record<string, string> = {
   financial: 'Financiare',
   fleet: 'Flotă',
+  truck: 'Cap Tractor',
+  trailer: 'Semiremorcă',
+  international: 'Internațional',
   hr: 'Resurse Umane',
 }
 

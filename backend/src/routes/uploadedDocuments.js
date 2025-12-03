@@ -64,27 +64,69 @@ router.use(requireAdminDb);
  */
 router.get('/types', (req, res) => {
   const types = [
-    // Financial
+    // =====================================================
+    // FINANCIARE
+    // =====================================================
     { value: 'factura_intrare', label: 'Facturi de Intrare', category: 'financial', icon: 'FileInput' },
     { value: 'factura_iesire', label: 'Facturi de Ieșire', category: 'financial', icon: 'FileOutput' },
     { value: 'extras_bancar', label: 'Extrase Bancare', category: 'financial', icon: 'Building' },
     { value: 'bon_fiscal', label: 'Bonuri Fiscale', category: 'financial', icon: 'Receipt' },
 
-    // Fleet
-    { value: 'asigurare', label: 'Asigurări (RCA/CASCO)', category: 'fleet', icon: 'Shield' },
-    { value: 'itp', label: 'ITP / Inspecție Tehnică', category: 'fleet', icon: 'ClipboardCheck' },
-    { value: 'rovinieta', label: 'Roviniete', category: 'fleet', icon: 'Road' },
-    { value: 'tahograf', label: 'Documente Tahograf', category: 'fleet', icon: 'Clock' },
+    // =====================================================
+    // CAP TRACTOR (CAMION) - 10 documente
+    // =====================================================
+    { value: 'talon_camion', label: 'Talon Camion', category: 'truck', icon: 'FileText' },
+    { value: 'itp_camion', label: 'ITP Camion', category: 'truck', icon: 'ClipboardCheck' },
+    { value: 'rca_camion', label: 'RCA Camion', category: 'truck', icon: 'Shield' },
+    { value: 'casco_camion', label: 'CASCO Camion', category: 'truck', icon: 'Shield' },
+    { value: 'rovinieta_camion', label: 'Rovinietă', category: 'truck', icon: 'Road' },
+    { value: 'copie_conforma_camion', label: 'Copie Conformă Licență', category: 'truck', icon: 'FileCheck' },
+    { value: 'agreare_tahograf', label: 'Agreare Tahograf', category: 'truck', icon: 'Clock' },
+    { value: 'verificare_tahograf', label: 'Verificare Tahograf', category: 'truck', icon: 'Clock' },
+    { value: 'cmr_asigurare', label: 'Asigurare CMR', category: 'truck', icon: 'FileText' },
+    { value: 'certificat_adr_vehicul', label: 'Certificat ADR Vehicul', category: 'truck', icon: 'AlertTriangle' },
 
-    // HR
-    { value: 'contract_munca', label: 'Contracte de Muncă', category: 'hr', icon: 'Users' },
-    { value: 'permis_conducere', label: 'Permise de Conducere', category: 'hr', icon: 'CreditCard' },
-    { value: 'atestat', label: 'Atestate Profesionale', category: 'hr', icon: 'Award' },
+    // =====================================================
+    // SEMIREMORCĂ - 5 documente
+    // =====================================================
+    { value: 'talon_remorca', label: 'Talon Semiremorcă', category: 'trailer', icon: 'FileText' },
+    { value: 'itp_remorca', label: 'ITP Semiremorcă', category: 'trailer', icon: 'ClipboardCheck' },
+    { value: 'rca_remorca', label: 'RCA Semiremorcă', category: 'trailer', icon: 'Shield' },
+    { value: 'certificat_atp_frigo', label: 'Certificat ATP/FRIGO', category: 'trailer', icon: 'Thermometer' },
+    { value: 'certificat_adr_remorca', label: 'Certificat ADR Remorcă', category: 'trailer', icon: 'AlertTriangle' },
+
+    // =====================================================
+    // INTERNAȚIONAL - 4 documente
+    // =====================================================
+    { value: 'carnet_tir', label: 'Carnet TIR', category: 'international', icon: 'Globe' },
+    { value: 'autorizatii_cemt', label: 'Autorizații CEMT', category: 'international', icon: 'FileCheck' },
+    { value: 'viniete_strainatate', label: 'Viniete Străinătate', category: 'international', icon: 'Map' },
+    { value: 'carte_verde', label: 'Carte Verde', category: 'international', icon: 'CreditCard' },
+
+    // =====================================================
+    // RESURSE UMANE - Documente Șoferi
+    // =====================================================
+    { value: 'contract_munca', label: 'Contract de Muncă', category: 'hr', icon: 'FileText' },
+    { value: 'carte_identitate', label: 'Carte de Identitate', category: 'hr', icon: 'CreditCard' },
+    { value: 'permis_conducere', label: 'Permis de Conducere', category: 'hr', icon: 'CreditCard' },
+    { value: 'card_tahograf', label: 'Card Tahograf', category: 'hr', icon: 'Clock' },
+    { value: 'atestat_cpc', label: 'Atestat CPC', category: 'hr', icon: 'Award' },
+    { value: 'aviz_psihologic', label: 'Aviz Psihologic', category: 'hr', icon: 'Brain' },
+    { value: 'fisa_aptitudini', label: 'Fișă Aptitudini', category: 'hr', icon: 'Heart' },
+    { value: 'ssm_periodic', label: 'SSM Periodic', category: 'hr', icon: 'Shield' },
+    { value: 'psi_instruire', label: 'PSI Instruire', category: 'hr', icon: 'Flame' },
+    { value: 'pasaport', label: 'Pașaport', category: 'hr', icon: 'BookOpen' },
+    { value: 'certificat_adr', label: 'Certificat ADR Șofer', category: 'hr', icon: 'AlertTriangle' },
+    { value: 'certificat_frigo', label: 'Certificat FRIGO/ATP', category: 'hr', icon: 'Thermometer' },
+    { value: 'cazier_judiciar', label: 'Cazier Judiciar', category: 'hr', icon: 'FileText' },
+    { value: 'cazier_auto', label: 'Cazier Auto', category: 'hr', icon: 'Car' },
   ];
 
   const categories = [
     { value: 'financial', label: 'Financiare', color: 'green' },
-    { value: 'fleet', label: 'Flotă', color: 'purple' },
+    { value: 'truck', label: 'Cap Tractor', color: 'blue' },
+    { value: 'trailer', label: 'Semiremorcă', color: 'cyan' },
+    { value: 'international', label: 'Internațional', color: 'purple' },
     { value: 'hr', label: 'Resurse Umane', color: 'pink' },
   ];
 
