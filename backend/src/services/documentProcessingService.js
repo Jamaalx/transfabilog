@@ -37,26 +37,10 @@ const DOCUMENT_TYPES = {
   ROVINIETA: 'rovinieta',
   TAHOGRAF: 'tahograf',
 
-  // HR documents - Basic
+  // HR documents
   CONTRACT_MUNCA: 'contract_munca',
   PERMIS_CONDUCERE: 'permis_conducere',
   ATESTAT: 'atestat',
-
-  // HR documents - Extended (Driver Documents)
-  CARTE_IDENTITATE: 'carte_identitate',
-  PASAPORT: 'pasaport',
-  CARD_TAHOGRAF: 'card_tahograf',
-  ATESTAT_CPC: 'atestat_cpc',
-  AVIZ_PSIHOLOGIC: 'aviz_psihologic',
-  FISA_APTITUDINI: 'fisa_aptitudini',
-  CAZIER_JUDICIAR: 'cazier_judiciar',
-  CAZIER_AUTO: 'cazier_auto',
-  SSM_INTRODUCTIV: 'ssm_introductiv',
-  SSM_PERIODIC: 'ssm_periodic',
-  PSI_INSTRUIRE: 'psi_instruire',
-  LICENTA_TRANSPORT: 'licenta_transport',
-  CERTIFICAT_ADR: 'certificat_adr',
-  CERTIFICAT_FRIGO: 'certificat_frigo',
 
   // Other
   ALTELE: 'altele',
@@ -67,12 +51,7 @@ const DOCUMENT_CATEGORIES = {
   fuel: ['raport_dkv', 'raport_eurowag', 'raport_verag', 'raport_shell', 'raport_omv'],
   transport: ['cmr', 'aviz_expeditie', 'contract_transport'],
   fleet: ['asigurare', 'itp', 'rovinieta', 'tahograf'],
-  hr: [
-    'contract_munca', 'permis_conducere', 'atestat', 'carte_identitate', 'pasaport',
-    'card_tahograf', 'atestat_cpc', 'aviz_psihologic', 'fisa_aptitudini',
-    'cazier_judiciar', 'cazier_auto', 'ssm_introductiv', 'ssm_periodic',
-    'psi_instruire', 'licenta_transport', 'certificat_adr', 'certificat_frigo'
-  ],
+  hr: ['contract_munca', 'permis_conducere', 'atestat'],
   other: ['altele'],
 };
 
@@ -234,51 +213,27 @@ async function classifyDocument(extractedText, fileName) {
   const systemPrompt = `Ești un expert în clasificarea documentelor pentru o companie de transport din România.
 Analizează textul extras din document și clasifică-l într-una din categoriile:
 
-TIPURI DOCUMENTE FINANCIARE:
+TIPURI DOCUMENTE:
 - factura_intrare: Facturi primite de la furnizori
 - factura_iesire: Facturi emise către clienți
 - extras_bancar: Extrase de cont bancar
 - bon_fiscal: Bonuri fiscale, chitanțe
-
-RAPOARTE COMBUSTIBIL:
 - raport_dkv: Rapoarte de alimentare DKV
 - raport_eurowag: Rapoarte Eurowag
 - raport_verag: Rapoarte Verag
 - raport_shell: Rapoarte Shell
 - raport_omv: Rapoarte OMV
-
-DOCUMENTE TRANSPORT:
 - cmr: Scrisori de transport internațional CMR
 - aviz_expeditie: Avize de expediție
 - contract_transport: Contracte de transport
-
-DOCUMENTE FLOTĂ:
 - asigurare: Polițe de asigurare (RCA, CASCO)
 - itp: Certificate ITP / Inspecție tehnică
 - rovinieta: Roviniete
-- tahograf: Documente tahograf (atestate vehicul)
-
-DOCUMENTE HR / ȘOFERI:
+- tahograf: Documente tahograf
 - contract_munca: Contracte de muncă
-- carte_identitate: Buletin / Carte de identitate
-- pasaport: Pașaport
-- permis_conducere: Permise de conducere (cat. C, E, etc.)
-- card_tahograf: Card tahograf digital (șofer)
-- atestat_cpc: Atestat profesional CPC (Certificat Competență Profesională)
-- aviz_psihologic: Aviz psihologic pentru conducători auto
-- fisa_aptitudini: Fișă de aptitudini medicina muncii
-- cazier_judiciar: Cazier judiciar
-- cazier_auto: Cazier auto (istoric puncte penalizare)
-- ssm_introductiv: Instruire SSM introductivă (fișă)
-- ssm_periodic: Instruire SSM periodică (fișă)
-- psi_instruire: Instruire PSI (prevenire incendii)
-- licenta_transport: Copie conformă licență transport
-- certificat_adr: Certificat ADR (mărfuri periculoase)
-- certificat_frigo: Certificat FRIGO/ATP (transport frigorific)
-- atestat: Alte atestate profesionale
-
-ALTELE:
-- altele: Alte documente neîncadrate
+- permis_conducere: Permise de conducere
+- atestat: Atestate profesionale
+- altele: Alte documente
 
 Răspunde DOAR cu un JSON valid.`;
 
@@ -315,179 +270,6 @@ Răspunde cu JSON:
       confidence: 0,
       reasoning: 'Eroare la clasificare',
     };
-  }
-}
-
-/**
- * Attempt to repair truncated JSON from AI response
- * This handles cases where the response was cut off due to max_tokens limit
- */
-function repairTruncatedJson(jsonString, documentType) {
-  if (!jsonString || typeof jsonString !== 'string') {
-    return null;
-  }
-
-  try {
-    // First, try parsing as-is (maybe it's actually valid)
-    return JSON.parse(jsonString);
-  } catch (e) {
-    // JSON is invalid, try to repair it
-  }
-
-  try {
-    let repaired = jsonString.trim();
-
-    // For bank statements, try to close the transactions array and object
-    if (documentType === 'extras_bancar') {
-      // Find if we're inside the transactions array
-      const transactionsStart = repaired.indexOf('"transactions"');
-      if (transactionsStart !== -1) {
-        // Count open brackets to determine nesting level
-        let openBraces = 0;
-        let openBrackets = 0;
-        let inString = false;
-        let escape = false;
-
-        for (let i = 0; i < repaired.length; i++) {
-          const char = repaired[i];
-
-          if (escape) {
-            escape = false;
-            continue;
-          }
-
-          if (char === '\\') {
-            escape = true;
-            continue;
-          }
-
-          if (char === '"' && !escape) {
-            inString = !inString;
-            continue;
-          }
-
-          if (!inString) {
-            if (char === '{') openBraces++;
-            if (char === '}') openBraces--;
-            if (char === '[') openBrackets++;
-            if (char === ']') openBrackets--;
-          }
-        }
-
-        // Remove trailing incomplete content (partial string or number)
-        // Find the last complete JSON element
-        let lastValidIndex = repaired.length - 1;
-
-        // Look for last complete transaction (ends with })
-        const lastClosingBrace = repaired.lastIndexOf('}');
-        if (lastClosingBrace > 0) {
-          // Check if there's incomplete content after the last }
-          const afterBrace = repaired.substring(lastClosingBrace + 1).trim();
-          if (afterBrace && !afterBrace.startsWith(']') && !afterBrace.startsWith(',')) {
-            // There's garbage after the last closing brace, truncate there
-            repaired = repaired.substring(0, lastClosingBrace + 1);
-            // Recalculate brackets
-            openBraces = 0;
-            openBrackets = 0;
-            inString = false;
-            escape = false;
-            for (let i = 0; i < repaired.length; i++) {
-              const char = repaired[i];
-              if (escape) { escape = false; continue; }
-              if (char === '\\') { escape = true; continue; }
-              if (char === '"' && !escape) { inString = !inString; continue; }
-              if (!inString) {
-                if (char === '{') openBraces++;
-                if (char === '}') openBraces--;
-                if (char === '[') openBrackets++;
-                if (char === ']') openBrackets--;
-              }
-            }
-          }
-        }
-
-        // Close any open brackets and braces
-        while (openBrackets > 0) {
-          repaired += ']';
-          openBrackets--;
-        }
-        while (openBraces > 0) {
-          repaired += '}';
-          openBraces--;
-        }
-      }
-    } else {
-      // For other document types, try simple closing
-      let openBraces = (repaired.match(/{/g) || []).length - (repaired.match(/}/g) || []).length;
-      let openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/]/g) || []).length;
-
-      while (openBrackets > 0) {
-        repaired += ']';
-        openBrackets--;
-      }
-      while (openBraces > 0) {
-        repaired += '}';
-        openBraces--;
-      }
-    }
-
-    // Try to parse the repaired JSON
-    const result = JSON.parse(repaired);
-    console.log(`[DocumentProcessing] JSON repair successful. Transactions count: ${result.transactions?.length || 0}`);
-    return result;
-  } catch (error) {
-    console.error('[DocumentProcessing] JSON repair failed:', error.message);
-
-    // Last resort: try to extract at least the header information
-    if (documentType === 'extras_bancar') {
-      try {
-        // Extract what we can using regex
-        const bankNameMatch = jsonString.match(/"bank_name"\s*:\s*"([^"]+)"/);
-        const accountHolderMatch = jsonString.match(/"account_holder"\s*:\s*"([^"]+)"/);
-        const accountNumberMatch = jsonString.match(/"account_number"\s*:\s*"([^"]+)"/);
-        const periodStartMatch = jsonString.match(/"period_start"\s*:\s*"([^"]+)"/);
-        const periodEndMatch = jsonString.match(/"period_end"\s*:\s*"([^"]+)"/);
-        const openingBalanceMatch = jsonString.match(/"opening_balance"\s*:\s*([\d.]+)/);
-        const closingBalanceMatch = jsonString.match(/"closing_balance"\s*:\s*([\d.]+)/);
-        const currencyMatch = jsonString.match(/"currency"\s*:\s*"([^"]+)"/);
-
-        // Try to extract complete transactions
-        const transactions = [];
-        const transactionRegex = /\{\s*"date"\s*:\s*"([^"]+)"\s*,\s*"type"\s*:\s*"([^"]+)"\s*,\s*"amount"\s*:\s*([\d.]+)\s*,\s*"description"\s*:\s*"([^"]*)"\s*(?:,\s*"counterparty"\s*:\s*"([^"]*)")?\s*(?:,\s*"category"\s*:\s*"([^"]*)")?\s*\}/g;
-        let match;
-        while ((match = transactionRegex.exec(jsonString)) !== null) {
-          transactions.push({
-            date: match[1],
-            type: match[2],
-            amount: parseFloat(match[3]),
-            description: match[4],
-            counterparty: match[5] || null,
-            category: match[6] || 'necunoscut',
-          });
-        }
-
-        if (bankNameMatch || accountHolderMatch || transactions.length > 0) {
-          const partialResult = {
-            bank_name: bankNameMatch ? bankNameMatch[1] : null,
-            account_holder: accountHolderMatch ? accountHolderMatch[1] : null,
-            account_number: accountNumberMatch ? accountNumberMatch[1] : null,
-            period_start: periodStartMatch ? periodStartMatch[1] : null,
-            period_end: periodEndMatch ? periodEndMatch[1] : null,
-            opening_balance: openingBalanceMatch ? parseFloat(openingBalanceMatch[1]) : null,
-            closing_balance: closingBalanceMatch ? parseFloat(closingBalanceMatch[1]) : null,
-            currency: currencyMatch ? currencyMatch[1] : 'RON',
-            transactions: transactions,
-            _partial_extraction: true,
-          };
-          console.log(`[DocumentProcessing] Partial extraction successful. Extracted ${transactions.length} transactions`);
-          return partialResult;
-        }
-      } catch (regexError) {
-        console.error('[DocumentProcessing] Regex extraction also failed:', regexError.message);
-      }
-    }
-
-    return null;
   }
 }
 
@@ -759,218 +541,6 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
   "trailer_registration": "nr remorcă" sau null,
   "driver_name": "nume șofer"
 }`,
-
-    // ============================================
-    // DOCUMENTE HR / ȘOFERI - Extraction Prompts
-    // ============================================
-
-    carte_identitate: `Extrage din această carte de identitate / buletin:
-{
-  "document_number": "seria și numărul (ex: RX123456)",
-  "cnp": "CNP (13 cifre)",
-  "first_name": "prenume",
-  "last_name": "nume",
-  "birth_date": "YYYY-MM-DD",
-  "birth_place": "locul nașterii",
-  "address": "adresa completă",
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "expiry_date": "YYYY-MM-DD data expirării",
-  "issuing_authority": "emitent (ex: SPCLEP Sector 1)"
-}`,
-
-    pasaport: `Extrage din acest pașaport:
-{
-  "document_number": "număr pașaport",
-  "cnp": "CNP dacă apare",
-  "first_name": "prenume",
-  "last_name": "nume",
-  "birth_date": "YYYY-MM-DD",
-  "birth_place": "locul nașterii",
-  "nationality": "cetățenie",
-  "sex": "M sau F",
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "expiry_date": "YYYY-MM-DD data expirării",
-  "issuing_authority": "autoritatea emitentă"
-}`,
-
-    permis_conducere: `Extrage din acest permis de conducere:
-{
-  "document_number": "număr permis",
-  "cnp": "CNP",
-  "first_name": "prenume",
-  "last_name": "nume",
-  "birth_date": "YYYY-MM-DD",
-  "birth_place": "locul nașterii",
-  "categories": ["categoriile de pe permis: AM, A1, A2, A, B, C, CE, D, etc."],
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "expiry_date": "YYYY-MM-DD data expirării (a celei mai recente categorii)",
-  "category_dates": {"C": "YYYY-MM-DD", "CE": "YYYY-MM-DD"} sau null,
-  "issuing_authority": "autoritatea emitentă",
-  "restrictions": "restricții dacă există" sau null
-}`,
-
-    card_tahograf: `Extrage din acest card tahograf:
-{
-  "document_number": "număr card",
-  "card_type": "CONDUCĂTOR sau COMPANIE sau ATELIER",
-  "first_name": "prenume",
-  "last_name": "nume",
-  "birth_date": "YYYY-MM-DD",
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "expiry_date": "YYYY-MM-DD data expirării",
-  "issuing_country": "țara emitentă (RO, etc.)",
-  "issuing_authority": "autoritatea emitentă"
-}`,
-
-    atestat_cpc: `Extrage din acest atestat CPC (Certificat Competență Profesională):
-{
-  "document_number": "număr atestat/certificat",
-  "first_name": "prenume",
-  "last_name": "nume",
-  "cnp": "CNP dacă apare",
-  "certificate_type": "marfă sau persoane",
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "expiry_date": "YYYY-MM-DD data expirării",
-  "issuing_authority": "autoritatea emitentă (ARR, etc.)",
-  "training_hours": număr ore pregătire dacă apare sau null
-}`,
-
-    aviz_psihologic: `Extrage din acest aviz psihologic:
-{
-  "document_number": "număr aviz",
-  "first_name": "prenume",
-  "last_name": "nume",
-  "cnp": "CNP",
-  "result": "APT sau INAPT",
-  "purpose": "scopul avizului (conducător auto, etc.)",
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "expiry_date": "YYYY-MM-DD data expirării",
-  "psychologist_name": "numele psihologului",
-  "clinic_name": "denumirea clinicii/cabinetului"
-}`,
-
-    fisa_aptitudini: `Extrage din această fișă de aptitudini / medicina muncii:
-{
-  "document_number": "număr fișă" sau null,
-  "first_name": "prenume",
-  "last_name": "nume",
-  "cnp": "CNP",
-  "result": "APT sau INAPT sau APT CONDIȚIONAT",
-  "job_position": "funcția/postul (șofer, etc.)",
-  "issue_date": "YYYY-MM-DD data examinării",
-  "expiry_date": "YYYY-MM-DD următoarea examinare",
-  "validity_months": număr luni valabilitate sau null,
-  "doctor_name": "numele medicului",
-  "clinic_name": "denumirea clinicii/cabinetului",
-  "restrictions": "restricții medicale" sau null
-}`,
-
-    cazier_judiciar: `Extrage din acest cazier judiciar:
-{
-  "document_number": "număr certificat",
-  "first_name": "prenume",
-  "last_name": "nume",
-  "cnp": "CNP",
-  "father_name": "prenume tată",
-  "mother_name": "prenume mamă",
-  "birth_date": "YYYY-MM-DD",
-  "birth_place": "locul nașterii",
-  "result": "fără antecedente sau cu antecedente",
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "issuing_authority": "autoritatea emitentă"
-}`,
-
-    cazier_auto: `Extrage din acest cazier auto / fișă de evidență:
-{
-  "document_number": "număr document",
-  "first_name": "prenume",
-  "last_name": "nume",
-  "cnp": "CNP",
-  "license_number": "număr permis conducere",
-  "total_points": număr puncte penalizare sau 0,
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "incidents": ["lista incidente/abateri"] sau [],
-  "issuing_authority": "autoritatea emitentă"
-}`,
-
-    ssm_introductiv: `Extrage din această fișă de instruire SSM introductivă:
-{
-  "document_number": "număr fișă" sau null,
-  "first_name": "prenume angajat",
-  "last_name": "nume angajat",
-  "cnp": "CNP",
-  "job_position": "funcția",
-  "training_date": "YYYY-MM-DD data instruirii",
-  "trainer_name": "numele persoanei care a efectuat instruirea",
-  "duration_hours": număr ore sau null,
-  "company_name": "denumirea firmei"
-}`,
-
-    ssm_periodic: `Extrage din această fișă de instruire SSM periodică:
-{
-  "document_number": "număr fișă" sau null,
-  "first_name": "prenume angajat",
-  "last_name": "nume angajat",
-  "cnp": "CNP",
-  "job_position": "funcția",
-  "training_date": "YYYY-MM-DD data instruirii",
-  "expiry_date": "YYYY-MM-DD următoarea instruire (6 luni de la training_date)",
-  "trainer_name": "numele persoanei care a efectuat instruirea",
-  "topics": ["teme abordate"] sau null,
-  "company_name": "denumirea firmei"
-}`,
-
-    psi_instruire: `Extrage din această fișă de instruire PSI:
-{
-  "document_number": "număr fișă" sau null,
-  "first_name": "prenume angajat",
-  "last_name": "nume angajat",
-  "cnp": "CNP",
-  "job_position": "funcția",
-  "training_date": "YYYY-MM-DD data instruirii",
-  "expiry_date": "YYYY-MM-DD următoarea instruire",
-  "trainer_name": "numele persoanei care a efectuat instruirea",
-  "company_name": "denumirea firmei"
-}`,
-
-    licenta_transport: `Extrage din această copie conformă / licență de transport:
-{
-  "document_number": "număr licență/copie conformă",
-  "company_name": "denumirea firmei titulare",
-  "company_cui": "CUI firmă",
-  "transport_type": "marfă sau persoane",
-  "vehicle_registration": "număr înmatriculare vehicul" sau null,
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "expiry_date": "YYYY-MM-DD data expirării",
-  "issuing_authority": "autoritatea emitentă (ARR)"
-}`,
-
-    certificat_adr: `Extrage din acest certificat ADR:
-{
-  "document_number": "număr certificat",
-  "first_name": "prenume",
-  "last_name": "nume",
-  "birth_date": "YYYY-MM-DD",
-  "adr_classes": ["clasele ADR: 1, 2, 3, 4.1, 4.2, 4.3, 5.1, 5.2, 6.1, 6.2, 7, 8, 9"] sau [],
-  "specializations": ["cisterne, explozivi, radioactive"] sau [],
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "expiry_date": "YYYY-MM-DD data expirării",
-  "issuing_country": "țara emitentă",
-  "issuing_authority": "autoritatea emitentă"
-}`,
-
-    certificat_frigo: `Extrage din acest certificat ATP/FRIGO:
-{
-  "document_number": "număr certificat",
-  "vehicle_registration": "număr înmatriculare vehicul",
-  "vehicle_type": "tip vehicul (semiremorcă, camion, etc.)",
-  "atp_class": "clasa ATP (FRC, FNA, etc.)",
-  "temperature_range": "interval temperatură (ex: -20°C la +12°C)",
-  "issue_date": "YYYY-MM-DD data eliberării",
-  "expiry_date": "YYYY-MM-DD data expirării",
-  "issuing_authority": "autoritatea emitentă (RAR)"
-}`,
-
     default: `Extrage informațiile relevante:
 {
   "document_number": "număr document dacă există",
@@ -1004,56 +574,14 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
       ],
       temperature: 0.2,
       response_format: { type: 'json_object' },
-      max_tokens: isMultiPageDocument ? 16384 : 4096,
+      max_tokens: isMultiPageDocument ? 16000 : 4000,
     });
 
-    const responseContent = response.choices[0].message.content;
-    const finishReason = response.choices[0].finish_reason;
-    console.log(`[DocumentProcessing] Raw AI response length: ${responseContent?.length || 0}, finish_reason: ${finishReason}`);
-
-    // Log first 500 chars of response for debugging
-    if (documentType === 'extras_bancar') {
-      console.log(`[DocumentProcessing] AI response preview: ${responseContent?.substring(0, 500)}...`);
-    }
-
-    if (!responseContent) {
-      console.error('[DocumentProcessing] AI returned empty response');
-      return null;
-    }
-
-    // Check if response was truncated
-    if (finishReason === 'length') {
-      console.warn('[DocumentProcessing] Response was truncated due to max_tokens limit. Attempting to repair JSON...');
-    }
-
-    let result;
-    try {
-      result = JSON.parse(responseContent);
-    } catch (parseError) {
-      console.warn('[DocumentProcessing] JSON parse failed, attempting to repair truncated JSON...');
-
-      // Try to repair truncated JSON
-      const repairedJson = repairTruncatedJson(responseContent, documentType);
-      if (repairedJson) {
-        result = repairedJson;
-        console.log('[DocumentProcessing] Successfully repaired truncated JSON');
-      } else {
-        throw parseError;
-      }
-    }
+    const result = JSON.parse(response.choices[0].message.content);
     console.log(`[DocumentProcessing] Extracted ${result.transactions?.length || 0} transactions from ${documentType}`);
-    console.log(`[DocumentProcessing] Extracted fields: bank_name=${result.bank_name}, account_holder=${result.account_holder}, period_start=${result.period_start}`);
-
-    // Additional detailed logging for bank statements
-    if (documentType === 'extras_bancar') {
-      console.log(`[DocumentProcessing] Bank statement details: opening_balance=${result.opening_balance}, closing_balance=${result.closing_balance}, currency=${result.currency}`);
-      console.log(`[DocumentProcessing] Bank statement result keys: ${Object.keys(result).join(', ')}`);
-    }
-
     return result;
   } catch (error) {
-    console.error('[DocumentProcessing] Error extracting structured data:', error.message);
-    console.error('[DocumentProcessing] Error details:', error.response?.data || error.code || 'No additional details');
+    console.error('Error extracting structured data:', error);
     return null;
   }
 }
@@ -1215,20 +743,6 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
   const startTime = Date.now();
 
   try {
-    // Get existing document data to preserve metadata (like bank_statement_type)
-    const { data: existingDoc, error: fetchError } = await supabase
-      .from('uploaded_documents')
-      .select('extracted_data')
-      .eq('id', documentId)
-      .single();
-
-    if (fetchError) {
-      console.error('[DocumentProcessing] Error fetching existing document:', fetchError);
-    }
-
-    const existingMetadata = existingDoc?.extracted_data || {};
-    console.log(`[DocumentProcessing] Existing metadata: bank_statement_type=${existingMetadata.bank_statement_type}`);
-
     // Update status to processing
     await supabase
       .from('uploaded_documents')
@@ -1245,13 +759,11 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
 
     let extractedText = '';
     const mimeCategory = getMimeCategory(mimeType);
-    console.log(`[DocumentProcessing] Processing ${fileName}, mime: ${mimeType}, category: ${mimeCategory}`);
 
     // Extract text based on file type
     if (mimeCategory === 'pdf') {
       // Use pdf-parse for PDF files
       extractedText = await extractTextFromPDF(fileBuffer);
-      console.log(`[DocumentProcessing] PDF text extracted, length: ${extractedText.length}, first 200 chars: ${extractedText.substring(0, 200).replace(/\n/g, ' ')}...`);
     } else if (mimeCategory === 'image') {
       // Use OpenAI Vision for images
       const base64 = fileBuffer.toString('base64');
@@ -1276,7 +788,6 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
 
     // Classify document
     const classification = await classifyDocument(extractedText, fileName);
-    console.log(`[DocumentProcessing] Classification: ${classification.document_type} (${classification.confidence * 100}% confidence)`);
 
     // Extract structured data
     const structuredData = await extractStructuredData(
@@ -1284,12 +795,6 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       classification.document_type,
       companyData
     );
-
-    if (!structuredData) {
-      console.error(`[DocumentProcessing] structuredData is null for ${classification.document_type}. Text length: ${extractedText.length}`);
-    } else {
-      console.log(`[DocumentProcessing] structuredData keys: ${Object.keys(structuredData).join(', ')}`);
-    }
 
     // Match to entities
     const entityMatches = await matchToEntities(structuredData, companyId);
@@ -1306,7 +811,6 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       ai_confidence: classification.confidence * 100,
       ai_processed_at: new Date().toISOString(),
       extracted_data: {
-        ...existingMetadata, // Preserve existing metadata (bank_statement_type, etc.)
         raw_text: extractedText.substring(0, rawTextLimit),
         structured: structuredData,
         classification,
@@ -1325,15 +829,6 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       if (structuredData.supplier_cui) updateData.supplier_cui = structuredData.supplier_cui;
     }
 
-    // Log what we're about to save for bank statements
-    if (classification.document_type === 'extras_bancar') {
-      console.log(`[DocumentProcessing] Saving bank statement. structured is ${structuredData ? 'PRESENT' : 'NULL'}`);
-      if (structuredData) {
-        console.log(`[DocumentProcessing] Saving structured data with keys: ${Object.keys(structuredData).join(', ')}`);
-        console.log(`[DocumentProcessing] Saving transactions: ${structuredData.transactions?.length || 0}`);
-      }
-    }
-
     // Update document record
     const { data, error } = await supabase
       .from('uploaded_documents')
@@ -1342,19 +837,7 @@ async function processDocument(documentId, companyId, fileBuffer, fileName, mime
       .select()
       .single();
 
-    if (error) {
-      console.error(`[DocumentProcessing] Database update error:`, error);
-      throw error;
-    }
-
-    // Verify what was saved
-    if (classification.document_type === 'extras_bancar' && data) {
-      const savedStructured = data.extracted_data?.structured;
-      console.log(`[DocumentProcessing] Verified saved data - structured is ${savedStructured ? 'PRESENT' : 'MISSING'}`);
-      if (savedStructured) {
-        console.log(`[DocumentProcessing] Verified saved keys: ${Object.keys(savedStructured).join(', ')}`);
-      }
-    }
+    if (error) throw error;
 
     const processingTime = Date.now() - startTime;
     console.log(`Document ${documentId} processed in ${processingTime}ms`);
