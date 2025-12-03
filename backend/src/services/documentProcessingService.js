@@ -831,7 +831,7 @@ EXEMPLE DIN EXTRASUL BANCA TRANSILVANIA:
       ],
       temperature: 0.2,
       response_format: { type: 'json_object' },
-      max_tokens: isMultiPageDocument ? 16000 : 4000,
+      max_tokens: isMultiPageDocument ? 64000 : 4000,
     });
 
     const responseContent = response.choices[0].message.content;
